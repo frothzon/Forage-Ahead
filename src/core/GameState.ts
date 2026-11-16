@@ -37,6 +37,23 @@ export interface PlacedBuildingSave {
   tx: number;
   ty: number;
   craftQueue?: CraftQueueJob[];
+  cropStage?: number;
+}
+
+export interface SavedNodeData {
+  tx: number;
+  ty: number;
+  kind: string;
+  biome: string;
+  hp: number;
+}
+
+export interface SavedDropData {
+  x: number;
+  y: number;
+  itemId: string;
+  qty: number;
+  isCoin: boolean;
 }
 
 export interface SaveData {
@@ -59,6 +76,8 @@ export interface SaveData {
   selectedHotbarIndex: number;
   buildings: PlacedBuildingSave[];
   overlays: Array<{ tx: number; ty: number; type: 'dirt' | 'road' | 'bridge' }>;
+  savedNodes?: SavedNodeData[];
+  savedDrops?: SavedDropData[];
   playerPos?: { x: number; y: number };
 }
 
@@ -112,6 +131,8 @@ export class GameState {
 
   public buildings: PlacedBuildingSave[] = [];
   public overlays: Array<{ tx: number; ty: number; type: 'dirt' | 'road' | 'bridge' }> = [];
+  public savedNodes?: SavedNodeData[];
+  public savedDrops?: SavedDropData[];
   public playerPos?: { x: number; y: number };
 
   private listeners: Array<() => void> = [];
@@ -231,6 +252,8 @@ export class GameState {
     this.pendingBuildRecipeId = null;
     this.buildings = [];
     this.overlays = [];
+    this.savedNodes = undefined;
+    this.savedDrops = undefined;
     this.playerPos = undefined;
     this.hp = this.getMaxHp();
     this.energy = this.getMaxEnergy();
@@ -686,6 +709,8 @@ export class GameState {
       selectedHotbarIndex: this.selectedHotbarIndex,
       buildings: this.buildings,
       overlays: this.overlays,
+      savedNodes: this.savedNodes,
+      savedDrops: this.savedDrops,
       playerPos: this.playerPos,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -728,6 +753,8 @@ export class GameState {
       this.selectedHotbarIndex = data.selectedHotbarIndex ?? 0;
       this.buildings = data.buildings ?? [];
       this.overlays = data.overlays ?? [];
+      this.savedNodes = data.savedNodes;
+      this.savedDrops = data.savedDrops;
       this.playerPos = data.playerPos;
       this.emit();
       return true;

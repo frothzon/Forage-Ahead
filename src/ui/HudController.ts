@@ -484,6 +484,7 @@ export class HudController {
           <button class="hud-btn" data-nav="map" id="hud-map-btn">Islands [M]</button>
           <button class="hud-btn" data-nav="progress" id="hud-progress-btn">Progress & Debug [P]</button>
           <button class="hud-btn primary" data-action="save">Save</button>
+          <button class="hud-btn" data-action="music" id="hud-music-btn">Music: Off</button>
           <button class="hud-btn" data-action="mute" id="hud-mute-btn">SFX</button>
         </div>
       `;
@@ -492,6 +493,10 @@ export class HudController {
         el.onclick = () => this.toggleModal(el.dataset.nav as HudModal);
       });
       this.chromeLayer.querySelector<HTMLElement>('[data-action="save"]')!.onclick = () => this.callbacks.onSave();
+      this.chromeLayer.querySelector<HTMLElement>('[data-action="music"]')!.onclick = () => {
+        SFX.setMusicEnabled(!SFX.musicEnabled);
+        this.renderChrome();
+      };
       this.chromeLayer.querySelector<HTMLElement>('[data-action="mute"]')!.onclick = () => {
         SFX.muted = !SFX.muted;
         this.renderChrome();
@@ -515,6 +520,11 @@ export class HudController {
     });
     const muteBtn = this.chromeLayer.querySelector<HTMLElement>('#hud-mute-btn');
     if (muteBtn) muteBtn.textContent = SFX.muted ? 'Unmute' : 'SFX';
+    const musicBtn = this.chromeLayer.querySelector<HTMLElement>('#hud-music-btn');
+    if (musicBtn) {
+      musicBtn.textContent = SFX.musicEnabled ? 'Music: On' : 'Music: Off';
+      musicBtn.classList.toggle('primary', SFX.musicEnabled);
+    }
   }
 
   private renderBanners(): void {
@@ -1204,10 +1214,30 @@ export class HudController {
         </div>
       `;
 
+    const isGrandVictory =
+      gameState.clearedDungeons.size >= 4 && gameState.ownedIslands.size >= ISLANDS.length;
+
+    const victoryBannerHtml = isGrandVictory
+      ? `
+        <div class="hud-panel" style="padding:10px 14px; margin-bottom:12px; background:linear-gradient(90deg, #2b4a2f, #4c3b14); border-color:#ffe066; text-align:center;">
+          <strong style="color:#ffe596; font-size:14px;">GRAND VICTORY — ALL 25 ISLANDS & 4 BOSS DUNGEONS CONQUERED!</strong>
+          <div style="font-size:11px; color:#e6ffea; margin-top:2px;">You have mastered the Isles of Foraging and claimed all 4 Elemental Relic Rods.</div>
+        </div>
+      `
+      : '';
+
     return `
+      ${victoryBannerHtml}
       <!-- LIVE COMMAND CENTER TELEMETRY -->
       <div class="hud-panel" style="padding:10px; margin-bottom:12px; background:#0d1522;">
-        <div style="font-size:13px; font-weight:700; color:#ffe596; margin-bottom:7px;">Command Center — Live Game State</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; flex-wrap:wrap; gap:8px;">
+          <div style="font-size:13px; font-weight:700; color:#ffe596;">Command Center — Live Game State</div>
+          <div style="display:flex; align-items:center; gap:8px; font-size:11px;">
+            <span style="color:#9db6cf;">Volume:</span>
+            <input id="hud-vol-slider" type="range" min="0" max="100" value="${Math.round(SFX.masterVolume * 100)}" style="width:84px; accent-color:#ffe066;" />
+            <span id="hud-vol-label">${Math.round(SFX.masterVolume * 100)}%</span>
+          </div>
+        </div>
         <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; font-size:11px;">
           <div><span style="color:#8ca8c4;">Hero:</span> <strong>${gameState.heroClass} Lv.${gameState.level}</strong></div>
           <div><span style="color:#8ca8c4;">HP / EN:</span> <strong>${Math.ceil(gameState.hp)}/${gameState.getMaxHp()} • ${Math.ceil(gameState.energy)}/${gameState.getMaxEnergy()}</strong></div>
@@ -1253,19 +1283,23 @@ export class HudController {
       <!-- NEXT / OUTSTANDING ITEMS -->
       <div style="font-size:13px; font-weight:700; color:#ffe596; margin-bottom:6px;">Next / Outstanding Items To Complete (${OUTSTANDING_ITEMS.length})</div>
       <div style="display:flex; flex-direction:column; gap:6px;">
-        ${OUTSTANDING_ITEMS.map((item) => {
-          const prioColor =
-            item.priority === 'High' ? '#ff8a93' : item.priority === 'Medium' ? '#ffe066' : '#8cc8ff';
-          return `
-            <div class="hud-panel" style="padding:8px 10px; background:#0d1522; border-color:#3a4d66; display:flex; align-items:flex-start; gap:10px;">
-              <span style="font-size:10px; font-weight:700; color:${prioColor}; border:1px solid ${prioColor}; padding:1px 6px; border-radius:4px; min-width:54px; text-align:center;">${item.priority}</span>
-              <div>
-                <div style="font-size:12px; font-weight:700;">${item.title}</div>
-                <div style="font-size:10px; color:#b8cde0;">${item.details}</div>
-              </div>
-            </div>
-          `;
-        }).join('')}
+        ${
+          OUTSTANDING_ITEMS.length === 0
+            ? `<div class="hud-panel" style="padding:10px; background:#0f1f19; border-color:#4ba872; font-size:12px; color:#a3f7b5;">All planned roadmap items are complete and verified!</div>`
+            : OUTSTANDING_ITEMS.map((item) => {
+                const prioColor =
+                  item.priority === 'High' ? '#ff8a93' : item.priority === 'Medium' ? '#ffe066' : '#8cc8ff';
+                return `
+                  <div class="hud-panel" style="padding:8px 10px; background:#0d1522; border-color:#3a4d66; display:flex; align-items:flex-start; gap:10px;">
+                    <span style="font-size:10px; font-weight:700; color:${prioColor}; border:1px solid ${prioColor}; padding:1px 6px; border-radius:4px; min-width:54px; text-align:center;">${item.priority}</span>
+                    <div>
+                      <div style="font-size:12px; font-weight:700;">${item.title}</div>
+                      <div style="font-size:10px; color:#b8cde0;">${item.details}</div>
+                    </div>
+                  </div>
+                `;
+              }).join('')
+        }
       </div>
     `;
   }
@@ -1501,6 +1535,16 @@ export class HudController {
         this.callbacks.onBuyIsland(gx, gy);
       };
     });
+
+    const volSlider = this.modalLayer.querySelector<HTMLInputElement>('#hud-vol-slider');
+    if (volSlider) {
+      volSlider.oninput = () => {
+        const pct = Number(volSlider.value);
+        SFX.setVolume(pct / 100);
+        const lbl = this.modalLayer.querySelector<HTMLElement>('#hud-vol-label');
+        if (lbl) lbl.textContent = `${pct}%`;
+      };
+    }
 
     this.modalLayer.querySelectorAll<HTMLElement>('[data-teleport]').forEach((el) => {
       el.onclick = () => {

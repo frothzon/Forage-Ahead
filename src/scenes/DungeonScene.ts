@@ -23,6 +23,7 @@ interface DungeonConfig {
   minions: string[];
   bossId: string;
   relicId: string;
+  chestLoot: Array<{ itemId: string; count: number }>;
 }
 
 const DUNGEON_CONFIGS: Record<DungeonId, DungeonConfig> = {
@@ -34,6 +35,10 @@ const DUNGEON_CONFIGS: Record<DungeonId, DungeonConfig> = {
     minions: ['Skeleton', 'Vampire'],
     bossId: 'Lich',
     relicId: 'necro_rod',
+    chestLoot: [
+      { itemId: 'bone', count: 5 },
+      { itemId: 'potion_red', count: 2 },
+    ],
   },
   sunken_tomb: {
     id: 'sunken_tomb',
@@ -43,6 +48,10 @@ const DUNGEON_CONFIGS: Record<DungeonId, DungeonConfig> = {
     minions: ['Mummy', 'Anubis Warrior'],
     bossId: 'Purple Worm',
     relicId: 'thunder_rod',
+    chestLoot: [
+      { itemId: 'amber', count: 5 },
+      { itemId: 'gold_ingot', count: 2 },
+    ],
   },
   frost_cavern: {
     id: 'frost_cavern',
@@ -52,6 +61,10 @@ const DUNGEON_CONFIGS: Record<DungeonId, DungeonConfig> = {
     minions: ['Frost Salamander', 'Ice Golem'],
     bossId: 'Frost Giant',
     relicId: 'ice_rod',
+    chestLoot: [
+      { itemId: 'crystal', count: 5 },
+      { itemId: 'potion_blue', count: 2 },
+    ],
   },
   infernal_sanctum: {
     id: 'infernal_sanctum',
@@ -61,11 +74,23 @@ const DUNGEON_CONFIGS: Record<DungeonId, DungeonConfig> = {
     minions: ['Imp', 'Demon'],
     bossId: 'Adult Red Dragon',
     relicId: 'fire_rod',
+    chestLoot: [
+      { itemId: 'obsidian', count: 5 },
+      { itemId: 'demon_horn', count: 4 },
+    ],
   },
 };
 
-const ROOM_W = 24;
+const ROOM_W = 32;
 const ROOM_H = 16;
+
+interface BreakableProp {
+  sprite: Phaser.GameObjects.Image;
+  x: number;
+  y: number;
+  kind: 'box' | 'pot';
+  broken: boolean;
+}
 
 export class DungeonScene extends Phaser.Scene {
   private cfg!: DungeonConfig;
@@ -74,8 +99,11 @@ export class DungeonScene extends Phaser.Scene {
   private enemies: Enemy[] = [];
   private drops: LootDrop[] = [];
   private projectiles: ActiveProjectile[] = [];
+  private breakables: BreakableProp[] = [];
   private boss: Enemy | null = null;
+  private bossEnraged = false;
   private exitPortal!: { x: number; y: number };
+  private treasureChest!: { x: number; y: number; spr: Phaser.GameObjects.Sprite; opened: boolean };
   private switches: Array<{ x: number; y: number; spr: Phaser.GameObjects.Image; active: boolean }> = [];
   private bossGateGroup?: Phaser.GameObjects.Group;
   private gateOpen = false;
@@ -92,6 +120,10 @@ export class DungeonScene extends Phaser.Scene {
     RIGHT: Phaser.Input.Keyboard.Key;
     SPACE: Phaser.Input.Keyboard.Key;
     E: Phaser.Input.Keyboard.Key;
+    I: Phaser.Input.Keyboard.Key;
+    K: Phaser.Input.Keyboard.Key;
+    P: Phaser.Input.Keyboard.Key;
+    ESC: Phaser.Input.Keyboard.Key;
   };
 
   constructor() {
@@ -106,8 +138,10 @@ export class DungeonScene extends Phaser.Scene {
     this.enemies = [];
     this.drops = [];
     this.projectiles = [];
+    this.breakables = [];
     this.switches = [];
     this.boss = null;
+    this.bossEnraged = false;
     this.gateOpen = false;
     this.relicSpawned = false;
 
@@ -127,8 +161,32 @@ export class DungeonScene extends Phaser.Scene {
         gameState.save();
         this.hud.showToast('Saved!');
       },
+      getWorldDebugStats: () => ({
+        scene: `Dungeon: ${this.cfg.title}`,
+        playerTx: Math.floor(this.player.x / TILE_PX),
+        playerTy: Math.floor(this.player.y / TILE_PX),
+        nodesCount: this.breakables.filter((b) => !b.broken).length,
+        enemiesCount: this.enemies.filter((e) => e.active && !e.isDead).length,
+        buildingsCount: 0,
+        activeCraftJobs: 0,
+        hasSavedData: gameState.hasSavedGame(),
+      }),
+      onDebugAction: (act) => {
+        if (act === 'reset_run') {
+          gameState.reset(gameState.heroClass);
+          this.hud.setBossBar(null);
+          this.hud.destroy();
+          this.scene.start('OverworldScene');
+        } else if (act === 'erase_save') {
+          gameState.eraseAllSavedData();
+          this.hud.setBossBar(null);
+          this.hud.destroy();
+          this.scene.start('TitleScene');
+        }
+      },
     });
-    this.hud.showToast(`Entered ${this.cfg.title}! Activate both sigils to unseal the Boss!`);
+    this.hud.showToast(`${this.cfg.title} — Break crates, loot the chest, and activate both sigils!`);
+    if (SFX.musicEnabled) SFX.startAmbientMusic('dungeon');
 
     this.setupInput();
   }
@@ -136,7 +194,10 @@ export class DungeonScene extends Phaser.Scene {
   private buildRoom(): void {
     for (let y = 0; y < ROOM_H; y++) {
       for (let x = 0; x < ROOM_W; x++) {
-        const isWall = x === 0 || y === 0 || x === ROOM_W - 1 || y === ROOM_H - 1 || (x === 11 && (y < 6 || y > 9));
+        const isBorder = x === 0 || y === 0 || x === ROOM_W - 1 || y === ROOM_H - 1;
+        const isRoom1Wall = x === 10 && (y < 6 || y > 9);
+        const isBossWall = x === 20 && (y < 6 || y > 9);
+        const isWall = isBorder || isRoom1Wall || isBossWall;
         const tile = this.add
           .image(x * TILE_PX + 8, y * TILE_PX + 8, 'tileset/Stone tile')
           .setTint(isWall ? this.cfg.wallTint : this.cfg.floorTint)
@@ -147,12 +208,16 @@ export class DungeonScene extends Phaser.Scene {
       }
     }
 
-    // Torches
+    // Torches across 3 chambers
     for (const [tx, ty] of [
       [2, 2],
       [2, ROOM_H - 3],
-      [10, 2],
-      [10, ROOM_H - 3],
+      [9, 2],
+      [9, ROOM_H - 3],
+      [12, 2],
+      [12, ROOM_H - 3],
+      [19, 2],
+      [19, ROOM_H - 3],
       [ROOM_W - 3, 2],
       [ROOM_W - 3, ROOM_H - 3],
     ]) {
@@ -172,17 +237,42 @@ export class DungeonScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(7000);
 
-    // Boss Gate Barrier (x = 11, y = 6..9)
+    // Room 1 Breakable Crates & Pots
+    for (const [bx, by, kind] of [
+      [4, 3, 'box'],
+      [5, 3, 'pot'],
+      [4, 12, 'pot'],
+      [8, 4, 'box'],
+      [8, 11, 'pot'],
+    ] as Array<[number, number, 'box' | 'pot']>) {
+      const px = bx * TILE_PX + 8;
+      const py = by * TILE_PX + 8;
+      const spr = this.add
+        .image(px, py, kind === 'box' ? 'projectiles/Box' : 'projectiles/Pot')
+        .setDepth(py);
+      this.breakables.push({ sprite: spr, x: px, y: py, kind, broken: false });
+    }
+
+    // Room 2 Treasure Chest
+    const cx = 15 * TILE_PX + 8;
+    const cy = 8 * TILE_PX;
+    const chestSpr = this.add.sprite(cx, cy, 'objects/Chest_big', 0).setDepth(cy);
+    this.treasureChest = { x: cx, y: cy, spr: chestSpr, opened: false };
+
+    // Room 2 Boss Gate Barrier (x = 20, y = 6..9)
     this.bossGateGroup = this.add.group();
     for (let gy = 6; gy <= 9; gy++) {
-      const bar = this.add.image(11 * TILE_PX + 8, gy * TILE_PX + 8, 'tileset/Door (closed)').setScale(0.5, 0.5).setDepth(200);
+      const bar = this.add
+        .image(20 * TILE_PX + 8, gy * TILE_PX + 8, 'tileset/Door (closed)')
+        .setScale(0.5, 0.5)
+        .setDepth(200);
       this.bossGateGroup.add(bar);
     }
 
-    // 2 Floor Puzzle Sigils in West Room
+    // 2 Floor Puzzle Sigils in Room 2
     for (const [sx, sy] of [
-      [7, 4],
-      [7, 11],
+      [15, 4],
+      [15, 11],
     ]) {
       const px = sx * TILE_PX + 8;
       const py = sy * TILE_PX + 8;
@@ -190,12 +280,13 @@ export class DungeonScene extends Phaser.Scene {
       this.switches.push({ x: px, y: py, spr, active: false });
     }
 
-    // Minions in West Room
-    this.enemies.push(new Enemy(this, this.cfg.minions[0], 6 * TILE_PX + 8, 5 * TILE_PX + 8));
-    this.enemies.push(new Enemy(this, this.cfg.minions[1], 8 * TILE_PX + 8, 10 * TILE_PX + 8));
+    // Room 1 & Room 2 Minions
+    this.enemies.push(new Enemy(this, this.cfg.minions[0], 7 * TILE_PX + 8, 7 * TILE_PX + 8));
+    this.enemies.push(new Enemy(this, this.cfg.minions[1], 14 * TILE_PX + 8, 5 * TILE_PX + 8));
+    this.enemies.push(new Enemy(this, this.cfg.minions[0], 17 * TILE_PX + 8, 10 * TILE_PX + 8));
 
-    // Boss in East Arena
-    this.boss = new Enemy(this, this.cfg.bossId, 18 * TILE_PX + 8, 8 * TILE_PX);
+    // Boss in Room 3 (East Arena)
+    this.boss = new Enemy(this, this.cfg.bossId, 26 * TILE_PX + 8, 8 * TILE_PX);
     this.enemies.push(this.boss);
   }
 
@@ -212,7 +303,21 @@ export class DungeonScene extends Phaser.Scene {
       RIGHT: kb.addKey('RIGHT'),
       SPACE: kb.addKey('SPACE'),
       E: kb.addKey('E'),
+      I: kb.addKey('I'),
+      K: kb.addKey('K'),
+      P: kb.addKey('P'),
+      ESC: kb.addKey('ESC'),
     };
+
+    kb.on('keydown-I', () => this.hud.toggleModal('inventory'));
+    kb.on('keydown-K', () => this.hud.toggleModal('skills'));
+    kb.on('keydown-P', () => this.hud.toggleModal('progress'));
+    kb.on('keydown-ESC', () => {
+      if (this.hud.activeModal !== 'none') {
+        this.hud.activeModal = 'none';
+        this.hud.render();
+      }
+    });
 
     for (let i = 1; i <= 9; i++) {
       kb.on(`keydown-${i}`, () => {
@@ -222,15 +327,18 @@ export class DungeonScene extends Phaser.Scene {
       });
     }
 
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
-      if (this.hud.isBlockingInput()) return;
-      if (pointer.event && pointer.event.target !== this.game.canvas) return;
-      if (currentlyOver && currentlyOver.length > 0) return;
-      if (pointer.leftButtonDown()) {
-        const wp = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-        this.handleAttack(wp.x, wp.y);
-      }
-    });
+    this.input.on(
+      'pointerdown',
+      (pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
+        if (this.hud.isBlockingInput()) return;
+        if (pointer.event && pointer.event.target !== this.game.canvas) return;
+        if (currentlyOver && currentlyOver.length > 0) return;
+        if (pointer.leftButtonDown()) {
+          const wp = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+          this.handleAttack(wp.x, wp.y);
+        }
+      },
+    );
   }
 
   private tryConsumeItem(itemId: string): void {
@@ -241,7 +349,21 @@ export class DungeonScene extends Phaser.Scene {
     if (def.healHp) gameState.hp = Math.min(gameState.getMaxHp(), gameState.hp + def.healHp);
     if (def.healEnergy) gameState.energy = Math.min(gameState.getMaxEnergy(), gameState.energy + def.healEnergy);
     SFX.playPickup();
-    gameState.emit();
+    gameState.emitVitals();
+  }
+
+  private shatterBreakable(bp: BreakableProp): void {
+    if (bp.broken) return;
+    bp.broken = true;
+    bp.sprite.destroy();
+    SFX.playChop();
+    spawnBurstParticles(this, bp.x, bp.y, bp.kind === 'box' ? 0xb8763e : 0xa68976, 6);
+    this.drops.push(new LootDrop(this, bp.x, bp.y, 'coin', Phaser.Math.Between(3, 8), true));
+    if (Math.random() < 0.45) {
+      this.drops.push(
+        new LootDrop(this, bp.x, bp.y, Math.random() < 0.5 ? 'berries' : 'potion_red', 1, false),
+      );
+    }
   }
 
   private handleAttack(wx: number, wy: number): void {
@@ -294,6 +416,13 @@ export class DungeonScene extends Phaser.Scene {
     const hitX = this.player.x + nx * (range * 0.55);
     const hitY = this.player.y + ny * (range * 0.55);
     const dmg = gameState.getWeaponDamage(itemId);
+
+    for (const bp of this.breakables) {
+      if (!bp.broken && Math.hypot(bp.x - hitX, bp.y - hitY) <= range * 0.72) {
+        this.shatterBreakable(bp);
+      }
+    }
+
     for (const e of this.enemies) {
       if (e.active && !e.isDead && Math.hypot(e.x - hitX, e.y - hitY) <= range * 0.78) {
         this.damageEnemy(e, dmg, nx, ny);
@@ -309,6 +438,29 @@ export class DungeonScene extends Phaser.Scene {
     spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, 5);
 
     const killed = enemy.takeDamage(dmg, dirX, dirY, this.isWalkable);
+
+    // Boss Enrage Phase 2 below 50% HP
+    if (!killed && enemy === this.boss && !this.bossEnraged && enemy.hp <= enemy.maxHp * 0.5) {
+      this.bossEnraged = true;
+      this.cameras.main.shake(200, 0.008);
+      enemy.sprite.setTint(0xff8a8a);
+      this.hud.showToast(`${enemy.def.name} ENRAGED! Phase 2!`);
+      const proj = enemy.def.projectileKey ?? 'monster_projectiles/FireballBig';
+      for (let i = 0; i < 10; i++) {
+        const ang = (Math.PI * 2 * i) / 10;
+        const spr = this.add.image(enemy.x, enemy.y - 4, proj).setDepth(5000);
+        this.projectiles.push({
+          sprite: spr,
+          vx: Math.cos(ang) * 115,
+          vy: Math.sin(ang) * 115,
+          damage: Math.round(enemy.def.damage * 1.15),
+          fromPlayer: false,
+          lifeMs: 2000,
+          kind: 'enemy',
+        });
+      }
+    }
+
     if (killed) {
       this.drops.push(
         new LootDrop(this, enemy.x, enemy.y, 'coin', Phaser.Math.Between(enemy.def.coins[0], enemy.def.coins[1]), true),
@@ -336,8 +488,9 @@ export class DungeonScene extends Phaser.Scene {
     const tx = Math.floor(wx / TILE_PX);
     const ty = Math.floor(wy / TILE_PX);
     if (tx <= 0 || ty <= 0 || tx >= ROOM_W - 1 || ty >= ROOM_H - 1) return false;
-    if (tx === 11 && (ty < 6 || ty > 9)) return false;
-    if (!this.gateOpen && tx === 11 && ty >= 6 && ty <= 9) return false;
+    if (tx === 10 && (ty < 6 || ty > 9)) return false;
+    if (tx === 20 && (ty < 6 || ty > 9)) return false;
+    if (!this.gateOpen && tx === 20 && ty >= 6 && ty <= 9) return false;
     return true;
   };
 
@@ -351,20 +504,35 @@ export class DungeonScene extends Phaser.Scene {
         this.scene.start('OverworldScene');
         return;
       }
+      if (
+        !this.treasureChest.opened &&
+        Math.hypot(this.treasureChest.x - this.player.x, this.treasureChest.y - this.player.y) <= 28
+      ) {
+        this.treasureChest.opened = true;
+        this.treasureChest.spr.play('prop_chest_big_open');
+        SFX.playLevelUp();
+        this.drops.push(new LootDrop(this, this.treasureChest.x, this.treasureChest.y + 10, 'coin', 45, true));
+        for (const item of this.cfg.chestLoot) {
+          this.drops.push(new LootDrop(this, this.treasureChest.x, this.treasureChest.y + 10, item.itemId, item.count, false));
+        }
+        this.hud.showToast('Opened Dungeon Treasure Chest!');
+      }
     }
 
-    const dir = new Phaser.Math.Vector2(
-      (this.keys.D.isDown || this.keys.RIGHT.isDown ? 1 : 0) -
-        (this.keys.A.isDown || this.keys.LEFT.isDown ? 1 : 0),
-      (this.keys.S.isDown || this.keys.DOWN.isDown ? 1 : 0) -
-        (this.keys.W.isDown || this.keys.UP.isDown ? 1 : 0),
-    );
-    if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
-      this.player.tryDash(dir);
+    if (!this.hud.isBlockingInput()) {
+      const dir = new Phaser.Math.Vector2(
+        (this.keys.D.isDown || this.keys.RIGHT.isDown ? 1 : 0) -
+          (this.keys.A.isDown || this.keys.LEFT.isDown ? 1 : 0),
+        (this.keys.S.isDown || this.keys.DOWN.isDown ? 1 : 0) -
+          (this.keys.W.isDown || this.keys.UP.isDown ? 1 : 0),
+      );
+      if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
+        this.player.tryDash(dir);
+      }
+      this.player.updatePlayer(dt, dir, this.isWalkable);
     }
-    this.player.updatePlayer(dt, dir, this.isWalkable);
 
-    // Check Floor Puzzle Sigils
+    // Check Floor Puzzle Sigils in Room 2
     if (!this.gateOpen) {
       for (const sw of this.switches) {
         if (!sw.active && Math.hypot(sw.x - this.player.x, sw.y - this.player.y) <= 13) {
@@ -381,10 +549,10 @@ export class DungeonScene extends Phaser.Scene {
       }
     }
 
-    // Update Boss Bar if in East half
-    if (this.boss && !this.boss.isDead && this.player.x > 11 * TILE_PX) {
+    // Update Boss Bar if in Room 3
+    if (this.boss && !this.boss.isDead && this.player.x > 20 * TILE_PX) {
       this.hud.setBossBar({
-        name: this.boss.def.name,
+        name: this.bossEnraged ? `${this.boss.def.name} [ENRAGED]` : this.boss.def.name,
         hp: this.boss.hp,
         maxHp: this.boss.maxHp,
         portrait: this.boss.def.portraitKey,
@@ -398,10 +566,9 @@ export class DungeonScene extends Phaser.Scene {
         this.enemies.splice(i, 1);
         continue;
       }
-      // Boss waits until gate opens
       if (e === this.boss && !this.gateOpen) continue;
 
-      e.updateEnemy(dt, this.player.x, this.player.y, this.isWalkable, {
+      e.updateEnemy(this.bossEnraged && e === this.boss ? dt * 1.35 : dt, this.player.x, this.player.y, this.isWalkable, {
         onMeleeHitPlayer: (dmg, dx, dy) => {
           if (this.player.takeDamage(dmg, dx, dy)) {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${dmg}`, '#ff5e6c');
@@ -426,7 +593,7 @@ export class DungeonScene extends Phaser.Scene {
           });
         },
         onBossSummon: (sx, sy, mId) => {
-          if (this.enemies.length < 6 && this.isWalkable(sx, sy)) {
+          if (this.enemies.length < 7 && this.isWalkable(sx, sy)) {
             this.enemies.push(new Enemy(this, mId, sx, sy));
           }
         },
@@ -443,17 +610,26 @@ export class DungeonScene extends Phaser.Scene {
       let hit = !this.isWalkable(p.sprite.x, p.sprite.y);
 
       if (!hit && p.fromPlayer) {
-        for (const e of this.enemies) {
-          if (e.active && !e.isDead && Math.hypot(e.x - p.sprite.x, e.y - p.sprite.y) <= 15) {
-            const spd = Math.hypot(p.vx, p.vy) || 1;
-            if (p.kind === 'ice') e.applySlow(2600);
-            if (p.kind === 'necro') {
-              gameState.hp = Math.min(gameState.getMaxHp(), gameState.hp + 4);
-              gameState.emit();
-            }
-            this.damageEnemy(e, p.damage, p.vx / spd, p.vy / spd);
+        for (const bp of this.breakables) {
+          if (!bp.broken && Math.hypot(bp.x - p.sprite.x, bp.y - p.sprite.y) <= 10) {
+            this.shatterBreakable(bp);
             hit = true;
             break;
+          }
+        }
+        if (!hit) {
+          for (const e of this.enemies) {
+            if (e.active && !e.isDead && Math.hypot(e.x - p.sprite.x, e.y - p.sprite.y) <= 15) {
+              const spd = Math.hypot(p.vx, p.vy) || 1;
+              if (p.kind === 'ice') e.applySlow(2600);
+              if (p.kind === 'necro') {
+                gameState.hp = Math.min(gameState.getMaxHp(), gameState.hp + 4);
+                gameState.emitVitals();
+              }
+              this.damageEnemy(e, p.damage, p.vx / spd, p.vy / spd);
+              hit = true;
+              break;
+            }
           }
         }
       } else if (!hit && !p.fromPlayer) {

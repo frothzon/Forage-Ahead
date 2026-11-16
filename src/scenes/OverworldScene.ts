@@ -162,6 +162,7 @@ export class OverworldScene extends Phaser.Scene {
     this.setupHud();
     this.setupInput();
     this.refreshPurchaseMarkers();
+    if (SFX.musicEnabled) SFX.startAmbientMusic('overworld');
   }
 
   private initGrids(): void {
@@ -284,16 +285,31 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private populateOwnedWorld(): void {
+    const hasSavedNodes = Array.isArray(gameState.savedNodes);
     for (const key of gameState.ownedIslands) {
       const [gx, gy] = key.split(',').map(Number);
-      this.populateIslandContent(gx, gy);
+      this.populateIslandContent(gx, gy, !hasSavedNodes);
+    }
+    if (hasSavedNodes && gameState.savedNodes) {
+      for (const sn of gameState.savedNodes) {
+        const node = new ResourceNode(this, sn.tx, sn.ty, sn.kind as NodeKind, sn.biome as BiomeKind);
+        node.hp = Math.max(1, Math.min(node.maxHp, sn.hp));
+        this.nodes.push(node);
+      }
+    }
+    if (Array.isArray(gameState.savedDrops)) {
+      for (const sd of gameState.savedDrops) {
+        this.drops.push(new LootDrop(this, sd.x, sd.y, sd.itemId, sd.qty, sd.isCoin));
+      }
     }
     for (const b of gameState.buildings) {
-      this.buildings.push(new BuildingEntity(this, b.id, b.type, b.tx, b.ty, b.craftQueue ?? []));
+      this.buildings.push(
+        new BuildingEntity(this, b.id, b.type, b.tx, b.ty, b.craftQueue ?? [], b.cropStage ?? 0),
+      );
     }
   }
 
-  private populateIslandContent(gx: number, gy: number): void {
+  private populateIslandContent(gx: number, gy: number, spawnNodes = true): void {
     const spec = getIslandAt(gx, gy);
     if (!spec) return;
 
@@ -370,18 +386,19 @@ export class OverworldScene extends Phaser.Scene {
       if (this.anims.exists(`animal_${pick}_idle_down`)) anim.play(`animal_${pick}_idle_down`);
     }
 
-    // 4. Spawn Resource Nodes on island
-    const count = spec.starterOwned ? 14 : 16;
-    for (let i = 0; i < count; i++) {
-      this.trySpawnNodeOnIsland(gx, gy, centerTx, centerTy);
-    }
+    // 4. Spawn Resource Nodes & Fishing Spots on island (when not restoring from save)
+    if (spawnNodes) {
+      const count = spec.starterOwned ? 14 : 16;
+      for (let i = 0; i < count; i++) {
+        this.trySpawnNodeOnIsland(gx, gy, centerTx, centerTy);
+      }
 
-    // 5. Spawn Water Fishing Spots around coast
-    for (let f = 0; f < 3; f++) {
-      const fx = ox + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
-      const fy = oy + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
-      if (this.terrainGrid[fy][fx] === 'water' && !this.hasNodeAt(fx, fy)) {
-        this.nodes.push(new ResourceNode(this, fx, fy, 'fish_spot', spec.biome));
+      for (let f = 0; f < 3; f++) {
+        const fx = ox + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
+        const fy = oy + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
+        if (this.terrainGrid[fy][fx] === 'water' && !this.hasNodeAt(fx, fy)) {
+          this.nodes.push(new ResourceNode(this, fx, fy, 'fish_spot', spec.biome));
+        }
       }
     }
 
@@ -506,8 +523,17 @@ export class OverworldScene extends Phaser.Scene {
   private syncBuildingQueuesToSave(): void {
     for (const bSave of gameState.buildings) {
       const ent = this.buildings.find((b) => b.id === bSave.id);
-      if (ent) bSave.craftQueue = ent.craftQueue.map((j) => ({ ...j }));
+      if (ent) {
+        bSave.craftQueue = ent.craftQueue.map((j) => ({ ...j }));
+        if (ent.isCrop()) bSave.cropStage = ent.getCropStage();
+      }
     }
+    gameState.savedNodes = this.nodes
+      .filter((n) => n.active)
+      .map((n) => ({ tx: n.tx, ty: n.ty, kind: n.kind, biome: n.biome, hp: n.hp }));
+    gameState.savedDrops = this.drops
+      .filter((d) => d.active)
+      .map((d) => ({ x: d.x, y: d.y, itemId: d.itemId, qty: d.qty, isCoin: d.isCoin }));
   }
 
   private setupHud(): void {
@@ -707,7 +733,8 @@ export class OverworldScene extends Phaser.Scene {
       st !== 'road_stone' &&
       st !== 'fish_trap' &&
       st !== 'crop_berries' &&
-      st !== 'crop_carrot';
+      st !== 'crop_carrot' &&
+      st !== 'crop_sunflower';
     if (
       isSolidBuild &&
       Math.hypot(tx * TILE_PX + 8 - this.player.x, ty * TILE_PX + 8 - this.player.y) < 12
@@ -839,6 +866,44 @@ export class OverworldScene extends Phaser.Scene {
         lifeMs: 1200,
         kind: pInfo.kind,
       });
+      return;
+    }
+
+    // Farming Tools: Hoe (tills dirt) & Watering Can (waters nearby crops)
+    if (itemId === 'hoe') {
+      if (!this.player.startAction('hoeing', def.cooldownMs ?? 320, nx, ny, 190)) return;
+      const targetTx = Math.floor((this.player.x + nx * 16) / TILE_PX);
+      const targetTy = Math.floor((this.player.y + ny * 16) / TILE_PX);
+      if (
+        targetTx >= 0 &&
+        targetTy >= 0 &&
+        targetTx < WORLD_TILES &&
+        targetTy < WORLD_TILES &&
+        isLand(this.terrainGrid[targetTy][targetTx]) &&
+        this.overlayGrid[targetTy][targetTx] === 'none'
+      ) {
+        this.overlayGrid[targetTy][targetTx] = 'dirt';
+        gameState.overlays.push({ tx: targetTx, ty: targetTy, type: 'dirt' });
+        this.refreshAutoTiles(targetTx - 1, targetTy - 1, targetTx + 1, targetTy + 1);
+        spawnBurstParticles(this, targetTx * TILE_PX + 8, targetTy * TILE_PX + 8, 0x9c6544, 5);
+        SFX.playChop();
+      }
+      return;
+    }
+
+    if (itemId === 'watering_can') {
+      if (!this.player.startAction('watering', def.cooldownMs ?? 340, nx, ny, 210)) return;
+      const wxHit = this.player.x + nx * 16;
+      const wyHit = this.player.y + ny * 16;
+      spawnBurstParticles(this, wxHit, wyHit, 0x6ce5ff, 6);
+      SFX.playPickup();
+      for (const b of this.buildings) {
+        if (b.active && b.isCrop() && Math.hypot(b.x - wxHit, b.y - wyHit) <= 26) {
+          if (b.waterCrop()) {
+            spawnFloatingText(this, b.x, b.y - 12, 'Watered!', '#7ce8ff');
+          }
+        }
+      }
       return;
     }
 
@@ -1013,6 +1078,7 @@ export class OverworldScene extends Phaser.Scene {
     for (const dp of this.dungeonPortals) {
       if (Math.hypot(dp.x - this.player.x, dp.y - this.player.y) <= 28) {
         gameState.playerPos = { x: this.player.x, y: this.player.y + 16 };
+        this.syncBuildingQueuesToSave();
         gameState.save();
         this.hud.destroy();
         this.scene.start('DungeonScene', { dungeonId: dp.dungeonId });
@@ -1162,6 +1228,7 @@ export class OverworldScene extends Phaser.Scene {
             this.hud.render();
           }
         },
+        isFertileSoil: (tx, ty) => this.overlayGrid[ty]?.[tx] === 'dirt',
       });
     }
 

@@ -34,6 +34,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     tx: number,
     ty: number,
     initialQueue: CraftQueueJob[] = [],
+    initialCropStage = 0,
   ) {
     const px = tx * 16 + 8;
     const py = ty * 16 + 8;
@@ -43,7 +44,12 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     this.tx = tx;
     this.ty = ty;
     this.craftQueue = initialQueue;
-    this.solid = type !== 'crop_berries' && type !== 'crop_carrot' && type !== 'fish_trap';
+    this.cropStage = initialCropStage;
+    this.solid =
+      type !== 'crop_berries' &&
+      type !== 'crop_carrot' &&
+      type !== 'crop_sunflower' &&
+      type !== 'fish_trap';
 
     switch (type) {
       case 'furnace': {
@@ -97,9 +103,15 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         break;
       }
       case 'crop_berries':
-      case 'crop_carrot': {
-        const key = type === 'crop_berries' ? 'objects/Crops (berries)' : 'objects/Crops (carrot)';
-        this.mainSprite = scene.add.image(0, 4, key, 0).setOrigin(0.5, 0.85);
+      case 'crop_carrot':
+      case 'crop_sunflower': {
+        const key =
+          type === 'crop_berries'
+            ? 'objects/Crops (berries)'
+            : type === 'crop_carrot'
+              ? 'objects/Crops (carrot)'
+              : 'objects/Crops (sunflower)';
+        this.mainSprite = scene.add.image(0, 4, key, this.cropStage).setOrigin(0.5, 0.85);
         this.add(this.mainSprite);
         break;
       }
@@ -199,11 +211,27 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     if (this.progressText) this.progressText.setVisible(visible);
   }
 
-  public isCropRipe(): boolean {
+  public getCropStage(): number {
+    return this.cropStage;
+  }
+
+  public isCrop(): boolean {
     return (
-      (this.structureType === 'crop_berries' || this.structureType === 'crop_carrot') &&
-      this.cropStage >= 2
+      this.structureType === 'crop_berries' ||
+      this.structureType === 'crop_carrot' ||
+      this.structureType === 'crop_sunflower'
     );
+  }
+
+  public isCropRipe(): boolean {
+    return this.isCrop() && this.cropStage >= 2;
+  }
+
+  public waterCrop(): boolean {
+    if (!this.isCrop() || this.cropStage >= 2) return false;
+    this.cropStage += 1;
+    (this.mainSprite as Phaser.GameObjects.Image).setFrame(this.cropStage);
+    return true;
   }
 
   public harvestCrop(): { itemId: string; count: number } | null {
@@ -211,8 +239,14 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     this.cropStage = 1;
     (this.mainSprite as Phaser.GameObjects.Image).setFrame(1);
     const baseCount = gameState.hasSkill('foraging_farming') ? 4 : 2;
+    const itemId =
+      this.structureType === 'crop_berries'
+        ? 'berries'
+        : this.structureType === 'crop_carrot'
+          ? 'carrot'
+          : 'sunflower';
     return {
-      itemId: this.structureType === 'crop_berries' ? 'berries' : 'carrot',
+      itemId,
       count: baseCount,
     };
   }
@@ -223,6 +257,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       onMiningRodPulse: (bx: number, by: number, radiusPx: number, dmg: number) => void;
       onFishTrapCatch: (bx: number, by: number) => void;
       onCraftComplete: (bx: number, by: number, itemId: string, count: number) => void;
+      isFertileSoil?: (tx: number, ty: number) => boolean;
     },
   ): void {
     this.actionTimerMs += dtMs;
@@ -262,9 +297,12 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         this.actionTimerMs = 0;
         callbacks.onFishTrapCatch(this.x, this.y);
       }
-    } else if (this.structureType === 'crop_berries' || this.structureType === 'crop_carrot') {
+    } else if (this.isCrop()) {
       if (this.cropStage < 2) {
-        const growStepMs = gameState.hasSkill('foraging_farming') ? 6000 : 12000;
+        let growStepMs = gameState.hasSkill('foraging_farming') ? 6000 : 12000;
+        if (callbacks.isFertileSoil?.(this.tx, this.ty)) {
+          growStepMs = Math.round(growStepMs * 0.65);
+        }
         if (this.actionTimerMs >= growStepMs) {
           this.actionTimerMs = 0;
           this.cropStage += 1;

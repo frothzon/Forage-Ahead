@@ -1,11 +1,18 @@
 class SoundFXManager {
   private ctx: AudioContext | null = null;
   public muted = false;
+  public masterVolume = 0.7;
+  public musicEnabled = false;
+  private musicTimer?: number;
+  private musicStep = 0;
+  private musicMode: 'overworld' | 'dungeon' = 'overworld';
 
   private ensureCtx(): AudioContext | null {
     if (this.muted || typeof window === 'undefined') return null;
     if (!this.ctx) {
-      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) return null;
       this.ctx = new Ctx();
     }
@@ -13,6 +20,42 @@ class SoundFXManager {
       void this.ctx.resume();
     }
     return this.ctx;
+  }
+
+  public setVolume(v: number): void {
+    this.masterVolume = Math.max(0, Math.min(1, v));
+  }
+
+  public setMusicEnabled(enabled: boolean, mode?: 'overworld' | 'dungeon'): void {
+    this.musicEnabled = enabled;
+    if (mode) this.musicMode = mode;
+    if (enabled) {
+      this.startAmbientMusic(this.musicMode);
+    } else {
+      this.stopAmbientMusic();
+    }
+  }
+
+  public startAmbientMusic(mode: 'overworld' | 'dungeon'): void {
+    this.musicMode = mode;
+    if (!this.musicEnabled || typeof window === 'undefined') return;
+    if (this.musicTimer) window.clearInterval(this.musicTimer);
+    const overworldNotes = [261.63, 293.66, 329.63, 392.0, 440.0, 392.0, 329.63, 293.66];
+    const dungeonNotes = [196.0, 220.0, 233.08, 293.66, 261.63, 233.08, 220.0, 174.61];
+    this.musicTimer = window.setInterval(() => {
+      if (!this.musicEnabled || this.muted || this.masterVolume <= 0.01) return;
+      const scale = this.musicMode === 'dungeon' ? dungeonNotes : overworldNotes;
+      const freq = scale[this.musicStep % scale.length];
+      this.musicStep += 1;
+      this.tone(freq, freq * 1.005, 0.38, this.musicMode === 'dungeon' ? 'triangle' : 'sine', 0.025);
+    }, 520);
+  }
+
+  public stopAmbientMusic(): void {
+    if (this.musicTimer) {
+      window.clearInterval(this.musicTimer);
+      this.musicTimer = undefined;
+    }
   }
 
   private tone(
@@ -23,14 +66,14 @@ class SoundFXManager {
     gainVal = 0.08,
   ): void {
     const ctx = this.ensureCtx();
-    if (!ctx) return;
+    if (!ctx || this.masterVolume <= 0.01) return;
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freqStart, now);
     osc.frequency.exponentialRampToValueAtTime(Math.max(20, freqEnd), now + duration);
-    gain.gain.setValueAtTime(gainVal, now);
+    gain.gain.setValueAtTime(gainVal * this.masterVolume, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
     osc.connect(gain);
     gain.connect(ctx.destination);

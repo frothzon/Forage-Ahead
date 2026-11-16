@@ -4279,6 +4279,21 @@
       "path": "assets/ui_icons/sword_obsidian.png",
       "width": 16,
       "height": 16
+    },
+    "ui_icons/hoe": {
+      "path": "assets/ui_icons/hoe.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/watering_can": {
+      "path": "assets/ui_icons/watering_can.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/sunflower": {
+      "path": "assets/ui_icons/sunflower.png",
+      "width": 16,
+      "height": 16
     }
   },
   "heroes": {

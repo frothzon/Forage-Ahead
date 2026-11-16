@@ -16,7 +16,8 @@ export type StructureType =
   | 'fish_trap'
   | 'chest'
   | 'crop_berries'
-  | 'crop_carrot';
+  | 'crop_carrot'
+  | 'crop_sunflower';
 
 export interface RecipeDef {
   id: string;
@@ -163,8 +164,46 @@ export const RECIPES: RecipeDef[] = [
     structureType: 'crop_carrot',
     iconKey: 'ui_icons/carrot',
   },
+  {
+    id: 'build_crop_sunflower',
+    name: 'Plant Sunflower',
+    station: 'build',
+    description: 'High-value Golden Sunflowers (18g sell or +35 EN).',
+    ingredients: [
+      { itemId: 'carrot', count: 2 },
+      { itemId: 'gold_ore', count: 1 },
+    ],
+    structureType: 'crop_sunflower',
+    iconKey: 'ui_icons/sunflower',
+  },
 
   // HAND / ALCHEMY CRAFTING
+  {
+    id: 'craft_hoe',
+    name: 'Farmer Hoe',
+    station: 'hand',
+    description: 'Till land into fertile Dirt for faster crop growth.',
+    ingredients: [
+      { itemId: 'wood', count: 4 },
+      { itemId: 'stone', count: 2 },
+    ],
+    outputItemId: 'hoe',
+    outputCount: 1,
+    iconKey: 'ui_icons/hoe',
+  },
+  {
+    id: 'craft_watering_can',
+    name: 'Watering Can',
+    station: 'hand',
+    description: 'Water crops to speed up harvests.',
+    ingredients: [
+      { itemId: 'iron_ingot', count: 2 },
+      { itemId: 'wood', count: 2 },
+    ],
+    outputItemId: 'watering_can',
+    outputCount: 1,
+    iconKey: 'ui_icons/watering_can',
+  },
   {
     id: 'craft_bomb',
     name: 'Alchemist Bomb (x2)',
