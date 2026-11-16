@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { gameState } from '../core/GameState';
 import { SFX } from '../core/SoundFX';
+import manifest from '../data/assetManifest.json';
 import { vectorToDirection, type Direction } from './AnimationRegistry';
 
 export class Player extends Phaser.GameObjects.Container {
@@ -19,9 +20,14 @@ export class Player extends Phaser.GameObjects.Container {
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
-    this.shadow = scene.add.ellipse(0, 5, 11, 5, 0x000000, 0.35);
+    const heroInfo = (manifest.heroes as Record<string, { idle?: { feetOffset?: number } }>)[
+      gameState.heroClass
+    ];
+    const feetOffset = heroInfo?.idle?.feetOffset ?? 8;
+    // Shadow centered slightly above y=0 so it overlaps the bottom half of the character's feet
+    this.shadow = scene.add.ellipse(0, -1.5, 11, 5, 0x000000, 0.4);
     const startTex = `heroes/${gameState.heroClass}/${gameState.heroClass}_idle`;
-    this.sprite = scene.add.sprite(0, -6, startTex, 0);
+    this.sprite = scene.add.sprite(0, -feetOffset, startTex, 0);
     this.add([this.shadow, this.sprite]);
     this.setDepth(y);
     scene.add.existing(this);
@@ -160,8 +166,11 @@ export class FoxCompanion extends Phaser.GameObjects.Container {
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
-    const shadow = scene.add.ellipse(0, 4, 9, 4, 0x000000, 0.3);
-    this.sprite = scene.add.sprite(0, -4, 'heroes/Fox/Fox_idle', 0).setScale(0.8);
+    const foxInfo = (manifest.heroes as Record<string, { idle?: { feetOffset?: number } }>).Fox;
+    const scale = 0.8;
+    const feetOffset = (foxInfo?.idle?.feetOffset ?? 8) * scale;
+    const shadow = scene.add.ellipse(0, -1, 9, 4, 0x000000, 0.35);
+    this.sprite = scene.add.sprite(0, -feetOffset, 'heroes/Fox/Fox_idle', 0).setScale(scale);
     this.add([shadow, this.sprite]);
     this.setDepth(y);
     scene.add.existing(this);

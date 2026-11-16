@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { gameState, type CraftQueueJob } from '../core/GameState';
 import { ITEMS } from '../data/items';
 import { RECIPES, type StructureType } from '../data/recipes';
+import { applyWindShader } from './WindShader';
 
 export class BuildingEntity extends Phaser.GameObjects.Container {
   public readonly id: string;
@@ -112,6 +113,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
               ? 'objects/Crops (carrot)'
               : 'objects/Crops (sunflower)';
         this.mainSprite = scene.add.image(0, 4, key, this.cropStage).setOrigin(0.5, 0.85);
+        applyWindShader(this.mainSprite, 3.0, tx * 1.9 + ty * 2.7);
         this.add(this.mainSprite);
         break;
       }

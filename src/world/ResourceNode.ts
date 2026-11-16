@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { BiomeKind } from '../data/islands';
+import { applyWindShader } from './WindShader';
 
 export type NodeKind =
   | 'tree'
@@ -63,6 +64,14 @@ export class ResourceNode extends Phaser.GameObjects.Container {
     if (cfg.tint) this.sprite.setTint(cfg.tint);
     if (cfg.scale) this.sprite.setScale(cfg.scale);
     this.add(this.sprite);
+
+    const phase = tx * 1.7 + ty * 2.3;
+    if (kind === 'tree') {
+      // Dampened sway so heavy trunks & canopies feel sturdy
+      applyWindShader(this.sprite, 1.35, phase);
+    } else if (kind === 'berry_bush') {
+      applyWindShader(this.sprite, 2.8, phase);
+    }
 
     if (kind === 'dig_spot' || kind === 'fish_spot') {
       this.bobTween = scene.tweens.add({

@@ -22,6 +22,7 @@ import {
 import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
 import { FoxCompanion, Player } from '../entities/Player';
+import { FishingMinigame } from '../ui/FishingMinigame';
 import { HudController } from '../ui/HudController';
 import {
   BIOME_TILESETS,
@@ -32,6 +33,12 @@ import {
   type TerrainType,
 } from '../world/AutoTiler';
 import { BuildingEntity } from '../world/BuildingEntity';
+import { INNER_ISLAND_SIZE, generateIslandMask } from '../world/IslandGenerator';
+import {
+  LightingSystem,
+  type PointLightSource,
+  type SpotLightSource,
+} from '../world/LightingSystem';
 import { ResourceNode, type NodeKind } from '../world/ResourceNode';
 
 interface ActiveBomb {
@@ -75,6 +82,7 @@ export class OverworldScene extends Phaser.Scene {
     grass: Phaser.Tilemaps.Tileset;
     autumn: Phaser.Tilemaps.Tileset;
     winter: Phaser.Tilemaps.Tileset;
+    coastlines: Phaser.Tilemaps.Tileset;
     dirt: Phaser.Tilemaps.Tileset;
     road: Phaser.Tilemaps.Tileset;
   };
@@ -82,6 +90,10 @@ export class OverworldScene extends Phaser.Scene {
   private player!: Player;
   private fox!: FoxCompanion;
   private hud!: HudController;
+  private lighting!: LightingSystem;
+  private fishingMinigame = new FishingMinigame();
+  private fishingBobber?: Phaser.GameObjects.Sprite;
+  private lighthouseAngle = 0;
 
   private nodes: ResourceNode[] = [];
   private buildings: BuildingEntity[] = [];
@@ -136,16 +148,24 @@ export class OverworldScene extends Phaser.Scene {
 
     this.initGrids();
     this.buildTilemap();
-    this.populateOwnedWorld();
 
-    const startPx = gameState.playerPos
+    const rawStart = gameState.playerPos
       ? gameState.playerPos
       : {
-          x: (2 * ISLAND_CELL_TILES + 7) * TILE_PX,
-          y: (2 * ISLAND_CELL_TILES + 7) * TILE_PX,
+          x: (2 * ISLAND_CELL_TILES + 6) * TILE_PX + 8,
+          y: (2 * ISLAND_CELL_TILES + 6) * TILE_PX + 8,
         };
-    this.player = new Player(this, startPx.x, startPx.y);
-    this.fox = new FoxCompanion(this, startPx.x - 16, startPx.y + 6);
+    const safeStart = this.findNearestWalkablePoint(rawStart.x, rawStart.y);
+    this.player = new Player(this, safeStart.x, safeStart.y);
+    this.fox = new FoxCompanion(this, safeStart.x - 16, safeStart.y + 6);
+
+    this.populateOwnedWorld();
+
+    // Ensure player is never overlapping any restored/spawned solid node
+    if (!this.isWalkable(this.player.x, this.player.y)) {
+      const nudged = this.findNearestWalkablePoint(this.player.x, this.player.y);
+      this.player.setPosition(nudged.x, nudged.y);
+    }
 
     this.buildCursor = this.add
       .rectangle(0, 0, TILE_PX, TILE_PX, 0xffe066, 0.25)
@@ -159,10 +179,16 @@ export class OverworldScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.14, 0.14);
     this.cameras.main.roundPixels = true;
 
+    this.lighting = new LightingSystem(this);
     this.setupHud();
     this.setupInput();
     this.refreshPurchaseMarkers();
     if (SFX.musicEnabled) SFX.startAmbientMusic('overworld');
+
+    this.events.once('shutdown', () => {
+      this.fishingMinigame.finish(false);
+      this.lighting.destroy();
+    });
   }
 
   private initGrids(): void {
@@ -191,20 +217,13 @@ export class OverworldScene extends Phaser.Scene {
     if (!spec) return;
     const ox = gx * ISLAND_CELL_TILES;
     const oy = gy * ISLAND_CELL_TILES;
+    const mask = generateIslandMask(gx, gy, 1337);
 
-    for (let ly = 1; ly < ISLAND_CELL_TILES - 1; ly++) {
-      for (let lx = 1; lx < ISLAND_CELL_TILES - 1; lx++) {
-        // Shape sculpting for organic coastline silhouettes
-        if (spec.shape === 'cove' && lx >= 5 && lx <= 8 && ly >= 10) continue;
-        if (
-          spec.shape === 'cross' &&
-          ((lx <= 2 || lx >= 11) && (ly <= 2 || ly >= 11))
-        ) {
-          continue;
+    for (let ly = 0; ly < INNER_ISLAND_SIZE; ly++) {
+      for (let lx = 0; lx < INNER_ISLAND_SIZE; lx++) {
+        if (mask.land[ly][lx]) {
+          this.terrainGrid[oy + 1 + ly][ox + 1 + lx] = spec.biome;
         }
-        if (spec.shape === 'twin' && lx === 6 && (ly <= 3 || ly >= 10)) continue;
-
-        this.terrainGrid[oy + ly][ox + lx] = spec.biome;
       }
     }
   }
@@ -220,13 +239,16 @@ export class OverworldScene extends Phaser.Scene {
     const grass = this.map.addTilesetImage('tileset_grass', 'tileset_grass', 16, 16, 0, 0)!;
     const autumn = this.map.addTilesetImage('tileset_autumn', 'tileset_autumn', 16, 16, 0, 0)!;
     const winter = this.map.addTilesetImage('tileset_winter', 'tileset_winter', 16, 16, 0, 0)!;
+    const coastlines = this.map.addTilesetImage('tileset_coastlines', 'tileset_coastlines', 16, 16, 0, 0)!;
     const dirt = this.map.addTilesetImage('tileset_dirt', 'tileset_dirt', 16, 16, 0, 0)!;
     const road = this.map.addTilesetImage('tileset_roads_stone', 'tileset_roads_stone', 16, 16, 0, 0)!;
 
-    this.tilesets = { grass, autumn, winter, dirt, road };
+    this.tilesets = { grass, autumn, winter, coastlines, dirt, road };
 
     this.waterLayer = this.map.createBlankLayer('water', [grass], 0, 0)!.setDepth(0);
-    this.terrainLayer = this.map.createBlankLayer('terrain', [grass, autumn, winter], 0, 0)!.setDepth(1);
+    this.terrainLayer = this.map
+      .createBlankLayer('terrain', [grass, autumn, winter, coastlines], 0, 0)!
+      .setDepth(1);
     this.overlayLayer = this.map.createBlankLayer('overlays', [dirt, road], 0, 0)!.setDepth(2);
 
     const waterGid = grass.firstgid + BIOME_TILESETS.grass.waterFrame;
@@ -238,6 +260,7 @@ export class OverworldScene extends Phaser.Scene {
   private getTilesetFirstGid(key: string): number {
     if (key === 'tileset_autumn') return this.tilesets.autumn.firstgid;
     if (key === 'tileset_winter') return this.tilesets.winter.firstgid;
+    if (key === 'tileset_coastlines') return this.tilesets.coastlines.firstgid;
     if (key === 'tileset_dirt') return this.tilesets.dirt.firstgid;
     if (key === 'tileset_roads_stone') return this.tilesets.road.firstgid;
     return this.tilesets.grass.firstgid;
@@ -309,22 +332,63 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  private findNearestLandTileOnIsland(
+    gx: number,
+    gy: number,
+    targetLx: number,
+    targetLy: number,
+  ): { tx: number; ty: number } {
+    const ox = gx * ISLAND_CELL_TILES;
+    const oy = gy * ISLAND_CELL_TILES;
+    let best = { tx: ox + 6, ty: oy + 6 };
+    let bestDist = Infinity;
+    for (let ly = 1; ly < ISLAND_CELL_TILES - 1; ly++) {
+      for (let lx = 1; lx < ISLAND_CELL_TILES - 1; lx++) {
+        const tx = ox + lx;
+        const ty = oy + ly;
+        if (!isLand(this.terrainGrid[ty]?.[tx])) continue;
+        const d = Math.hypot(lx - targetLx, ly - targetLy);
+        if (d < bestDist) {
+          bestDist = d;
+          best = { tx, ty };
+        }
+      }
+    }
+    return best;
+  }
+
+  private findNearestWalkablePoint(wx: number, wy: number): { x: number; y: number } {
+    if (this.isWalkable(wx, wy)) return { x: wx, y: wy };
+    const startTx = Math.floor(wx / TILE_PX);
+    const startTy = Math.floor(wy / TILE_PX);
+    for (let r = 1; r <= 12; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const cx = (startTx + dx) * TILE_PX + 8;
+          const cy = (startTy + dy) * TILE_PX + 8;
+          if (this.isWalkable(cx, cy)) return { x: cx, y: cy };
+        }
+      }
+    }
+    return { x: wx, y: wy };
+  }
+
   private populateIslandContent(gx: number, gy: number, spawnNodes = true): void {
     const spec = getIslandAt(gx, gy);
     if (!spec) return;
 
     const ox = gx * ISLAND_CELL_TILES;
     const oy = gy * ISLAND_CELL_TILES;
-    const centerTx = ox + 7;
-    const centerTy = oy + 7;
+    const centerTile = this.findNearestLandTileOnIsland(gx, gy, 6, 6);
+    const centerTx = centerTile.tx;
+    const centerTy = centerTile.ty;
 
-    // 1. Dungeon Entrance
+    // 1. Dungeon Entrance (placed on verified contiguous land tile)
     if (spec.dungeonId) {
-      const dtx = ox + 7;
-      const dty = oy + 4;
+      const dTile = this.findNearestLandTileOnIsland(gx, gy, 6, 3);
       const spr = this.add
-        .image(dtx * TILE_PX + 8, dty * TILE_PX + 8, 'tileset/Cave entrance_2', 1)
-        .setDepth(dty * TILE_PX + 8);
+        .image(dTile.tx * TILE_PX + 8, dTile.ty * TILE_PX + 8, 'tileset/Cave entrance_2', 1)
+        .setDepth(dTile.ty * TILE_PX + 8);
       const cleared = gameState.clearedDungeons.has(spec.dungeonId);
       const prompt = this.add
         .text(
@@ -349,17 +413,19 @@ export class OverworldScene extends Phaser.Scene {
       });
     }
 
-    // 2. Quest NPC
+    // 2. Quest NPC (with grounded shadow overlapping feet)
     if (spec.npc) {
-      const ntx = ox + 5;
-      const nty = oy + 6;
+      const nTile = this.findNearestLandTileOnIsland(gx, gy, 4, 6);
+      const nx = nTile.tx * TILE_PX + 8;
+      const ny = nTile.ty * TILE_PX + 8;
+      this.add.ellipse(nx, ny - 1, 10, 4, 0x000000, 0.38).setDepth(ny - 1);
       const spr = this.add
-        .sprite(ntx * TILE_PX + 8, nty * TILE_PX + 6, spec.npc.spriteKey, 0)
-        .setDepth(nty * TILE_PX + 8);
+        .sprite(nx, ny - 6, spec.npc.spriteKey, 0)
+        .setDepth(ny);
       const animKey = `npc_${spec.npc.spriteKey.split('/').pop()!.replace('_idle', '')}_idle_down`;
       if (this.anims.exists(animKey)) spr.play(animKey);
       const prompt = this.add
-        .text(spr.x, spr.y - 18, `[E] ${spec.npc.name}`, {
+        .text(spr.x, spr.y - 14, `[E] ${spec.npc.name}`, {
           fontSize: '7px',
           color: '#ffe066',
           stroke: '#000',
@@ -367,22 +433,29 @@ export class OverworldScene extends Phaser.Scene {
         })
         .setOrigin(0.5)
         .setDepth(8000);
-      this.npcs.push({ spec: spec.npc, sprite: spr, prompt, x: spr.x, y: spr.y });
+      this.npcs.push({ spec: spec.npc, sprite: spr, prompt, x: nx, y: ny });
     }
 
-    // 3. Ambient wildlife on peaceful biomes
+    // 3. Ambient wildlife on peaceful biomes (verified land + grounded shadow)
     if (spec.biome === 'grass' || spec.biome === 'autumn') {
       const animalList = spec.biome === 'grass' ? ['Cow', 'Hen', 'Rabbit'] : ['Deer'];
       const pick = Phaser.Utils.Array.GetRandom(animalList);
-      const ax = (ox + Phaser.Math.Between(3, 10)) * TILE_PX + 8;
-      const ay = (oy + Phaser.Math.Between(3, 10)) * TILE_PX + 8;
+      const aTile = this.findNearestLandTileOnIsland(
+        gx,
+        gy,
+        Phaser.Math.Between(3, 9),
+        Phaser.Math.Between(3, 9),
+      );
+      const ax = aTile.tx * TILE_PX + 8;
+      const ay = aTile.ty * TILE_PX + 8;
       const keyMap: Record<string, string> = {
         Cow: 'animals/Cow_idle (20x16)',
         Deer: 'animals/Deer_Idle (32x32)',
         Hen: 'animals/Hen_idle (16x16)',
         Rabbit: 'animals/Rabbit_Idle (16x16)',
       };
-      const anim = this.add.sprite(ax, ay, keyMap[pick], 0).setDepth(ay);
+      this.add.ellipse(ax, ay - 1, 10, 4, 0x000000, 0.35).setDepth(ay - 1);
+      const anim = this.add.sprite(ax, ay - 4, keyMap[pick], 0).setDepth(ay);
       if (this.anims.exists(`animal_${pick}_idle_down`)) anim.play(`animal_${pick}_idle_down`);
     }
 
@@ -402,15 +475,19 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    // 6. Spawn Biome Monsters (avoid starter center)
+    // 6. Spawn Biome Monsters (avoid player & starter center)
     const monCount = spec.starterOwned ? 1 : spec.maxMonsters;
     for (let m = 0; m < monCount; m++) {
-      const mtx = ox + Phaser.Math.Between(2, 11);
-      const mty = oy + Phaser.Math.Between(2, 11);
-      if (spec.starterOwned && Math.hypot(mtx - centerTx, mty - centerTy) < 4) continue;
+      const mtx = ox + Phaser.Math.Between(1, ISLAND_CELL_TILES - 2);
+      const mty = oy + Phaser.Math.Between(1, ISLAND_CELL_TILES - 2);
       if (!isLand(this.terrainGrid[mty]?.[mtx])) continue;
+      if (this.hasNodeAt(mtx, mty) || this.hasBuildingAt(mtx, mty)) continue;
+      if (spec.starterOwned && Math.hypot(mtx - centerTx, mty - centerTy) < 4) continue;
+      const wx = mtx * TILE_PX + 8;
+      const wy = mty * TILE_PX + 8;
+      if (this.player && Math.hypot(wx - this.player.x, wy - this.player.y) < 56) continue;
       const monId = Phaser.Utils.Array.GetRandom(spec.monsterPool);
-      this.enemies.push(new Enemy(this, monId, mtx * TILE_PX + 8, mty * TILE_PX + 8));
+      this.enemies.push(new Enemy(this, monId, wx, wy));
     }
   }
 
@@ -425,11 +502,17 @@ export class OverworldScene extends Phaser.Scene {
     const ox = gx * ISLAND_CELL_TILES;
     const oy = gy * ISLAND_CELL_TILES;
 
-    for (let attempt = 0; attempt < 12; attempt++) {
+    for (let attempt = 0; attempt < 16; attempt++) {
       const tx = ox + Phaser.Math.Between(1, ISLAND_CELL_TILES - 2);
       const ty = oy + Phaser.Math.Between(1, ISLAND_CELL_TILES - 2);
       if (!isLand(this.terrainGrid[ty]?.[tx])) continue;
-      if (avoidTx >= 0 && Math.hypot(tx - avoidTx, ty - avoidTy) < 2.2) continue;
+      if (avoidTx >= 0 && Math.hypot(tx - avoidTx, ty - avoidTy) < 2.4) continue;
+      // Never spawn on top of or adjacent-locking the player
+      if (this.player) {
+        const px = tx * TILE_PX + 8;
+        const py = ty * TILE_PX + 8;
+        if (Math.hypot(px - this.player.x, py - this.player.y) < 40) continue;
+      }
       if (this.hasNodeAt(tx, ty) || this.hasBuildingAt(tx, ty)) continue;
 
       const kind = this.pickNodeKindForBiome(spec.biome);
@@ -614,13 +697,18 @@ export class OverworldScene extends Phaser.Scene {
             this.populateIslandContent(gx, gy);
             this.refreshPurchaseMarkers();
           }
-          const tx = (gx * ISLAND_CELL_TILES + 7) * TILE_PX;
-          const ty = (gy * ISLAND_CELL_TILES + 7) * TILE_PX;
-          this.player.setPosition(tx, ty);
-          this.fox.setPosition(tx - 16, ty + 6);
+          const tile = this.findNearestLandTileOnIsland(gx, gy, 6, 6);
+          const pt = this.findNearestWalkablePoint(tile.tx * TILE_PX + 8, tile.ty * TILE_PX + 8);
+          this.player.setPosition(pt.x, pt.y);
+          this.fox.setPosition(pt.x - 16, pt.y + 6);
           gameState.emit();
           const spec = getIslandAt(gx, gy);
           this.hud.showToast(`Teleported to ${spec?.name ?? key}`);
+        } else if (action === 'set_time' && payload) {
+          this.lighting.timeOfDay = Number(payload);
+          const info = this.lighting.getPhaseLabel();
+          this.hud.setTimeLabel(`${info.label} ${info.clockStr}`);
+          this.hud.showToast(`Time set to ${info.label} (${info.clockStr})`);
         } else if (action === 'clear_dungeons') {
           gameState.clearedDungeons.add('skull_crypt');
           gameState.clearedDungeons.add('sunken_tomb');
@@ -907,6 +995,62 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // Stardew-style 20-second Fishing Minigame
+    if (itemId === 'fishing_rod') {
+      if (this.fishingMinigame.isActive()) return;
+      const tx = Math.floor(wx / TILE_PX);
+      const ty = Math.floor(wy / TILE_PX);
+      const targetSpot = this.nodes.find(
+        (n) =>
+          n.active &&
+          n.kind === 'fish_spot' &&
+          Math.hypot(n.x - this.player.x, n.y - this.player.y) <= 68 &&
+          Math.hypot(n.x - wx, n.y - wy) <= 32,
+      );
+      const aimedWater =
+        tx >= 0 &&
+        ty >= 0 &&
+        tx < WORLD_TILES &&
+        ty < WORLD_TILES &&
+        this.terrainGrid[ty][tx] === 'water' &&
+        Math.hypot(wx - this.player.x, wy - this.player.y) <= 68;
+
+      if (!targetSpot && !aimedWater) {
+        this.hud.showToast('Cast your Fishing Rod onto nearby water or a fish ripple!');
+        return;
+      }
+
+      const castX = targetSpot ? targetSpot.x : tx * TILE_PX + 8;
+      const castY = targetSpot ? targetSpot.y : ty * TILE_PX + 8;
+      this.player.startAction('fishing_cast', 400, castX - this.player.x, castY - this.player.y, 260);
+      this.fishingBobber?.destroy();
+      this.fishingBobber = this.add.sprite(castX, castY, 'extras/Fishing bobber').setDepth(castY);
+      this.fishingBobber.play('prop_bobber');
+      SFX.playCast();
+
+      this.fishingMinigame.start((caught) => {
+        this.fishingBobber?.destroy();
+        this.fishingBobber = undefined;
+        if (caught) {
+          const mult = this.getLighthouseMultiplier(castX, castY);
+          const count = Math.max(1, Math.round((targetSpot ? 2 : 1) * mult));
+          this.spawnLoot(this.player.x + 8, this.player.y + 8, 'fish', count);
+          if (gameState.hasSkill('foraging_fishing')) {
+            this.spawnCoin(this.player.x + 8, this.player.y + 8, Math.round(6 * mult));
+          }
+          this.awardXp(25);
+          this.hud.showToast(`Caught Fresh Fish x${count}!`);
+          if (targetSpot && targetSpot.active) {
+            targetSpot.destroy();
+            this.nodes = this.nodes.filter((n) => n.active);
+          }
+        } else {
+          this.hud.showToast('The fish got away!');
+        }
+      });
+      return;
+    }
+
     // Melee / Tool Swing
     const anim = itemId.startsWith('pickaxe')
       ? 'mining'
@@ -1180,7 +1324,7 @@ export class OverworldScene extends Phaser.Scene {
       this.buildCursor.setVisible(false);
     }
 
-    if (!this.hud.isBlockingInput()) {
+    if (!this.hud.isBlockingInput() && !this.fishingMinigame.isActive()) {
       const dir = new Phaser.Math.Vector2(
         (this.keys.D.isDown || this.keys.RIGHT.isDown ? 1 : 0) -
           (this.keys.A.isDown || this.keys.LEFT.isDown ? 1 : 0),
@@ -1195,6 +1339,8 @@ export class OverworldScene extends Phaser.Scene {
       const onRoad = this.overlayGrid[pty]?.[ptx] === 'road';
       this.player.updatePlayer(dt, dir, this.isWalkable, onRoad ? 1.15 : 1);
       this.fox.updateCompanion(dt, this.player.x, this.player.y);
+    } else if (this.fishingMinigame.isActive()) {
+      this.player.playHeroAnim('fishing');
     }
 
     // Station prompts
@@ -1300,6 +1446,73 @@ export class OverworldScene extends Phaser.Scene {
         this.trySpawnNodeOnIsland(gx, gy);
       }
     }
+
+    // Day/Night Cycle & Multi-Colored Point & Spot Lights
+    this.updateLighting(dt);
+  }
+
+  private updateLighting(dtMs: number): void {
+    this.lighthouseAngle = (this.lighthouseAngle + dtMs * 0.0014) % (Math.PI * 2);
+    const flicker = 0.92 + Math.sin(this.time.now * 0.015) * 0.08;
+
+    const pointLights: PointLightSource[] = [
+      // Player warm lantern aura
+      { x: this.player.x, y: this.player.y - 4, radius: 56, color: 0xffd27a, intensity: 0.95 },
+    ];
+    const spotLights: SpotLightSource[] = [];
+
+    // Player directional flashlight cone toward cursor
+    const ptr = this.input.activePointer;
+    const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+    const aimAng = Math.atan2(wp.y - this.player.y, wp.x - this.player.x);
+    spotLights.push({
+      x: this.player.x,
+      y: this.player.y - 4,
+      angle: aimAng,
+      length: 92,
+      width: 58,
+      color: 0xffe8b3,
+      intensity: 0.85,
+    });
+
+    for (const b of this.buildings) {
+      if (!b.active) continue;
+      if (b.structureType === 'bonfire') {
+        pointLights.push({ x: b.x, y: b.y, radius: 64 * flicker, color: 0xff8c3b, intensity: 1 });
+      } else if (b.structureType === 'furnace') {
+        pointLights.push({ x: b.x, y: b.y, radius: 52 * flicker, color: 0xff5f2e, intensity: 0.9 });
+      } else if (b.structureType === 'mining_rod') {
+        pointLights.push({ x: b.x, y: b.y - 6, radius: 54, color: 0x5be6ff, intensity: 0.9 });
+      } else if (b.structureType === 'lighthouse') {
+        pointLights.push({ x: b.x, y: b.y - 10, radius: 75, color: 0xfff08a, intensity: 1 });
+        spotLights.push({
+          x: b.x,
+          y: b.y - 12,
+          angle: this.lighthouseAngle,
+          length: 145,
+          width: 70,
+          color: 0xfff3a8,
+          intensity: 1,
+        });
+      }
+    }
+
+    for (const n of this.nodes) {
+      if (!n.active) continue;
+      if (n.kind === 'crystal_vein') {
+        pointLights.push({ x: n.x, y: n.y, radius: 34, color: 0x6ce5ff, intensity: 0.75 });
+      } else if (n.kind === 'obsidian_vein') {
+        pointLights.push({ x: n.x, y: n.y, radius: 34, color: 0xb86bff, intensity: 0.75 });
+      }
+    }
+
+    for (const dp of this.dungeonPortals) {
+      pointLights.push({ x: dp.x, y: dp.y, radius: 48, color: 0xa275ff, intensity: 0.85 });
+    }
+
+    this.lighting.update(dtMs, pointLights, spotLights);
+    const phase = this.lighting.getPhaseLabel();
+    this.hud.setTimeLabel(`${phase.label} ${phase.clockStr}`);
   }
 
   private detonateBomb(bx: number, by: number): void {
@@ -1384,7 +1597,9 @@ export class OverworldScene extends Phaser.Scene {
     if (gameState.hp > 0) return;
     gameState.hp = Math.round(gameState.getMaxHp() * 0.6);
     gameState.energy = gameState.getMaxEnergy();
-    this.player.setPosition((2 * ISLAND_CELL_TILES + 7) * TILE_PX, (2 * ISLAND_CELL_TILES + 7) * TILE_PX);
+    const tile = this.findNearestLandTileOnIsland(2, 2, 6, 6);
+    const pt = this.findNearestWalkablePoint(tile.tx * TILE_PX + 8, tile.ty * TILE_PX + 8);
+    this.player.setPosition(pt.x, pt.y);
     this.hud.showToast('Revived at Emerald Origin!');
     gameState.emit();
   }

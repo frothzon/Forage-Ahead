@@ -4373,7 +4373,8 @@
         "frameWidth": 48,
         "frameHeight": 48,
         "cols": 4,
-        "rows": 4
+        "rows": 4,
+        "feetOffset": 8
       },
       "itemGot": {
         "key": "heroes/Beastmaster/Beastmaster_itemGot",
@@ -4543,7 +4544,8 @@
         "frameWidth": 48,
         "frameHeight": 48,
         "cols": 4,
-        "rows": 4
+        "rows": 4,
+        "feetOffset": 8
       },
       "itemGot": {
         "key": "heroes/Gladiator/Gladiator_itemGot",
@@ -4699,7 +4701,8 @@
         "frameWidth": 48,
         "frameHeight": 48,
         "cols": 4,
-        "rows": 4
+        "rows": 4,
+        "feetOffset": 8
       },
       "itemGot": {
         "key": "heroes/Sorcerer/Sorcerer_itemGot",
@@ -4869,7 +4872,8 @@
         "frameWidth": 48,
         "frameHeight": 48,
         "cols": 4,
-        "rows": 4
+        "rows": 4,
+        "feetOffset": 8
       },
       "itemGot": {
         "key": "heroes/Swashbuckler/Swashbuckler_itemGot",
@@ -4969,7 +4973,8 @@
         "frameWidth": 48,
         "frameHeight": 48,
         "cols": 4,
-        "rows": 4
+        "rows": 4,
+        "feetOffset": 8
       },
       "melee": {
         "key": "heroes/Fox/Fox_melee_NoHitbox",
@@ -5005,6 +5010,7 @@
     "Beholder": {
       "frameWidth": 64,
       "frameHeight": 64,
+      "feetOffset": 16,
       "anims": {
         "attack (green)": {
           "key": "monsters/Beholder/Beholder_attack (green)",
@@ -5088,6 +5094,7 @@
     "Lizardfolk": {
       "frameWidth": 48,
       "frameHeight": 56,
+      "feetOffset": 4,
       "anims": {
         "attack": {
           "key": "monsters/Lizardfolk/Lizardfolk_attack",
@@ -5136,6 +5143,7 @@
     "Medusa": {
       "frameWidth": 64,
       "frameHeight": 64,
+      "feetOffset": 16,
       "anims": {
         "attack": {
           "key": "monsters/Medusa/Medusa_attack",
@@ -5184,6 +5192,7 @@
     "Slime": {
       "frameWidth": 48,
       "frameHeight": 48,
+      "feetOffset": 7,
       "anims": {
         "attack": {
           "key": "monsters/Slime/Slime_attack",
@@ -5239,6 +5248,7 @@
     "Anubis Warrior": {
       "frameWidth": 48,
       "frameHeight": 56,
+      "feetOffset": 4,
       "anims": {
         "attack": {
           "key": "monsters/Anubis Warrior/AnubisWarrior_attack",
@@ -5287,6 +5297,7 @@
     "Djinn": {
       "frameWidth": 64,
       "frameHeight": 64,
+      "feetOffset": 16,
       "anims": {
         "attack": {
           "key": "monsters/Djinn/Djinn_attack",
@@ -5335,6 +5346,7 @@
     "Mummy": {
       "frameWidth": 64,
       "frameHeight": 64,
+      "feetOffset": 16,
       "anims": {
         "attack": {
           "key": "monsters/Mummy/Mummy_attack",
@@ -5397,6 +5409,7 @@
     "Purple Worm": {
       "frameWidth": 64,
       "frameHeight": 64,
+      "feetOffset": 16,
       "anims": {
         "attack": {
           "key": "monsters/Purple Worm/PurpleWorm_attack",
@@ -5452,6 +5465,7 @@
     "Adult Red Dragon": {
       "frameWidth": 112,
       "frameHeight": 96,
+      "feetOffset": 16,
       "anims": {
         "attack": {
           "key": "monsters/Adult Red Dragon/AdultRedDragon_attack",
@@ -5500,6 +5514,7 @@
     "Bheur Hag": {
       "frameWidth": 48,
       "frameHeight": 48,
+      "feetOffset": 8,
       "anims": {
         "attack": {
           "key": "monsters/Bheur Hag/BheurHag_attack",
@@ -5562,6 +5577,7 @@
     "Frost Giant": {
       "frameWidth": 64,
       "frameHeight": 64,
+      "feetOffset": 16,
       "anims": {
         "attack": {
           "key": "monsters/Frost Giant/FrostGiant_attack",
@@ -5610,6 +5626,7 @@
     "Frost Salamander": {
       "frameWidth": 48,
       "frameHeight": 48,
+      "feetOffset": 8,
       "anims": {
         "attack": {
           "key": "monsters/Frost Salamander/FrostSalamander_attack",
@@ -5658,6 +5675,7 @@
     "Ice Golem": {
       "frameWidth": 48,
       "frameHeight": 56,
+      "feetOffset": 4,
       "anims": {
         "attack": {
           "key": "monsters/Ice Golem/IceGolem_attack",
@@ -5706,6 +5724,7 @@
     "Redcap": {
       "frameWidth": 48,
       "frameHeight": 48,
+      "feetOffset": 8,
       "anims": {
         "attack": {
           "key": "monsters/Redcap/Redcap_attack",
@@ -5754,6 +5773,7 @@
     "Demon": {
       "frameWidth": 48,
       "frameHeight": 56,
+      "feetOffset": 4,
       "anims": {
         "attack": {
           "key": "monsters/Demon/Demon_attack",
@@ -5802,6 +5822,7 @@
     "Efreet": {
       "frameWidth": 64,
       "frameHeight": 64,
+      "feetOffset": 16,
       "anims": {
         "attack": {
           "key": "monsters/Efreet/Efreet_attack",
@@ -5871,6 +5892,7 @@
     "Gog": {
       "frameWidth": 48,
       "frameHeight": 48,
+      "feetOffset": 8,
       "anims": {
         "attack": {
           "key": "monsters/Gog/Gog_attack",
@@ -5919,6 +5941,7 @@
     "Hellhound": {
       "frameWidth": 48,
       "frameHeight": 48,
+      "feetOffset": 8,
       "anims": {
         "attack": {
           "key": "monsters/Hellhound/Hellhound_attack",
@@ -5967,6 +5990,7 @@
     "Imp": {
       "frameWidth": 48,
       "frameHeight": 48,
+      "feetOffset": 8,
       "anims": {
         "attack": {
           "key": "monsters/Imp/Imp_attack",
@@ -6022,6 +6046,7 @@
     "Bat": {
       "frameWidth": 48,
       "frameHeight": 48,
+      "feetOffset": 7,
       "anims": {
         "attack": {
           "key": "monsters/Bat/Bat_attack",
@@ -6070,6 +6095,7 @@
     "Death Knight": {
       "frameWidth": 64,
       "frameHeight": 64,
+      "feetOffset": 16,
       "anims": {
         "attack": {
           "key": "monsters/Death Knight/DeathKnight_attack",
@@ -6118,6 +6144,7 @@
     "Lich": {
       "frameWidth": 48,
       "frameHeight": 56,
+      "feetOffset": 4,
       "anims": {
         "attack": {
           "key": "monsters/Lich/Lich_attack",
@@ -6173,6 +6200,7 @@
     "Skeleton": {
       "frameWidth": 48,
       "frameHeight": 48,
+      "feetOffset": 8,
       "anims": {
         "attack": {
           "key": "monsters/Skeleton/Skeleton_attack",
@@ -6228,6 +6256,7 @@
     "Vampire": {
       "frameWidth": 48,
       "frameHeight": 56,
+      "feetOffset": 4,
       "anims": {
         "attack": {
           "key": "monsters/Vampire/Vampire_attack",
@@ -6276,6 +6305,7 @@
     "Goblin": {
       "frameWidth": 48,
       "frameHeight": 48,
+      "feetOffset": 8,
       "anims": {
         "attack": {
           "key": "monsters/Goblin/Goblin_attack",
@@ -6324,6 +6354,7 @@
     "Orc": {
       "frameWidth": 48,
       "frameHeight": 56,
+      "feetOffset": 4,
       "anims": {
         "attack": {
           "key": "monsters/Orc/Orc_attack",

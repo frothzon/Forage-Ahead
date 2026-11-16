@@ -71,6 +71,7 @@ export class HudController {
   private chromeBuilt = false;
   private toastTimer?: number;
   private toastMsg = '';
+  private timeLabelText = 'Day 13:40';
   private bossInfo: { name: string; hp: number; maxHp: number; portrait?: string } | null = null;
 
   private callbacks: {
@@ -156,6 +157,12 @@ export class HudController {
   public setBossBar(boss: { name: string; hp: number; maxHp: number; portrait?: string } | null): void {
     this.bossInfo = boss;
     this.renderBanners();
+  }
+
+  public setTimeLabel(label: string): void {
+    this.timeLabelText = label;
+    const el = this.chromeLayer.querySelector<HTMLElement>('#hud-time-badge');
+    if (el) el.textContent = label;
   }
 
   private setupLayers(): void {
@@ -457,6 +464,7 @@ export class HudController {
             <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700;">
               <span id="hud-level-label"></span>
               <span style="color:#ffd95a; display:inline-flex; align-items:center; gap:3px;"><img src="assets/ui_icons/coin.png" class="px-icon" style="width:14px; height:14px;" /><span id="hud-coins-val"></span></span>
+              <span id="hud-time-badge" style="background:#1c2d45; border:1px solid #486485; padding:1px 6px; border-radius:4px; font-size:10px; color:#b6dcff;">${this.timeLabelText}</span>
               <span id="hud-sp-badge" style="background:#7842a8; padding:1px 6px; border-radius:10px; font-size:10px; display:none;"></span>
             </div>
             <div style="display:flex; align-items:center; gap:5px; font-size:10px;">
@@ -1192,6 +1200,11 @@ export class HudController {
               <button class="hud-btn" data-teleport="4,2" style="padding:3px 7px; font-size:11px;">Sunken Tomb</button>
               <button class="hud-btn" data-teleport="2,0" style="padding:3px 7px; font-size:11px;">Frost Cavern</button>
               <button class="hud-btn" data-teleport="4,0" style="padding:3px 7px; font-size:11px;">Infernal</button>
+              <span style="font-size:11px; color:#9db6cf; margin-left:6px;">Time:</span>
+              <button class="hud-btn" data-dbg-time="0.08" style="padding:3px 7px; font-size:11px;">Dawn</button>
+              <button class="hud-btn" data-dbg-time="0.35" style="padding:3px 7px; font-size:11px;">Noon</button>
+              <button class="hud-btn" data-dbg-time="0.68" style="padding:3px 7px; font-size:11px;">Dusk</button>
+              <button class="hud-btn" data-dbg-time="0.88" style="padding:3px 7px; font-size:11px;">Night</button>
             </div>
             <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding-top:4px; border-top:1px solid #2b3c54;">
               <span style="font-size:11px; color:#c8daeb;">Spawn Item:</span>
@@ -1549,6 +1562,12 @@ export class HudController {
     this.modalLayer.querySelectorAll<HTMLElement>('[data-teleport]').forEach((el) => {
       el.onclick = () => {
         this.callbacks.onDebugAction?.('teleport_island', el.dataset.teleport);
+      };
+    });
+
+    this.modalLayer.querySelectorAll<HTMLElement>('[data-dbg-time]').forEach((el) => {
+      el.onclick = () => {
+        this.callbacks.onDebugAction?.('set_time', el.dataset.dbgTime);
       };
     });
 

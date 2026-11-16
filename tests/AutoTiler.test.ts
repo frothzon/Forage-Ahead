@@ -39,7 +39,7 @@ describe('AutoTiler', () => {
     ];
     const gTile = computeTerrainTile(grid, 0, 0);
     const iTile = computeTerrainTile(grid, 0, 1);
-    expect(gTile?.tilesetKey).toBe('tileset_grass');
+    expect(gTile?.tilesetKey).toBe('tileset_coastlines');
     expect(gTile?.tint).toBeDefined();
     expect(iTile?.tilesetKey).toBe('tileset_autumn');
     expect(iTile?.tint).toBeDefined();

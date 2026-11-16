@@ -23,6 +23,10 @@ export class Enemy extends Phaser.GameObjects.Container {
   private wanderVec = new Phaser.Math.Vector2(0, 0);
   private hitStunMs = 0;
 
+  // Obstacle detour steering memory
+  private detourSign: 1 | -1 = 1;
+  private detourTimerMs = 0;
+
   constructor(scene: Phaser.Scene, monsterId: string, x: number, y: number) {
     super(scene, x, y);
     const def = MONSTERS[monsterId] ?? MONSTERS.Slime;
@@ -33,21 +37,33 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.hp = def.maxHp;
 
     const mSpec = (
-      manifest.monsters as Record<string, { frameWidth: number; frameHeight: number; anims: Record<string, { key: string }> }>
+      manifest.monsters as Record<
+        string,
+        {
+          frameWidth: number;
+          frameHeight: number;
+          feetOffset?: number;
+          anims: Record<string, { key: string }>;
+        }
+      >
     )[def.id];
 
-    const shadowW = def.isBoss ? 24 : 12;
-    const shadow = scene.add.ellipse(0, 4, shadowW, Math.round(shadowW * 0.45), 0x000000, 0.35);
+    const scale = def.id === 'Adult Red Dragon' ? 0.75 : 1;
+    const feetOffset = (mSpec?.feetOffset ?? 8) * scale;
+    const shadowW = def.isBoss ? 26 : 12;
+    const shadowH = def.isBoss ? 8 : 5;
+    // Shadow centered slightly above y=0 so it overlaps the bottom half of the monster's feet
+    const shadow = scene.add.ellipse(0, -1.5, shadowW, shadowH, 0x000000, 0.4);
+
     const idleKey = mSpec?.anims?.idle?.key ?? 'monsters/Slime/Slime_idle';
-    this.sprite = scene.add.sprite(0, def.isBoss ? -12 : -6, idleKey, 0);
-    if (def.id === 'Adult Red Dragon') {
-      this.sprite.setScale(0.75);
-    }
+    this.sprite = scene.add.sprite(0, -feetOffset, idleKey, 0).setScale(scale);
 
     const barW = def.isBoss ? 38 : 18;
-    const barY = def.isBoss ? -34 : -18;
+    const barY = def.isBoss ? -36 : -20;
     this.hpBarBg = scene.add.rectangle(0, barY, barW, 3, 0x11161f).setOrigin(0.5);
-    this.hpBarFill = scene.add.rectangle(-barW / 2 + 0.5, barY, barW - 1, 2, def.isBoss ? 0xff4757 : 0xe85d5d).setOrigin(0, 0.5);
+    this.hpBarFill = scene.add
+      .rectangle(-barW / 2 + 0.5, barY, barW - 1, 2, def.isBoss ? 0xff4757 : 0xe85d5d)
+      .setOrigin(0, 0.5);
     if (!def.isBoss) {
       this.hpBarBg.setVisible(false);
       this.hpBarFill.setVisible(false);
@@ -80,7 +96,12 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.slowMs = Math.max(this.slowMs, ms);
   }
 
-  public takeDamage(amount: number, knockX: number, knockY: number, isWalkable: (nx: number, ny: number) => boolean): boolean {
+  public takeDamage(
+    amount: number,
+    knockX: number,
+    knockY: number,
+    isWalkable: (nx: number, ny: number) => boolean,
+  ): boolean {
     if (this.isDead) return false;
     this.hp = Math.max(0, this.hp - amount);
     this.hitStunMs = 150;
@@ -134,6 +155,7 @@ export class Enemy extends Phaser.GameObjects.Container {
 
     if (this.attackCooldownMs > 0) this.attackCooldownMs -= dtMs;
     if (this.specialCooldownMs > 0) this.specialCooldownMs -= dtMs;
+    if (this.detourTimerMs > 0) this.detourTimerMs -= dtMs;
     if (this.hitStunMs > 0) {
       this.hitStunMs -= dtMs;
       return;
@@ -159,7 +181,6 @@ export class Enemy extends Phaser.GameObjects.Container {
         this.specialCooldownMs = 4600;
         this.playMonAnim('special', true);
         if (this.def.ai === 'boss_summoner') {
-          // 8-way projectile ring + periodic summon
           const proj = this.def.projectileKey ?? 'monster_projectiles/FireballBig';
           for (let i = 0; i < 8; i++) {
             const ang = (Math.PI * 2 * i) / 8;
@@ -170,7 +191,6 @@ export class Enemy extends Phaser.GameObjects.Container {
             actions.onBossSummon(this.x + Phaser.Math.Between(-28, 28), this.y + 20, minion);
           }
         } else {
-          // Radial frost/sand volley + charge
           const proj = this.def.projectileKey ?? 'monster_projectiles/EnergyBall';
           const baseAng = Math.atan2(dy, dx);
           for (const offset of [-0.35, 0, 0.35]) {
@@ -188,7 +208,7 @@ export class Enemy extends Phaser.GameObjects.Container {
 
       if (this.def.ai === 'ranged' || (this.def.isBoss && dist > 65)) {
         if (dist > this.def.attackRange * 0.85) {
-          this.moveStep(nx * this.def.speed * speedMult * dt, ny * this.def.speed * speedMult * dt, isWalkable);
+          this.steerAroundObstacles(nx * this.def.speed * speedMult * dt, ny * this.def.speed * speedMult * dt, isWalkable);
           this.playMonAnim('walk');
         } else {
           this.playMonAnim('idle');
@@ -201,7 +221,7 @@ export class Enemy extends Phaser.GameObjects.Container {
         }
       } else {
         if (dist > this.def.attackRange * 0.78) {
-          this.moveStep(nx * this.def.speed * speedMult * dt, ny * this.def.speed * speedMult * dt, isWalkable);
+          this.steerAroundObstacles(nx * this.def.speed * speedMult * dt, ny * this.def.speed * speedMult * dt, isWalkable);
           this.playMonAnim('walk');
         } else if (this.attackCooldownMs <= 0) {
           this.attackCooldownMs = 1100;
@@ -225,9 +245,13 @@ export class Enemy extends Phaser.GameObjects.Container {
         const stepX = this.wanderVec.x * (this.def.speed * 0.45) * dt;
         const stepY = this.wanderVec.y * (this.def.speed * 0.45) * dt;
         if (Math.hypot(this.x + stepX - this.homeX, this.y + stepY - this.homeY) < 48) {
-          this.moveStep(stepX, stepY, isWalkable);
-          this.facing = vectorToDirection(this.wanderVec.x, this.wanderVec.y, this.facing);
-          this.playMonAnim('walk');
+          const moved = this.steerAroundObstacles(stepX, stepY, isWalkable);
+          if (!moved) {
+            this.wanderVec.negate();
+          } else {
+            this.facing = vectorToDirection(this.wanderVec.x, this.wanderVec.y, this.facing);
+            this.playMonAnim('walk');
+          }
         } else {
           this.wanderVec.set(0, 0);
           this.playMonAnim('idle');
@@ -240,8 +264,72 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.setDepth(this.y);
   }
 
-  private moveStep(dx: number, dy: number, isWalkable: (nx: number, ny: number) => boolean): void {
-    if (isWalkable(this.x + dx, this.y)) this.x += dx;
-    if (isWalkable(this.x, this.y + dy)) this.y += dy;
+  /**
+   * Moves toward (stepX, stepY); if blocked by an obstacle or water edge, probes
+   * steered detour angles using short-term wall-follow direction memory.
+   */
+  public steerAroundObstacles(
+    stepX: number,
+    stepY: number,
+    isWalkable: (nx: number, ny: number) => boolean,
+  ): boolean {
+    const stepLen = Math.hypot(stepX, stepY);
+    if (stepLen < 0.001) return false;
+
+    const baseAng = Math.atan2(stepY, stepX);
+    const probeDist = Math.max(stepLen, 7);
+
+    // If not actively detouring and straight ahead is clear, move directly with axis slide
+    if (
+      this.detourTimerMs <= 0 &&
+      isWalkable(this.x + Math.cos(baseAng) * probeDist, this.y + Math.sin(baseAng) * probeDist)
+    ) {
+      let moved = false;
+      if (isWalkable(this.x + stepX, this.y)) {
+        this.x += stepX;
+        moved = true;
+      }
+      if (isWalkable(this.x, this.y + stepY)) {
+        this.y += stepY;
+        moved = true;
+      }
+      if (moved) return true;
+    }
+
+    // Steer around obstacles by probing angled directions around target vector
+    const offsets = [
+      0,
+      this.detourSign * 0.55,
+      -this.detourSign * 0.55,
+      this.detourSign * 1.05,
+      -this.detourSign * 1.05,
+      this.detourSign * 1.55,
+      -this.detourSign * 1.55,
+      this.detourSign * 2.1,
+      -this.detourSign * 2.1,
+    ];
+
+    for (const off of offsets) {
+      const ang = baseAng + off;
+      const sx = Math.cos(ang) * stepLen;
+      const sy = Math.sin(ang) * stepLen;
+      const px = this.x + Math.cos(ang) * probeDist;
+      const py = this.y + Math.sin(ang) * probeDist;
+      if (isWalkable(px, py) && isWalkable(this.x + sx, this.y + sy)) {
+        this.x += sx;
+        this.y += sy;
+        if (Math.abs(off) > 0.2) {
+          this.detourSign = off > 0 ? 1 : -1;
+          this.detourTimerMs = 550;
+          this.facing = vectorToDirection(sx, sy, this.facing);
+        }
+        return true;
+      }
+    }
+
+    // Flip preferred detour side if totally wedged
+    this.detourSign = this.detourSign === 1 ? -1 : 1;
+    this.detourTimerMs = 400;
+    return false;
   }
 }
