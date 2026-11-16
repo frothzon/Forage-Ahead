@@ -7,6 +7,7 @@ uniform sampler2D uMainSampler;
 uniform float uTime;
 uniform float uSwayUv;
 uniform float uPhase;
+uniform float uWindBias;
 uniform vec2 uUvBounds;
 
 varying vec2 outTexCoord;
@@ -20,7 +21,7 @@ void main() {
   float upper = clamp((normY - 0.16) / 0.84, 0.0, 1.0);
   float heightWeight = pow(upper, 1.65);
 
-  float gust = sin(uTime * 2.1 + uPhase + normY * 2.2) * 0.72 + sin(uTime * 3.8 + uPhase * 1.35) * 0.28;
+  float gust = sin(uTime * 2.1 + uPhase + normY * 2.2) * 0.72 + sin(uTime * 3.8 + uPhase * 1.35) * 0.28 + uWindBias;
   uv.x += gust * uSwayUv * heightWeight;
 
   if (uv.x < 0.0 || uv.x > 1.0) {
@@ -30,6 +31,17 @@ void main() {
   }
 }
 `;
+
+let globalWindStrength = 1.0;
+let globalWindDirX = 0.8;
+
+/**
+ * Sets global daily wind parameters applied to every foliage wind shader instance.
+ */
+export function setGlobalWind(strength: number, dirX: number): void {
+  globalWindStrength = Math.max(0.2, Math.min(2.4, strength));
+  globalWindDirX = Math.max(-1, Math.min(1, dirX));
+}
 
 export const WIND_PIPELINE_KEY = 'WindSwayPipeline';
 
@@ -84,12 +96,13 @@ export class WindSwayPipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPipe
       botUvY = Math.min(rawBotUv, rawTopUv);
       topUvY = Math.max(rawBotUv, rawTopUv);
 
-      swayUv = (this.swayPixels * cam.zoom) / Math.max(1, renderTarget.width);
+      swayUv = (this.swayPixels * globalWindStrength * cam.zoom) / Math.max(1, renderTarget.width);
     }
 
     this.set1f('uTime', this.game.loop.time / 1000);
     this.set1f('uSwayUv', swayUv);
     this.set1f('uPhase', this.phase);
+    this.set1f('uWindBias', globalWindDirX * 0.35);
     this.set2f('uUvBounds', botUvY, topUvY);
     this.bindAndDraw(renderTarget);
   }

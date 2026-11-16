@@ -62,10 +62,17 @@ export const IMPLEMENTED_FEATURES: FeatureCatalogEntry[] = [
     status: 'Complete',
   },
   {
+    category: 'Atmosphere & World VFX',
+    title: 'Dynamic Weather, Daily Wind Shader, Ocean Waves & Lighting',
+    details:
+      'Biome-specific weather (sunny, rain, snow, Perlin-noise cloud ground shadows, desert haze & sandstorms), daily changing wind driving foliage/trees and wind-aligned ocean waves/caustics/reflections, fishing splash particles, smooth circular player glow, and tower-anchored soft-falloff spotlights.',
+    status: 'Complete',
+  },
+  {
     category: 'Testing & Debug',
     title: 'Debug Command Center, Reset/Erase & Unit Tests',
     details:
-      'LocalStorage persistence, Debug Mode cheats (resources, levels, skills, island unlocks, biome teleports, reset/erase), plus Vitest tests for AutoTiler, TiledImporter, and Progression.',
+      'LocalStorage persistence, Debug Mode cheats (resources, levels, skills, island unlocks, biome teleports, weather/time/wind controls, reset/erase), plus Vitest tests for AutoTiler, IslandGenerator, TiledImporter, Progression, Weather, and Knockback safety.',
     status: 'Complete',
   },
 ];

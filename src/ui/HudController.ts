@@ -1196,15 +1196,26 @@ export class HudController {
               <button class="hud-btn" data-dbg="clear_dungeons">Mark All 4 Dungeons Cleared</button>
               <span style="font-size:11px; color:#9db6cf; margin-left:4px;">Teleport:</span>
               <button class="hud-btn" data-teleport="2,2" style="padding:3px 7px; font-size:11px;">Origin</button>
+              <button class="hud-btn" data-teleport="3,3" style="padding:3px 7px; font-size:11px;">Desert</button>
               <button class="hud-btn" data-teleport="0,2" style="padding:3px 7px; font-size:11px;">Skull Crypt</button>
               <button class="hud-btn" data-teleport="4,2" style="padding:3px 7px; font-size:11px;">Sunken Tomb</button>
               <button class="hud-btn" data-teleport="2,0" style="padding:3px 7px; font-size:11px;">Frost Cavern</button>
               <button class="hud-btn" data-teleport="4,0" style="padding:3px 7px; font-size:11px;">Infernal</button>
-              <span style="font-size:11px; color:#9db6cf; margin-left:6px;">Time:</span>
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+              <span style="font-size:11px; color:#9db6cf;">Time:</span>
               <button class="hud-btn" data-dbg-time="0.08" style="padding:3px 7px; font-size:11px;">Dawn</button>
               <button class="hud-btn" data-dbg-time="0.35" style="padding:3px 7px; font-size:11px;">Noon</button>
               <button class="hud-btn" data-dbg-time="0.68" style="padding:3px 7px; font-size:11px;">Dusk</button>
               <button class="hud-btn" data-dbg-time="0.88" style="padding:3px 7px; font-size:11px;">Night</button>
+              <button class="hud-btn gold" data-dbg="next_day" style="padding:3px 7px; font-size:11px;">Next Day (Roll Wind)</button>
+              <span style="font-size:11px; color:#9db6cf; margin-left:4px;">Weather:</span>
+              <button class="hud-btn" data-dbg-weather="auto" style="padding:3px 7px; font-size:11px;">Auto</button>
+              <button class="hud-btn" data-dbg-weather="sunny" style="padding:3px 7px; font-size:11px;">Sunny</button>
+              <button class="hud-btn" data-dbg-weather="cloudy" style="padding:3px 7px; font-size:11px;">Cloudy</button>
+              <button class="hud-btn" data-dbg-weather="rain" style="padding:3px 7px; font-size:11px;">Rain</button>
+              <button class="hud-btn" data-dbg-weather="snow" style="padding:3px 7px; font-size:11px;">Snow</button>
+              <button class="hud-btn" data-dbg-weather="sandstorm" style="padding:3px 7px; font-size:11px;">Sandstorm</button>
             </div>
             <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding-top:4px; border-top:1px solid #2b3c54;">
               <span style="font-size:11px; color:#c8daeb;">Spawn Item:</span>
@@ -1568,6 +1579,12 @@ export class HudController {
     this.modalLayer.querySelectorAll<HTMLElement>('[data-dbg-time]').forEach((el) => {
       el.onclick = () => {
         this.callbacks.onDebugAction?.('set_time', el.dataset.dbgTime);
+      };
+    });
+
+    this.modalLayer.querySelectorAll<HTMLElement>('[data-dbg-weather]').forEach((el) => {
+      el.onclick = () => {
+        this.callbacks.onDebugAction?.('set_weather', el.dataset.dbgWeather);
       };
     });
 

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { MONSTERS, type MonsterDef } from '../data/monsters';
 import { vectorToDirection, type Direction } from './AnimationRegistry';
+import { applySafeKnockback } from './knockback';
 import manifest from '../data/assetManifest.json';
 
 export class Enemy extends Phaser.GameObjects.Container {
@@ -118,12 +119,7 @@ export class Enemy extends Phaser.GameObjects.Container {
       }
     });
 
-    const kx = this.x + knockX * (this.def.isBoss ? 3 : 9);
-    const ky = this.y + knockY * (this.def.isBoss ? 3 : 9);
-    if (isWalkable(kx, ky)) {
-      this.x = kx;
-      this.y = ky;
-    }
+    applySafeKnockback(this, knockX, knockY, this.def.isBoss ? 3 : 9, isWalkable, 4);
 
     if (this.hp <= 0) {
       this.isDead = true;

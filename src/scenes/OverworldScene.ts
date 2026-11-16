@@ -39,7 +39,10 @@ import {
   type PointLightSource,
   type SpotLightSource,
 } from '../world/LightingSystem';
+import { OceanSystem } from '../world/OceanSystem';
 import { ResourceNode, type NodeKind } from '../world/ResourceNode';
+import { ensureCleanTilesets } from '../world/TilesetCleaner';
+import { WeatherSystem, type WeatherKind } from '../world/WeatherSystem';
 
 interface ActiveBomb {
   sprite: Phaser.GameObjects.Image;
@@ -91,8 +94,11 @@ export class OverworldScene extends Phaser.Scene {
   private fox!: FoxCompanion;
   private hud!: HudController;
   private lighting!: LightingSystem;
+  private ocean!: OceanSystem;
+  private weather!: WeatherSystem;
   private fishingMinigame = new FishingMinigame();
   private fishingBobber?: Phaser.GameObjects.Sprite;
+  private fishingSplashTimerMs = 0;
   private lighthouseAngle = 0;
 
   private nodes: ResourceNode[] = [];
@@ -180,6 +186,9 @@ export class OverworldScene extends Phaser.Scene {
     this.cameras.main.roundPixels = true;
 
     this.lighting = new LightingSystem(this);
+    this.weather = new WeatherSystem(this);
+    this.ocean = new OceanSystem(this);
+    this.syncBiomeFromPlayer();
     this.setupHud();
     this.setupInput();
     this.refreshPurchaseMarkers();
@@ -188,6 +197,8 @@ export class OverworldScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.fishingMinigame.finish(false);
       this.lighting.destroy();
+      this.weather.destroy();
+      this.ocean.destroy();
     });
   }
 
@@ -229,6 +240,8 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private buildTilemap(): void {
+    ensureCleanTilesets(this);
+
     this.map = this.make.tilemap({
       tileWidth: TILE_PX,
       tileHeight: TILE_PX,
@@ -236,12 +249,21 @@ export class OverworldScene extends Phaser.Scene {
       height: WORLD_TILES,
     });
 
-    const grass = this.map.addTilesetImage('tileset_grass', 'tileset_grass', 16, 16, 0, 0)!;
-    const autumn = this.map.addTilesetImage('tileset_autumn', 'tileset_autumn', 16, 16, 0, 0)!;
-    const winter = this.map.addTilesetImage('tileset_winter', 'tileset_winter', 16, 16, 0, 0)!;
-    const coastlines = this.map.addTilesetImage('tileset_coastlines', 'tileset_coastlines', 16, 16, 0, 0)!;
-    const dirt = this.map.addTilesetImage('tileset_dirt', 'tileset_dirt', 16, 16, 0, 0)!;
-    const road = this.map.addTilesetImage('tileset_roads_stone', 'tileset_roads_stone', 16, 16, 0, 0)!;
+    // Assign non-overlapping firstgid ranges so every biome renders from its own tileset cleanly
+    let nextGid = 1;
+    const addTs = (name: string, textureKey: string): Phaser.Tilemaps.Tileset => {
+      const key = this.textures.exists(textureKey) ? textureKey : name;
+      const ts = this.map.addTilesetImage(name, key, 16, 16, 0, 0, nextGid)!;
+      nextGid += ts.total;
+      return ts;
+    };
+
+    const grass = addTs('tileset_grass', 'tileset_grass');
+    const autumn = addTs('tileset_autumn', 'tileset_autumn_clean');
+    const winter = addTs('tileset_winter', 'tileset_winter_clean');
+    const coastlines = addTs('tileset_coastlines', 'tileset_coastlines_clean');
+    const dirt = addTs('tileset_dirt', 'tileset_dirt');
+    const road = addTs('tileset_roads_stone', 'tileset_roads_stone');
 
     this.tilesets = { grass, autumn, winter, coastlines, dirt, road };
 
@@ -707,8 +729,17 @@ export class OverworldScene extends Phaser.Scene {
         } else if (action === 'set_time' && payload) {
           this.lighting.timeOfDay = Number(payload);
           const info = this.lighting.getPhaseLabel();
-          this.hud.setTimeLabel(`${info.label} ${info.clockStr}`);
+          this.hud.setTimeLabel(
+            `Day ${this.lighting.dayNumber} • ${info.label} ${info.clockStr} • ${this.weather.getStatusLabel()}`,
+          );
           this.hud.showToast(`Time set to ${info.label} (${info.clockStr})`);
+        } else if (action === 'set_weather' && payload) {
+          this.weather.setDebugWeather(payload as WeatherKind | 'auto');
+          this.hud.showToast(`Weather: ${this.weather.getStatusLabel()}`);
+        } else if (action === 'next_day') {
+          this.lighting.dayNumber++;
+          this.weather.setDay(this.lighting.dayNumber);
+          this.hud.showToast(`Day ${this.lighting.dayNumber} • ${this.weather.getStatusLabel()}`);
         } else if (action === 'clear_dungeons') {
           gameState.clearedDungeons.add('skull_crypt');
           gameState.clearedDungeons.add('sunken_tomb');
@@ -1026,12 +1057,15 @@ export class OverworldScene extends Phaser.Scene {
       this.fishingBobber?.destroy();
       this.fishingBobber = this.add.sprite(castX, castY, 'extras/Fishing bobber').setDepth(castY);
       this.fishingBobber.play('prop_bobber');
+      this.fishingSplashTimerMs = 850;
+      this.ocean.spawnSplash(castX, castY, 1.0);
       SFX.playCast();
 
       this.fishingMinigame.start((caught) => {
         this.fishingBobber?.destroy();
         this.fishingBobber = undefined;
         if (caught) {
+          this.ocean.spawnSplash(castX, castY, 1.35);
           const mult = this.getLighthouseMultiplier(castX, castY);
           const count = Math.max(1, Math.round((targetSpot ? 2 : 1) * mult));
           this.spawnLoot(this.player.x + 8, this.player.y + 8, 'fish', count);
@@ -1341,6 +1375,13 @@ export class OverworldScene extends Phaser.Scene {
       this.fox.updateCompanion(dt, this.player.x, this.player.y);
     } else if (this.fishingMinigame.isActive()) {
       this.player.playHeroAnim('fishing');
+      if (this.fishingBobber?.active) {
+        this.fishingSplashTimerMs -= dt;
+        if (this.fishingSplashTimerMs <= 0) {
+          this.fishingSplashTimerMs = 950;
+          this.ocean.spawnSplash(this.fishingBobber.x, this.fishingBobber.y, 0.58);
+        }
+      }
     }
 
     // Station prompts
@@ -1391,7 +1432,7 @@ export class OverworldScene extends Phaser.Scene {
       }
       e.updateEnemy(dt, this.player.x, this.player.y, this.isWalkable, {
         onMeleeHitPlayer: (dmg, dx, dy) => {
-          if (this.player.takeDamage(dmg, dx, dy)) {
+          if (this.player.takeDamage(dmg, dx, dy, this.isWalkable)) {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${dmg}`, '#ff5e6c');
             this.checkPlayerDeath();
           }
@@ -1447,8 +1488,21 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    // Day/Night Cycle & Multi-Colored Point & Spot Lights
+    // Ocean Waves, Caustics, Reflections & Weather + Day/Night Lighting
+    this.syncBiomeFromPlayer();
+    const { nightFactor } = this.lighting.getAmbientColor();
+    this.ocean.update(dt, this.weather.wind, nightFactor, this.terrainGrid, this.nodes, this.buildings);
+    this.weather.update(dt);
     this.updateLighting(dt);
+  }
+
+  private syncBiomeFromPlayer(): void {
+    const gx = Phaser.Math.Clamp(Math.floor(this.player.x / (ISLAND_CELL_TILES * TILE_PX)), 0, 4);
+    const gy = Phaser.Math.Clamp(Math.floor(this.player.y / (ISLAND_CELL_TILES * TILE_PX)), 0, 4);
+    const island = getIslandAt(gx, gy);
+    if (island) {
+      this.weather.setBiome(island.biome);
+    }
   }
 
   private updateLighting(dtMs: number): void {
@@ -1456,24 +1510,10 @@ export class OverworldScene extends Phaser.Scene {
     const flicker = 0.92 + Math.sin(this.time.now * 0.015) * 0.08;
 
     const pointLights: PointLightSource[] = [
-      // Player warm lantern aura
-      { x: this.player.x, y: this.player.y - 4, radius: 56, color: 0xffd27a, intensity: 0.95 },
+      // Simple smooth circular light field fading outward around the player
+      { x: this.player.x, y: this.player.y - 4, radius: 74, color: 0xffe4aa, intensity: 1.0 },
     ];
     const spotLights: SpotLightSource[] = [];
-
-    // Player directional flashlight cone toward cursor
-    const ptr = this.input.activePointer;
-    const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
-    const aimAng = Math.atan2(wp.y - this.player.y, wp.x - this.player.x);
-    spotLights.push({
-      x: this.player.x,
-      y: this.player.y - 4,
-      angle: aimAng,
-      length: 92,
-      width: 58,
-      color: 0xffe8b3,
-      intensity: 0.85,
-    });
 
     for (const b of this.buildings) {
       if (!b.active) continue;
@@ -1484,13 +1524,14 @@ export class OverworldScene extends Phaser.Scene {
       } else if (b.structureType === 'mining_rod') {
         pointLights.push({ x: b.x, y: b.y - 6, radius: 54, color: 0x5be6ff, intensity: 0.9 });
       } else if (b.structureType === 'lighthouse') {
-        pointLights.push({ x: b.x, y: b.y - 10, radius: 75, color: 0xfff08a, intensity: 1 });
+        const beaconY = b.y - 11;
+        pointLights.push({ x: b.x, y: beaconY, radius: 68, color: 0xfff08a, intensity: 0.95 });
         spotLights.push({
           x: b.x,
-          y: b.y - 12,
+          y: beaconY,
           angle: this.lighthouseAngle,
-          length: 145,
-          width: 70,
+          length: 155,
+          width: 76,
           color: 0xfff3a8,
           intensity: 1,
         });
@@ -1510,9 +1551,19 @@ export class OverworldScene extends Phaser.Scene {
       pointLights.push({ x: dp.x, y: dp.y, radius: 48, color: 0xa275ff, intensity: 0.85 });
     }
 
-    this.lighting.update(dtMs, pointLights, spotLights);
+    const dayWrapped = this.lighting.update(
+      dtMs,
+      pointLights,
+      spotLights,
+      this.weather.getLightModifier(),
+    );
+    if (dayWrapped) {
+      this.weather.setDay(this.lighting.dayNumber);
+    }
     const phase = this.lighting.getPhaseLabel();
-    this.hud.setTimeLabel(`${phase.label} ${phase.clockStr}`);
+    this.hud.setTimeLabel(
+      `Day ${this.lighting.dayNumber} • ${phase.label} ${phase.clockStr} • ${this.weather.getStatusLabel()}`,
+    );
   }
 
   private detonateBomb(bx: number, by: number): void {
@@ -1578,7 +1629,7 @@ export class OverworldScene extends Phaser.Scene {
       } else {
         if (Math.hypot(this.player.x - p.sprite.x, this.player.y - p.sprite.y) <= 10) {
           const spd = Math.hypot(p.vx, p.vy) || 1;
-          if (this.player.takeDamage(p.damage, p.vx / spd, p.vy / spd)) {
+          if (this.player.takeDamage(p.damage, p.vx / spd, p.vy / spd, this.isWalkable)) {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${p.damage}`, '#ff5e6c');
             this.checkPlayerDeath();
           }

@@ -570,7 +570,7 @@ export class DungeonScene extends Phaser.Scene {
 
       e.updateEnemy(this.bossEnraged && e === this.boss ? dt * 1.35 : dt, this.player.x, this.player.y, this.isWalkable, {
         onMeleeHitPlayer: (dmg, dx, dy) => {
-          if (this.player.takeDamage(dmg, dx, dy)) {
+          if (this.player.takeDamage(dmg, dx, dy, this.isWalkable)) {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${dmg}`, '#ff5e6c');
             if (gameState.hp <= 0) {
               gameState.hp = Math.round(gameState.getMaxHp() * 0.6);
@@ -635,7 +635,7 @@ export class DungeonScene extends Phaser.Scene {
       } else if (!hit && !p.fromPlayer) {
         if (Math.hypot(this.player.x - p.sprite.x, this.player.y - p.sprite.y) <= 10) {
           const spd = Math.hypot(p.vx, p.vy) || 1;
-          if (this.player.takeDamage(p.damage, p.vx / spd, p.vy / spd)) {
+          if (this.player.takeDamage(p.damage, p.vx / spd, p.vy / spd, this.isWalkable)) {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${p.damage}`, '#ff5e6c');
             if (gameState.hp <= 0) {
               gameState.hp = Math.round(gameState.getMaxHp() * 0.6);

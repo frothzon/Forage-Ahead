@@ -6,6 +6,8 @@ export interface PointLightSource {
   radius: number;
   color: number;
   intensity?: number;
+  /** Optional subtle illumination even during overcast daytime */
+  dayVisible?: boolean;
 }
 
 export interface SpotLightSource {
@@ -16,6 +18,13 @@ export interface SpotLightSource {
   width: number;
   color: number;
   intensity?: number;
+}
+
+export interface WeatherLightModifier {
+  /** Multiplier tint for atmospheric weather (0xffffff = none) */
+  tint?: number;
+  /** Extra darkness factor [0..0.45] on cloudy/stormy/night-like overcast days */
+  darknessBoost?: number;
 }
 
 function lerpChannel(a: number, b: number, t: number): number {
@@ -29,20 +38,28 @@ function lerpColor(c1: number, c2: number, t: number): number {
   return (r << 16) | (g << 8) | b;
 }
 
+function multiplyColors(c1: number, c2: number): number {
+  const r = Math.round((((c1 >> 16) & 0xff) * ((c2 >> 16) & 0xff)) / 255);
+  const g = Math.round((((c1 >> 8) & 0xff) * ((c2 >> 8) & 0xff)) / 255);
+  const b = Math.round(((c1 & 0xff) * (c2 & 0xff)) / 255);
+  return (r << 16) | (g << 8) | b;
+}
+
 /**
- * Day/Night Cycle + Multi-Colored Point & Spot Lighting System.
- * Renders a viewport-sized lightmap RenderTexture using MULTIPLY blending so colored
- * point lights and directional spotlights naturally illuminate the world at dusk/night.
+ * Day/Night Cycle + Multi-Colored Point & Soft-Falloff Tower Spot Lighting System.
+ * Renders a viewport-sized lightmap RenderTexture using MULTIPLY blending so circular
+ * point lights and smooth-fading spotlights illuminate the world naturally.
  */
 export class LightingSystem {
   private scene: Phaser.Scene;
   private lightmap: Phaser.GameObjects.RenderTexture;
-  private glowOverlay: Phaser.GameObjects.Graphics;
+  private beamMap: Phaser.GameObjects.RenderTexture;
   private stampImg: Phaser.GameObjects.Image;
   private spotImg: Phaser.GameObjects.Image;
 
   /** 0.00..0.20 Dawn, 0.20..0.60 Day, 0.60..0.78 Dusk, 0.78..1.00 Night */
   public timeOfDay = 0.32;
+  public dayNumber = 1;
   public cycleDurationSec = 120;
   public paused = false;
 
@@ -60,48 +77,84 @@ export class LightingSystem {
       .setDepth(8900)
       .setBlendMode(Phaser.BlendModes.MULTIPLY);
 
-    this.glowOverlay = scene.add
-      .graphics()
+    this.beamMap = scene.add
+      .renderTexture(0, 0, w, h)
+      .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(8901)
       .setBlendMode(Phaser.BlendModes.ADD);
 
-    // Off-scene stamp helpers (never added to display list directly)
+    // Off-scene stamp helpers
     this.stampImg = scene.make.image({ key: '_light_radial', add: false });
-    this.spotImg = scene.make.image({ key: '_light_cone', add: false }).setOrigin(0, 0.5);
+    // Anchor at left emitter tip inside 256x128 cone texture (x = 12px / 256 = 0.047)
+    this.spotImg = scene.make.image({ key: '_light_cone_soft', add: false }).setOrigin(12 / 256, 0.5);
   }
 
   private ensureLightTextures(): void {
     if (!this.scene.textures.exists('_light_radial')) {
-      const tex = this.scene.textures.createCanvas('_light_radial', 64, 64);
+      const tex = this.scene.textures.createCanvas('_light_radial', 128, 128);
       if (tex) {
         const ctx = tex.getContext();
-        const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 32);
+        const grad = ctx.createRadialGradient(64, 64, 2, 64, 64, 64);
         grad.addColorStop(0, 'rgba(255,255,255,1)');
-        grad.addColorStop(0.45, 'rgba(255,255,255,0.65)');
+        grad.addColorStop(0.28, 'rgba(255,255,255,0.78)');
+        grad.addColorStop(0.55, 'rgba(255,255,255,0.42)');
+        grad.addColorStop(0.8, 'rgba(255,255,255,0.14)');
         grad.addColorStop(1, 'rgba(255,255,255,0)');
         ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 64, 64);
+        ctx.fillRect(0, 0, 128, 128);
         tex.refresh();
       }
     }
 
-    if (!this.scene.textures.exists('_light_cone')) {
-      const tex = this.scene.textures.createCanvas('_light_cone', 128, 64);
+    if (!this.scene.textures.exists('_light_cone_soft')) {
+      const w = 256;
+      const h = 128;
+      const tex = this.scene.textures.createCanvas('_light_cone_soft', w, h);
       if (tex) {
         const ctx = tex.getContext();
-        const grad = ctx.createLinearGradient(0, 32, 128, 32);
-        grad.addColorStop(0, 'rgba(255,255,255,0.95)');
-        grad.addColorStop(0.65, 'rgba(255,255,255,0.45)');
-        grad.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.beginPath();
-        ctx.moveTo(0, 28);
-        ctx.lineTo(128, 2);
-        ctx.lineTo(128, 62);
-        ctx.lineTo(0, 36);
-        ctx.closePath();
-        ctx.fillStyle = grad;
-        ctx.fill();
+        const img = ctx.createImageData(w, h);
+        const data = img.data;
+        const ox = 12;
+        const oy = 64;
+        const maxRange = w - ox - 4;
+        const maxHalfSpread = Math.atan2(56, maxRange);
+
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const dx = x - ox;
+            const dy = y - oy;
+            const dist = Math.hypot(dx, dy);
+            const rNorm = dist / maxRange;
+
+            let alpha = 0;
+            // Small omnidirectional bulb halo right at tower emitter origin
+            if (dist < 14) {
+              alpha = Math.pow(1 - dist / 14, 1.5) * 0.92;
+            }
+
+            if (dx >= -2 && rNorm < 1) {
+              const effDist = Math.max(0, dx);
+              const ang = Math.atan2(Math.abs(dy), Math.max(4, effDist));
+              // Narrow neck near tower opening gently flaring out to maxHalfSpread
+              const spreadAtR = 0.08 + maxHalfSpread * Math.min(1, rNorm * 1.15);
+              if (ang < spreadAtR) {
+                const angRatio = ang / spreadAtR;
+                const angFade = Math.pow(Math.max(0, Math.cos(angRatio * Math.PI * 0.5)), 1.65);
+                // Smooth cubic fade to zero well before range limit -> no hard outer cutoff
+                const rangeFade = Math.pow(Math.max(0, 1 - rNorm), 2.15);
+                alpha = Math.max(alpha, angFade * rangeFade * 0.96);
+              }
+            }
+
+            const idx = (y * w + x) * 4;
+            data[idx] = 255;
+            data[idx + 1] = 255;
+            data[idx + 2] = 255;
+            data[idx + 3] = Math.max(0, Math.min(255, Math.round(alpha * 255)));
+          }
+        }
+        ctx.putImageData(img, 0, 0);
         tex.refresh();
       }
     }
@@ -145,20 +198,26 @@ export class LightingSystem {
       const k = (t - 0.72) / 0.1;
       return { color: lerpColor(DUSK, NIGHT, k), nightFactor: 0.55 + k * 0.45 };
     }
-    if (t < 0.96) {
-      return { color: NIGHT, nightFactor: 1 };
-    }
-    const k = (t - 0.96) / 0.04;
-    return { color: lerpColor(NIGHT, NIGHT, k), nightFactor: 1 };
+    return { color: NIGHT, nightFactor: 1 };
   }
 
+  /**
+   * Advances time-of-day. Returns `true` if a new day started.
+   */
   public update(
     dtMs: number,
     pointLights: PointLightSource[],
     spotLights: SpotLightSource[],
-  ): void {
+    weatherMod?: WeatherLightModifier,
+  ): boolean {
+    let dayWrapped = false;
     if (!this.paused) {
+      const prev = this.timeOfDay;
       this.timeOfDay = (this.timeOfDay + dtMs / (this.cycleDurationSec * 1000)) % 1;
+      if (this.timeOfDay < prev) {
+        this.dayNumber++;
+        dayWrapped = true;
+      }
     }
 
     const cam = this.scene.cameras.main;
@@ -166,16 +225,23 @@ export class LightingSystem {
     const vh = Math.max(200, this.scene.scale.height);
     if (this.lightmap.width !== vw || this.lightmap.height !== vh) {
       this.lightmap.resize(vw, vh);
+      this.beamMap.resize(vw, vh);
     }
 
-    const { color: ambient, nightFactor } = this.getAmbientColor();
+    const base = this.getAmbientColor();
+    let ambient = base.color;
+    if (weatherMod?.tint && weatherMod.tint !== 0xffffff) {
+      ambient = multiplyColors(ambient, weatherMod.tint);
+    }
+    const nightFactor = Math.min(1, base.nightFactor + (weatherMod?.darknessBoost ?? 0));
+
     this.lightmap.fill(ambient, 1);
-    this.glowOverlay.clear();
+    this.beamMap.clear();
 
     const toScreenX = (wx: number) => (wx - cam.worldView.x) * cam.zoom;
     const toScreenY = (wy: number) => (wy - cam.worldView.y) * cam.zoom;
 
-    // Stamp colored point lights into lightmap + subtle additive glow
+    // Circular point lights
     if (nightFactor > 0.04 || pointLights.length > 0) {
       for (const pl of pointLights) {
         const sx = toScreenX(pl.x);
@@ -183,58 +249,73 @@ export class LightingSystem {
         const sr = pl.radius * cam.zoom;
         if (sx < -sr || sy < -sr || sx > vw + sr || sy > vh + sr) continue;
 
-        const scale = (sr * 2) / 64;
-        const intensity = Math.min(1, (pl.intensity ?? 0.9) * Math.max(0.25, nightFactor));
+        const scale = (sr * 2) / 128;
+        const baseInt = pl.intensity ?? 0.9;
+        const lightPower = Math.min(1, baseInt * Math.max(pl.dayVisible ? 0.22 : 0.12, nightFactor));
         if (nightFactor > 0.05) {
           this.stampImg
             .setPosition(sx, sy)
             .setScale(scale)
             .setTint(pl.color)
-            .setAlpha(intensity)
+            .setAlpha(lightPower)
             .setBlendMode(Phaser.BlendModes.ADD);
           this.lightmap.draw(this.stampImg);
         }
 
-        if (nightFactor > 0.15) {
-          this.glowOverlay.fillStyle(pl.color, 0.08 * nightFactor * (pl.intensity ?? 1));
-          this.glowOverlay.fillCircle(sx, sy, sr * 0.65);
+        if (nightFactor > 0.14) {
+          this.stampImg
+            .setPosition(sx, sy)
+            .setScale(scale * 0.85)
+            .setTint(pl.color)
+            .setAlpha(0.16 * nightFactor * baseInt)
+            .setBlendMode(Phaser.BlendModes.ADD);
+          this.beamMap.draw(this.stampImg);
         }
       }
 
-      // Stamp directional spotlights
+      // Soft-falloff tower spotlights anchored at tower origin
       for (const sp of spotLights) {
         const sx = toScreenX(sp.x);
         const sy = toScreenY(sp.y);
         const lenPx = sp.length * cam.zoom;
         const wPx = sp.width * cam.zoom;
-        const intensity = Math.min(1, (sp.intensity ?? 0.9) * Math.max(0.25, nightFactor));
+        if (sx < -lenPx || sy < -lenPx || sx > vw + lenPx || sy > vh + lenPx) continue;
+
+        const baseInt = sp.intensity ?? 0.95;
+        const intensity = Math.min(1, baseInt * Math.max(0.25, nightFactor));
+        const sxScale = lenPx / 240;
+        const syScale = wPx / 112;
+
         if (nightFactor > 0.05) {
           this.spotImg
             .setPosition(sx, sy)
             .setRotation(sp.angle)
-            .setScale(lenPx / 128, wPx / 64)
+            .setScale(sxScale, syScale)
             .setTint(sp.color)
             .setAlpha(intensity)
             .setBlendMode(Phaser.BlendModes.ADD);
           this.lightmap.draw(this.spotImg);
         }
 
-        if (nightFactor > 0.18) {
-          this.glowOverlay.fillStyle(sp.color, 0.07 * nightFactor);
-          const halfSpread = Math.atan2(wPx * 0.45, lenPx);
-          this.glowOverlay.beginPath();
-          this.glowOverlay.moveTo(sx, sy);
-          this.glowOverlay.arc(sx, sy, lenPx * 0.85, sp.angle - halfSpread, sp.angle + halfSpread, false);
-          this.glowOverlay.closePath();
-          this.glowOverlay.fillPath();
+        if (nightFactor > 0.14) {
+          this.spotImg
+            .setPosition(sx, sy)
+            .setRotation(sp.angle)
+            .setScale(sxScale, syScale)
+            .setTint(sp.color)
+            .setAlpha(0.22 * nightFactor * baseInt)
+            .setBlendMode(Phaser.BlendModes.ADD);
+          this.beamMap.draw(this.spotImg);
         }
       }
     }
+
+    return dayWrapped;
   }
 
   public destroy(): void {
     this.lightmap.destroy();
-    this.glowOverlay.destroy();
+    this.beamMap.destroy();
     this.stampImg.destroy();
     this.spotImg.destroy();
   }

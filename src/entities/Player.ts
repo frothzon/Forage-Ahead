@@ -3,6 +3,7 @@ import { gameState } from '../core/GameState';
 import { SFX } from '../core/SoundFX';
 import manifest from '../data/assetManifest.json';
 import { vectorToDirection, type Direction } from './AnimationRegistry';
+import { applySafeKnockback } from './knockback';
 
 export class Player extends Phaser.GameObjects.Container {
   public sprite: Phaser.GameObjects.Sprite;
@@ -88,7 +89,12 @@ export class Player extends Phaser.GameObjects.Container {
     return true;
   }
 
-  public takeDamage(amount: number, knockX: number, knockY: number): boolean {
+  public takeDamage(
+    amount: number,
+    knockX: number,
+    knockY: number,
+    isWalkable?: (nx: number, ny: number) => boolean,
+  ): boolean {
     if (this.invulnerableMs > 0 || gameState.hp <= 0) return false;
     const mitigated = Math.max(1, amount - Math.floor(gameState.getArmorDefense() * 0.6));
     gameState.hp = Math.max(0, gameState.hp - mitigated);
@@ -98,8 +104,7 @@ export class Player extends Phaser.GameObjects.Container {
     this.scene.time.delayedCall(120, () => {
       if (this.sprite.active) this.sprite.clearTint();
     });
-    this.x += knockX * 8;
-    this.y += knockY * 8;
+    applySafeKnockback(this, knockX, knockY, 8, isWalkable, 4);
     gameState.emitVitals();
     return true;
   }
