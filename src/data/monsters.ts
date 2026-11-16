@@ -1,7 +1,9 @@
+import { ISLAND_CELL_TILES, TILE_PX } from './islands';
+
 export type MonsterAI = 'chase' | 'ranged' | 'hopper' | 'boss_summoner' | 'boss_charge';
 
-/** Half of a 14-tile island cell (7 tiles * 16px = 112px). */
-export const HALF_ISLAND_AGGRO_PX = 112;
+/** Half of a doubled 28-tile island cell (14 tiles * 16px = 224px). */
+export const HALF_ISLAND_AGGRO_PX = Math.round((ISLAND_CELL_TILES * TILE_PX) / 2);
 
 export interface MonsterDef {
   id: string;

@@ -158,11 +158,12 @@ export class OverworldScene extends Phaser.Scene {
     this.initGrids();
     this.buildTilemap();
 
+    const half = Math.floor(ISLAND_CELL_TILES / 2);
     const rawStart = gameState.playerPos
       ? gameState.playerPos
       : {
-          x: (2 * ISLAND_CELL_TILES + 6) * TILE_PX + 8,
-          y: (2 * ISLAND_CELL_TILES + 6) * TILE_PX + 8,
+          x: (2 * ISLAND_CELL_TILES + half) * TILE_PX + 8,
+          y: (2 * ISLAND_CELL_TILES + half) * TILE_PX + 8,
         };
     const safeStart = this.findNearestWalkablePoint(rawStart.x, rawStart.y);
     this.player = new Player(this, safeStart.x, safeStart.y);
@@ -231,12 +232,13 @@ export class OverworldScene extends Phaser.Scene {
     if (!spec) return;
     const ox = gx * ISLAND_CELL_TILES;
     const oy = gy * ISLAND_CELL_TILES;
+    const pad = Math.floor((ISLAND_CELL_TILES - INNER_ISLAND_SIZE) / 2);
     const mask = generateIslandMask(gx, gy, 1337);
 
     for (let ly = 0; ly < INNER_ISLAND_SIZE; ly++) {
       for (let lx = 0; lx < INNER_ISLAND_SIZE; lx++) {
         if (mask.land[ly][lx]) {
-          this.terrainGrid[oy + 1 + ly][ox + 1 + lx] = spec.biome;
+          this.terrainGrid[oy + pad + ly][ox + pad + lx] = spec.biome;
         }
       }
     }
@@ -377,7 +379,8 @@ export class OverworldScene extends Phaser.Scene {
   ): { tx: number; ty: number } {
     const ox = gx * ISLAND_CELL_TILES;
     const oy = gy * ISLAND_CELL_TILES;
-    let best = { tx: ox + 6, ty: oy + 6 };
+    const half = Math.floor(ISLAND_CELL_TILES / 2);
+    let best = { tx: ox + half, ty: oy + half };
     let bestDist = Infinity;
     for (let ly = 1; ly < ISLAND_CELL_TILES - 1; ly++) {
       for (let lx = 1; lx < ISLAND_CELL_TILES - 1; lx++) {
@@ -416,13 +419,14 @@ export class OverworldScene extends Phaser.Scene {
 
     const ox = gx * ISLAND_CELL_TILES;
     const oy = gy * ISLAND_CELL_TILES;
-    const centerTile = this.findNearestLandTileOnIsland(gx, gy, 6, 6);
+    const half = Math.floor(ISLAND_CELL_TILES / 2);
+    const centerTile = this.findNearestLandTileOnIsland(gx, gy, half, half);
     const centerTx = centerTile.tx;
     const centerTy = centerTile.ty;
 
     // 1. Dungeon Entrance (placed on verified contiguous land tile)
     if (spec.dungeonId) {
-      const dTile = this.findNearestLandTileOnIsland(gx, gy, 6, 3);
+      const dTile = this.findNearestLandTileOnIsland(gx, gy, half, Math.floor(ISLAND_CELL_TILES * 0.28));
       const spr = this.add
         .image(dTile.tx * TILE_PX + 8, dTile.ty * TILE_PX + 8, 'tileset/Cave entrance_2', 1)
         .setDepth(dTile.ty * TILE_PX + 8);
@@ -452,7 +456,7 @@ export class OverworldScene extends Phaser.Scene {
 
     // 2. Quest NPC (with grounded shadow overlapping feet)
     if (spec.npc) {
-      const nTile = this.findNearestLandTileOnIsland(gx, gy, 4, 6);
+      const nTile = this.findNearestLandTileOnIsland(gx, gy, Math.floor(ISLAND_CELL_TILES * 0.36), half);
       const nx = nTile.tx * TILE_PX + 8;
       const ny = nTile.ty * TILE_PX + 8;
       this.add.ellipse(nx, ny - 1, 10, 4, 0x000000, 0.38).setDepth(ny - 1);
@@ -480,8 +484,8 @@ export class OverworldScene extends Phaser.Scene {
       const aTile = this.findNearestLandTileOnIsland(
         gx,
         gy,
-        Phaser.Math.Between(3, 9),
-        Phaser.Math.Between(3, 9),
+        Phaser.Math.Between(Math.floor(ISLAND_CELL_TILES * 0.25), Math.floor(ISLAND_CELL_TILES * 0.75)),
+        Phaser.Math.Between(Math.floor(ISLAND_CELL_TILES * 0.25), Math.floor(ISLAND_CELL_TILES * 0.75)),
       );
       const ax = aTile.tx * TILE_PX + 8;
       const ay = aTile.ty * TILE_PX + 8;
@@ -498,12 +502,12 @@ export class OverworldScene extends Phaser.Scene {
 
     // 4. Spawn Resource Nodes & Fishing Spots on island (when not restoring from save)
     if (spawnNodes) {
-      const count = spec.starterOwned ? 14 : 16;
+      const count = spec.starterOwned ? 26 : 32;
       for (let i = 0; i < count; i++) {
         this.trySpawnNodeOnIsland(gx, gy, centerTx, centerTy);
       }
 
-      for (let f = 0; f < 3; f++) {
+      for (let f = 0; f < 5; f++) {
         const fx = ox + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
         const fy = oy + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
         if (this.terrainGrid[fy][fx] === 'water' && !this.hasNodeAt(fx, fy)) {
@@ -734,7 +738,8 @@ export class OverworldScene extends Phaser.Scene {
             this.populateIslandContent(gx, gy);
             this.refreshPurchaseMarkers();
           }
-          const tile = this.findNearestLandTileOnIsland(gx, gy, 6, 6);
+          const half = Math.floor(ISLAND_CELL_TILES / 2);
+          const tile = this.findNearestLandTileOnIsland(gx, gy, half, half);
           const pt = this.findNearestWalkablePoint(tile.tx * TILE_PX + 8, tile.ty * TILE_PX + 8);
           this.player.setPosition(pt.x, pt.y);
           this.fox.setPosition(pt.x - 16, pt.y + 6);
@@ -1599,7 +1604,7 @@ export class OverworldScene extends Phaser.Scene {
       this.respawnTimerMs = 0;
       const owned = [...gameState.ownedIslands];
       const pick = Phaser.Utils.Array.GetRandom(owned);
-      if (pick && this.nodes.length < owned.length * 16) {
+      if (pick && this.nodes.length < owned.length * 32) {
         const [gx, gy] = pick.split(',').map(Number);
         this.trySpawnNodeOnIsland(gx, gy);
       }
@@ -1802,7 +1807,8 @@ export class OverworldScene extends Phaser.Scene {
     if (gameState.hp > 0) return;
     gameState.hp = Math.round(gameState.getMaxHp() * 0.6);
     gameState.energy = gameState.getMaxEnergy();
-    const tile = this.findNearestLandTileOnIsland(2, 2, 6, 6);
+    const half = Math.floor(ISLAND_CELL_TILES / 2);
+    const tile = this.findNearestLandTileOnIsland(2, 2, half, half);
     const pt = this.findNearestWalkablePoint(tile.tx * TILE_PX + 8, tile.ty * TILE_PX + 8);
     this.player.setPosition(pt.x, pt.y);
     this.hud.showToast('Revived at Emerald Origin!');

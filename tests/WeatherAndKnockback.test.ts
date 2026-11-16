@@ -60,7 +60,7 @@ describe('applySafeKnockback', () => {
 });
 
 describe('Half-island monster aggro & ranged energy costs', () => {
-  it('caps all non-boss monsters at HALF_ISLAND_AGGRO_PX (112px)', () => {
+  it('caps all non-boss monsters at HALF_ISLAND_AGGRO_PX', () => {
     for (const m of Object.values(MONSTERS)) {
       if (!m.isBoss) {
         expect(m.aggroRange).toBeLessThanOrEqual(HALF_ISLAND_AGGRO_PX);

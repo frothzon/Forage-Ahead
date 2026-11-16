@@ -1,4 +1,4 @@
-export const INNER_ISLAND_SIZE = 12; // inside a 14x14 cell (1-tile water margin on each side)
+export const INNER_ISLAND_SIZE = 24; // inside a 28x28 cell (2-tile water margin on each side)
 
 function mulberry32(seed: number): () => number {
   let t = seed >>> 0;
@@ -13,13 +13,13 @@ function mulberry32(seed: number): () => number {
 export interface GeneratedIslandMask {
   fillRate: number;
   actualFillRatio: number;
-  land: boolean[][]; // [12][12]
+  land: boolean[][]; // [INNER_ISLAND_SIZE][INNER_ISLAND_SIZE]
 }
 
 /**
- * Generates an odd-shaped, contiguous 12x12 island landmass:
+ * Generates an odd-shaped, contiguous 24x24 island landmass:
  * 1. Picks a per-island fill rate between 65% and 85%.
- * 2. Seeds a 3x3 center core and randomly fills remaining cells at fillRate.
+ * 2. Seeds a central core and randomly fills remaining cells at fillRate.
  * 3. Runs cellular-automata smoothing passes to eliminate isolated/spiky cells.
  * 4. Runs BFS flood-fill from the center so the entire island is 100% contiguous.
  * 5. Pads thin 1-tile bridges/diagonal pinches so 3x3 coastline auto-tiles stay seamless.
@@ -33,16 +33,20 @@ export function generateIslandMask(gx: number, gy: number, worldSeed = 1337): Ge
     Array.from({ length: INNER_ISLAND_SIZE }, () => false),
   );
 
-  // 1. Seed random fill + guaranteed 4x4 core near center (4..7)
+  const mid = (INNER_ISLAND_SIZE - 1) / 2;
+  const half = INNER_ISLAND_SIZE / 2;
+  const maxRadius = Math.SQRT2 * (INNER_ISLAND_SIZE * 0.46);
+
+  // 1. Seed random fill + guaranteed center core (4x4 for 12, 6x6 for 24)
   for (let y = 0; y < INNER_ISLAND_SIZE; y++) {
     for (let x = 0; x < INNER_ISLAND_SIZE; x++) {
-      const inCore = x >= 4 && x <= 7 && y >= 4 && y <= 7;
+      const inCore = Math.abs(x - mid) <= 3 && Math.abs(y - mid) <= 3;
       if (inCore) {
         grid[y][x] = true;
       } else {
         // Slight radial bias so edges feel like natural coastlines while keeping odd shapes
-        const distFromCenter = Math.hypot(x - 5.5, y - 5.5) / 7.8;
-        const prob = Math.max(0.25, Math.min(0.95, fillRate + (0.4 - distFromCenter) * 0.25));
+        const distFromCenter = Math.hypot(x - mid, y - mid) / maxRadius;
+        const prob = Math.max(0.22, Math.min(0.95, fillRate + (0.42 - distFromCenter) * 0.26));
         grid[y][x] = rng() < prob;
       }
     }
@@ -68,7 +72,7 @@ export function generateIslandMask(gx: number, gy: number, worldSeed = 1337): Ge
     const next = grid.map((row) => [...row]);
     for (let y = 0; y < INNER_ISLAND_SIZE; y++) {
       for (let x = 0; x < INNER_ISLAND_SIZE; x++) {
-        if (x >= 5 && x <= 6 && y >= 5 && y <= 6) {
+        if (Math.abs(x - mid) <= 1.5 && Math.abs(y - mid) <= 1.5) {
           next[y][x] = true;
           continue;
         }
@@ -85,7 +89,6 @@ export function generateIslandMask(gx: number, gy: number, worldSeed = 1337): Ge
 
   // 3. Remove diagonal checkerboards & thin 1-tile spikes so 3x3 auto-tiles never leave seams
   for (let pass = 0; pass < 2; pass++) {
-    // Fix diagonal pinches: [1,0 / 0,1] or [0,1 / 1,0]
     for (let y = 0; y < INNER_ISLAND_SIZE - 1; y++) {
       for (let x = 0; x < INNER_ISLAND_SIZE - 1; x++) {
         const a = grid[y][x];
@@ -96,7 +99,6 @@ export function generateIslandMask(gx: number, gy: number, worldSeed = 1337): Ge
         if (b && c && !a && !d) grid[y][x] = true;
       }
     }
-    // Prune 1-tile spurs with <= 1 orthogonal neighbor
     const pruned = grid.map((row) => [...row]);
     for (let y = 0; y < INNER_ISLAND_SIZE; y++) {
       for (let x = 0; x < INNER_ISLAND_SIZE; x++) {
@@ -112,13 +114,15 @@ export function generateIslandMask(gx: number, gy: number, worldSeed = 1337): Ge
     grid = pruned;
   }
 
-  // 4. BFS Flood-fill from center (5, 5) to guarantee 100% contiguous landmass (no orphan cells)
+  // 4. BFS Flood-fill from center to guarantee 100% contiguous landmass (no orphan cells)
   const visited: boolean[][] = Array.from({ length: INNER_ISLAND_SIZE }, () =>
     Array.from({ length: INNER_ISLAND_SIZE }, () => false),
   );
-  const queue: Array<[number, number]> = [[5, 5]];
-  grid[5][5] = true;
-  visited[5][5] = true;
+  const sx = half - 1;
+  const sy = half - 1;
+  const queue: Array<[number, number]> = [[sx, sy]];
+  grid[sy][sx] = true;
+  visited[sy][sx] = true;
 
   while (queue.length > 0) {
     const [cx, cy] = queue.shift()!;

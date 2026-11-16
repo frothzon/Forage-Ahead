@@ -32,8 +32,8 @@ export interface IslandSpec {
 }
 
 export const WORLD_GRID_SIZE = 5;
-export const ISLAND_CELL_TILES = 14; // 12x12 inner + 2-tile water moat
-export const WORLD_TILES = WORLD_GRID_SIZE * ISLAND_CELL_TILES; // 70x70 tiles
+export const ISLAND_CELL_TILES = 28; // 24x24 inner + 2-tile water moat per side
+export const WORLD_TILES = WORLD_GRID_SIZE * ISLAND_CELL_TILES; // 140x140 tiles
 export const TILE_PX = 16;
 
 export const ISLANDS: IslandSpec[] = [

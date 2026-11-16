@@ -192,7 +192,13 @@ export class HudController {
     if (!ctx) return;
     const W = this.minimapCanvas.width;
     const H = this.minimapCanvas.height;
-    const scale = W / data.worldTiles;
+
+    // 1/2 world coverage centered directly on the player
+    const viewTiles = Math.max(20, data.worldTiles / 2);
+    const halfView = viewTiles / 2;
+    const startTx = data.playerTx - halfView;
+    const startTy = data.playerTy - halfView;
+    const scale = W / viewTiles;
 
     ctx.fillStyle = '#183f59';
     ctx.fillRect(0, 0, W, H);
@@ -205,42 +211,68 @@ export class HudController {
       infernal: '#a8474c',
     };
 
-    for (let y = 0; y < data.worldTiles; y++) {
+    const yMin = Math.max(0, Math.floor(startTy));
+    const yMax = Math.min(data.worldTiles - 1, Math.ceil(startTy + viewTiles));
+    const xMin = Math.max(0, Math.floor(startTx));
+    const xMax = Math.min(data.worldTiles - 1, Math.ceil(startTx + viewTiles));
+    const tileDrawSz = Math.max(1.5, Math.ceil(scale));
+
+    for (let y = yMin; y <= yMax; y++) {
       const row = data.terrainGrid[y];
       if (!row) continue;
-      for (let x = 0; x < data.worldTiles; x++) {
+      for (let x = xMin; x <= xMax; x++) {
         const t = row[x];
         if (t === 'water') continue;
         ctx.fillStyle = colMap[t] ?? '#58b354';
-        ctx.fillRect(Math.floor(x * scale), Math.floor(y * scale), Math.ceil(scale), Math.ceil(scale));
+        ctx.fillRect(
+          Math.floor((x - startTx) * scale),
+          Math.floor((y - startTy) * scale),
+          tileDrawSz,
+          tileDrawSz,
+        );
       }
     }
 
+    const toMini = (tx: number, ty: number) => ({
+      mx: (tx - startTx) * scale,
+      my: (ty - startTy) * scale,
+    });
+
     ctx.fillStyle = '#a36b3c';
     for (const br of data.bridges) {
-      ctx.fillRect(Math.floor(br.tx * scale), Math.floor(br.ty * scale), Math.max(2, Math.ceil(scale)), Math.max(2, Math.ceil(scale)));
+      const { mx, my } = toMini(br.tx, br.ty);
+      if (mx < -2 || my < -2 || mx > W + 2 || my > H + 2) continue;
+      ctx.fillRect(Math.floor(mx), Math.floor(my), Math.max(2, tileDrawSz), Math.max(2, tileDrawSz));
     }
 
     ctx.fillStyle = '#ffe066';
     for (const b of data.buildings) {
-      ctx.fillRect(Math.round(b.tx * scale) - 1, Math.round(b.ty * scale) - 1, 2, 2);
+      const { mx, my } = toMini(b.tx, b.ty);
+      if (mx < -2 || my < -2 || mx > W + 2 || my > H + 2) continue;
+      ctx.fillRect(Math.round(mx) - 1, Math.round(my) - 1, 2, 2);
     }
 
     ctx.fillStyle = '#c77dff';
     for (const p of data.portals) {
-      ctx.fillRect(Math.round(p.tx * scale) - 1, Math.round(p.ty * scale) - 1, 3, 3);
+      const { mx, my } = toMini(p.tx, p.ty);
+      if (mx < -2 || my < -2 || mx > W + 2 || my > H + 2) continue;
+      ctx.fillRect(Math.round(mx) - 1, Math.round(my) - 1, 3, 3);
     }
 
     ctx.fillStyle = '#ff5e6c';
     for (const e of data.enemies) {
-      ctx.fillRect(Math.round(e.tx * scale), Math.round(e.ty * scale), 2, 2);
+      const { mx, my } = toMini(e.tx, e.ty);
+      if (mx < -2 || my < -2 || mx > W + 2 || my > H + 2) continue;
+      ctx.fillRect(Math.round(mx) - 1, Math.round(my) - 1, 2, 2);
     }
 
-    // Player pulse blip
+    // Player pulse blip dead center on the minimap
+    const cx = Math.round(W / 2);
+    const cy = Math.round(H / 2);
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(Math.round(data.playerTx * scale) - 2, Math.round(data.playerTy * scale) - 2, 4, 4);
+    ctx.fillRect(cx - 2, cy - 2, 5, 5);
     ctx.fillStyle = '#ffe066';
-    ctx.fillRect(Math.round(data.playerTx * scale) - 1, Math.round(data.playerTy * scale) - 1, 2, 2);
+    ctx.fillRect(cx - 1, cy - 1, 3, 3);
   }
 
   private setupLayers(): void {
