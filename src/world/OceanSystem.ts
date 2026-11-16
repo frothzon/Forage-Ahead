@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { ISLAND_CELL_TILES, TILE_PX, WORLD_TILES } from '../data/islands';
-import type { TerrainType } from './AutoTiler';
+import { BIOME_TILESETS, type TerrainType } from './AutoTiler';
 import type { BuildingEntity } from './BuildingEntity';
 import type { ResourceNode } from './ResourceNode';
 import type { WindState } from './WeatherSystem';
@@ -93,12 +93,14 @@ interface SplashDroplet {
 
 /**
  * Renders dynamic ocean wave patterns aligned with the active wind vector,
- * animated underwater caustics, coastal terrain/structure reflections, and fishing splashes.
+ * animated underwater caustics, tile-matched shoreline reflections, and fishing splashes.
  */
 export class OceanSystem {
   private scene: Phaser.Scene;
   private shaderObj?: Phaser.GameObjects.Shader;
   private fallbackGfx?: Phaser.GameObjects.Graphics;
+  private shoreReflRt: Phaser.GameObjects.RenderTexture;
+  private reflStamp: Phaser.GameObjects.Image;
   private reflectionGfx: Phaser.GameObjects.Graphics;
   private rippleGfx: Phaser.GameObjects.Graphics;
   private splashGfx: Phaser.GameObjects.Graphics;
@@ -130,11 +132,18 @@ export class OceanSystem {
       this.fallbackGfx = scene.add.graphics().setScrollFactor(0).setDepth(0.35);
     }
 
-    // Coastal & entity reflections render strictly BELOW terrainLayer (depth 1) so islands cleanly mask land
-    this.reflectionGfx = scene.add.graphics().setDepth(0.65);
-    // Concentric ripples render above ocean surface
+    // Tile-matched vertically flipped shoreline reflections strictly below terrainLayer (depth 1)
+    this.shoreReflRt = scene.add
+      .renderTexture(0, 0, w, h)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(0.65);
+
+    this.reflStamp = scene.make.image({ key: 'tileset_coastlines', add: false }).setOrigin(0, 0);
+
+    // Coastal tree & structure reflections strictly below terrainLayer (depth 1)
+    this.reflectionGfx = scene.add.graphics().setDepth(0.7);
     this.rippleGfx = scene.add.graphics().setDepth(0.85);
-    // Splash droplets arc cleanly above entities
     this.splashGfx = scene.add.graphics().setDepth(5200);
   }
 
@@ -176,6 +185,7 @@ export class OceanSystem {
     wind: WindState,
     nightFactor: number,
     terrainGrid: TerrainType[][],
+    terrainLayer: Phaser.Tilemaps.TilemapLayer,
     nodes: ResourceNode[],
     buildings: BuildingEntity[],
   ): void {
@@ -185,7 +195,7 @@ export class OceanSystem {
     const vw = Math.max(320, this.scene.scale.width);
     const vh = Math.max(200, this.scene.scale.height);
 
-    // 1. Update Ocean Wave & Caustics Shader
+    // 1. Ocean Wave & Caustics Shader
     if (this.shaderObj) {
       if (this.shaderObj.width !== vw || this.shaderObj.height !== vh) {
         this.shaderObj.setSize(vw, vh);
@@ -205,41 +215,51 @@ export class OceanSystem {
       this.fallbackGfx.fillRect(0, 0, vw, vh);
     }
 
-    // 2. Render Shoreline & Entity Reflections in adjacent water
-    this.reflectionGfx.clear();
+    // 2. Pixel-Exact Shoreline Cutout Reflections (from cleaned & vertically faded reflection atlases)
+    if (this.shoreReflRt.width !== vw || this.shoreReflRt.height !== vh) {
+      this.shoreReflRt.resize(vw, vh);
+    }
+    this.shoreReflRt.clear();
+
     const minTx = Math.max(0, Math.floor(cam.worldView.x / TILE_PX) - 1);
     const maxTx = Math.min(WORLD_TILES - 1, Math.ceil(cam.worldView.right / TILE_PX) + 1);
     const minTy = Math.max(0, Math.floor(cam.worldView.y / TILE_PX) - 1);
     const maxTy = Math.min(WORLD_TILES - 1, Math.ceil(cam.worldView.bottom / TILE_PX) + 1);
 
     const reflAlphaScale = 1 - nightFactor * 0.45;
+    this.shoreReflRt.setAlpha(reflAlphaScale);
+    this.shoreReflRt.beginDraw();
+
     for (let ty = minTy; ty <= maxTy; ty++) {
       for (let tx = minTx; tx <= maxTx; tx++) {
         const tHere = terrainGrid[ty]?.[tx];
         if (!tHere || tHere === 'water') continue;
-        // Reflect southern shoreline cliffs/land onto the water tile immediately below
-        if (terrainGrid[ty + 1]?.[tx] === 'water') {
-          const rx = tx * TILE_PX + 8 + Math.sin(tSec * 2.8 + tx * 0.9) * 1.4 * wind.dirX;
-          const ry = (ty + 1) * TILE_PX + 4;
-          const reflCol =
-            tHere === 'winter'
-              ? 0xbce3f7
-              : tHere === 'autumn'
-                ? 0xd6b072
-                : tHere === 'graveyard'
-                  ? 0x62737e
-                  : tHere === 'infernal'
-                    ? 0x9c4842
-                    : 0x5aa864;
-          this.reflectionGfx.fillStyle(0x16384a, 0.24 * reflAlphaScale);
-          this.reflectionGfx.fillRect(rx - 8, ry - 4, 16, 4);
-          this.reflectionGfx.fillStyle(reflCol, 0.16 * reflAlphaScale);
-          this.reflectionGfx.fillRect(rx - 7, ry, 14, 5);
-        }
+        if (terrainGrid[ty + 1]?.[tx] !== 'water') continue;
+
+        const spec = BIOME_TILESETS[tHere];
+        const reflKey = `${spec.tilesetKey}_refl`;
+        if (!this.scene.textures.exists(reflKey)) continue;
+
+        const tile = terrainLayer.getTileAt(tx, ty);
+        if (!tile || !tile.tileset) continue;
+        const frameIdx = tile.index - tile.tileset.firstgid;
+        if (frameIdx < 0) continue;
+
+        const shimmerWorldX = Math.sin(tSec * 2.6 + tx * 0.9) * 0.65 * wind.dirX;
+        const sx = (tx * TILE_PX + shimmerWorldX - cam.worldView.x) * cam.zoom;
+        const sy = ((ty + 1) * TILE_PX - cam.worldView.y) * cam.zoom;
+
+        this.reflStamp
+          .setTexture(reflKey, frameIdx)
+          .setScale(cam.zoom)
+          .setTint(spec.tint ?? 0xffffff);
+        this.shoreReflRt.batchDraw(this.reflStamp, sx, sy);
       }
     }
+    this.shoreReflRt.endDraw();
 
-    // Coastal Trees & Buildings mirrored softly onto south water tiles
+    // 3. Coastal Trees & Buildings mirrored softly onto south water tiles
+    this.reflectionGfx.clear();
     for (const n of nodes) {
       if (!n.active) continue;
       if (n.kind !== 'tree' && n.kind !== 'berry_bush') continue;
@@ -248,12 +268,10 @@ export class OceanSystem {
       const belowWater =
         terrainGrid[n.ty + 1]?.[n.tx] === 'water' || terrainGrid[n.ty + 2]?.[n.tx] === 'water';
       if (!belowWater) continue;
-      const waveShift = Math.sin(tSec * 3.4 + n.tx * 1.1) * 1.6;
+      const waveShift = Math.sin(tSec * 3.4 + n.tx * 1.1) * 1.2;
       const col = n.kind === 'tree' ? 0x2f6b47 : 0x3b804e;
-      this.reflectionGfx.fillStyle(col, 0.19 * reflAlphaScale);
-      this.reflectionGfx.fillEllipse(n.x + waveShift, n.y + 13, 12, 10);
-      this.reflectionGfx.fillStyle(col, 0.12 * reflAlphaScale);
-      this.reflectionGfx.fillEllipse(n.x - waveShift * 0.8, n.y + 20, 9, 6);
+      this.reflectionGfx.fillStyle(col, 0.16 * reflAlphaScale);
+      this.reflectionGfx.fillEllipse(n.x + waveShift, n.y + 13, 10, 7);
     }
 
     for (const b of buildings) {
@@ -261,17 +279,16 @@ export class OceanSystem {
       const belowWater =
         terrainGrid[b.ty + 1]?.[b.tx] === 'water' || terrainGrid[b.ty + 2]?.[b.tx] === 'water';
       if (!belowWater) continue;
-      const waveShift = Math.sin(tSec * 3.2 + b.tx * 1.3) * 1.5;
+      const waveShift = Math.sin(tSec * 3.2 + b.tx * 1.3) * 1.2;
       const isWarm = b.structureType === 'bonfire' || b.structureType === 'furnace' || b.structureType === 'lighthouse';
       const col = isWarm ? 0xffbf66 : 0x738596;
-      this.reflectionGfx.fillStyle(col, (isWarm ? 0.24 : 0.18) * (isWarm ? 1 : reflAlphaScale));
-      this.reflectionGfx.fillEllipse(b.x + waveShift, b.y + 12, 11, 9);
+      this.reflectionGfx.fillStyle(col, (isWarm ? 0.2 : 0.14) * (isWarm ? 1 : reflAlphaScale));
+      this.reflectionGfx.fillEllipse(b.x + waveShift, b.y + 12, 10, 7);
     }
 
-    // Ignore unused import warning cleanly while keeping ISLAND_CELL_TILES handy if needed
     void ISLAND_CELL_TILES;
 
-    // 3. Water Ripples & Fishing Splash Droplets
+    // 4. Water Ripples & Fishing Splash Droplets
     this.rippleGfx.clear();
     for (let i = this.ripples.length - 1; i >= 0; i--) {
       const rp = this.ripples[i];
@@ -309,6 +326,8 @@ export class OceanSystem {
   public destroy(): void {
     this.shaderObj?.destroy();
     this.fallbackGfx?.destroy();
+    this.shoreReflRt.destroy();
+    this.reflStamp.destroy();
     this.reflectionGfx.destroy();
     this.rippleGfx.destroy();
     this.splashGfx.destroy();

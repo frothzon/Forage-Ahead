@@ -1239,14 +1239,16 @@ export class OverworldScene extends Phaser.Scene {
     if (terrain === 'water' && !this.bridgeSet.has(`${tx},${ty}`)) return false;
 
     for (const n of this.nodes) {
-      if (n.active && n.solid && n.tx === tx && n.ty === ty) {
-        if (Math.hypot(wx - n.x, wy - n.y) < 7) return false;
-      }
+      if (!n.active || !n.solid) continue;
+      if (Math.abs(n.tx - tx) > 1 || Math.abs(n.ty - ty) > 1) continue;
+      const c = n.getCollisionCenter();
+      if (Math.hypot(wx - c.x, wy - c.y) < n.collisionRadius) return false;
     }
     for (const b of this.buildings) {
-      if (b.active && b.solid && b.tx === tx && b.ty === ty) {
-        if (Math.hypot(wx - b.x, wy - b.y) < 7) return false;
-      }
+      if (!b.active || !b.solid) continue;
+      if (Math.abs(b.tx - tx) > 1 || Math.abs(b.ty - ty) > 1) continue;
+      const c = b.getCollisionCenter();
+      if (Math.hypot(wx - c.x, wy - c.y) < b.collisionRadius) return false;
     }
     return true;
   };
@@ -1491,7 +1493,15 @@ export class OverworldScene extends Phaser.Scene {
     // Ocean Waves, Caustics, Reflections & Weather + Day/Night Lighting
     this.syncBiomeFromPlayer();
     const { nightFactor } = this.lighting.getAmbientColor();
-    this.ocean.update(dt, this.weather.wind, nightFactor, this.terrainGrid, this.nodes, this.buildings);
+    this.ocean.update(
+      dt,
+      this.weather.wind,
+      nightFactor,
+      this.terrainGrid,
+      this.terrainLayer,
+      this.nodes,
+      this.buildings,
+    );
     this.weather.update(dt);
     this.updateLighting(dt);
   }

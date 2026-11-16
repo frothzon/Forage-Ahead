@@ -11,6 +11,8 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
   public readonly ty: number;
   public readonly solid: boolean;
   public readonly interactStation?: 'furnace' | 'anvil' | 'bonfire' | 'chest';
+  public readonly collisionOffsetY: number;
+  public readonly collisionRadius: number;
 
   public readonly maxQueueSize = 5;
   public craftQueue: CraftQueueJob[];
@@ -145,9 +147,19 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       this.add(this.progressText);
     }
 
-    this.setDepth(this.solid ? py + 4 : 6);
+    // Center collision region 25% up from the bottom edge of the sprite ("feet" of the structure)
+    this.collisionOffsetY = this.solid
+      ? this.mainSprite.y + (0.75 - this.mainSprite.originY) * this.mainSprite.displayHeight
+      : 0;
+    this.collisionRadius = type === 'lighthouse' ? 6.8 : 6;
+
+    this.setDepth(this.solid ? py + this.collisionOffsetY : 6);
     scene.add.existing(this);
     this.syncCraftVisual();
+  }
+
+  public getCollisionCenter(): { x: number; y: number } {
+    return { x: this.x, y: this.y + this.collisionOffsetY };
   }
 
   public isCraftingStation(): boolean {

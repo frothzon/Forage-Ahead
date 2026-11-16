@@ -31,6 +31,8 @@ export class ResourceNode extends Phaser.GameObjects.Container {
   public readonly drops: NodeDropSpec[];
   public readonly requiredTool: 'pickaxe' | 'shovel' | 'fishing_rod' | 'any';
   public readonly solid: boolean;
+  public readonly collisionOffsetY: number;
+  public readonly collisionRadius: number;
 
   private sprite: Phaser.GameObjects.Image;
   private hpBarBg?: Phaser.GameObjects.Rectangle;
@@ -65,6 +67,10 @@ export class ResourceNode extends Phaser.GameObjects.Container {
     if (cfg.scale) this.sprite.setScale(cfg.scale);
     this.add(this.sprite);
 
+    // Center collision region 25% up from the bottom edge of the sprite ("feet" of the object)
+    this.collisionOffsetY = cfg.solid ? cfg.offsetY + (0.75 - cfg.originY) * this.sprite.displayHeight : 0;
+    this.collisionRadius = cfg.radius ?? 6;
+
     const phase = tx * 1.7 + ty * 2.3;
     if (kind === 'tree') {
       // Dampened sway so heavy trunks & canopies feel sturdy
@@ -85,8 +91,12 @@ export class ResourceNode extends Phaser.GameObjects.Container {
       });
     }
 
-    this.setDepth(kind === 'dig_spot' || kind === 'fish_spot' ? 4 : py + 4);
+    this.setDepth(kind === 'dig_spot' || kind === 'fish_spot' ? 4 : py + this.collisionOffsetY);
     scene.add.existing(this);
+  }
+
+  public getCollisionCenter(): { x: number; y: number } {
+    return { x: this.x, y: this.y + this.collisionOffsetY };
   }
 
   private static getConfig(
@@ -101,6 +111,7 @@ export class ResourceNode extends Phaser.GameObjects.Container {
     solid: boolean;
     originY: number;
     offsetY: number;
+    radius?: number;
     tint?: number;
     scale?: number;
   } {
@@ -126,6 +137,7 @@ export class ResourceNode extends Phaser.GameObjects.Container {
           solid: true,
           originY: 0.85,
           offsetY: 6,
+          radius: 5.5,
           tint,
         };
       }
@@ -139,6 +151,7 @@ export class ResourceNode extends Phaser.GameObjects.Container {
           solid: true,
           originY: 0.75,
           offsetY: 5,
+          radius: 5.5,
         };
       case 'coal_vein':
         return {
@@ -153,6 +166,7 @@ export class ResourceNode extends Phaser.GameObjects.Container {
           solid: true,
           originY: 0.75,
           offsetY: 5,
+          radius: 5.5,
           tint: 0x626873,
         };
       case 'iron_vein':
