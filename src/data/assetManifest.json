@@ -1,0 +1,6358 @@
+{
+  "images": {
+    "animals/Bat 01_fly (16x16)": {
+      "path": "assets/animals/Bat 01_fly (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Bat 01_idle (16x16)": {
+      "path": "assets/animals/Bat 01_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Bat 02_fly (16x16)": {
+      "path": "assets/animals/Bat 02_fly (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Bat 02_idle (16x16)": {
+      "path": "assets/animals/Bat 02_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Bat 03_fly (16x16)": {
+      "path": "assets/animals/Bat 03_fly (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Bat 03_idle (16x16)": {
+      "path": "assets/animals/Bat 03_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Bear_Idle (32x32)": {
+      "path": "assets/animals/Bear_Idle (32x32).png",
+      "width": 128,
+      "height": 128
+    },
+    "animals/Bear_Move (32x32)": {
+      "path": "assets/animals/Bear_Move (32x32).png",
+      "width": 128,
+      "height": 128
+    },
+    "animals/Cow_idle (20x16)": {
+      "path": "assets/animals/Cow_idle (20x16).png",
+      "width": 80,
+      "height": 64
+    },
+    "animals/Cow_walk (20x16)": {
+      "path": "assets/animals/Cow_walk (20x16).png",
+      "width": 80,
+      "height": 64
+    },
+    "animals/Deer_Idle (32x32)": {
+      "path": "assets/animals/Deer_Idle (32x32).png",
+      "width": 128,
+      "height": 128
+    },
+    "animals/Deer_Move (32x32)": {
+      "path": "assets/animals/Deer_Move (32x32).png",
+      "width": 128,
+      "height": 128
+    },
+    "animals/Hen_idle (16x16)": {
+      "path": "assets/animals/Hen_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Hen_walk (16x16)": {
+      "path": "assets/animals/Hen_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Mushy 01_attack": {
+      "path": "assets/animals/Mushy 01_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "animals/Mushy 01_attack_NOhitbox": {
+      "path": "assets/animals/Mushy 01_attack_NOhitbox.png",
+      "width": 240,
+      "height": 224
+    },
+    "animals/Mushy 01_die": {
+      "path": "assets/animals/Mushy 01_die.png",
+      "width": 16,
+      "height": 64
+    },
+    "animals/Mushy 01_hit": {
+      "path": "assets/animals/Mushy 01_hit.png",
+      "width": 32,
+      "height": 64
+    },
+    "animals/Mushy 01_idle (16x16)": {
+      "path": "assets/animals/Mushy 01_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Mushy 01_walk (16x16)": {
+      "path": "assets/animals/Mushy 01_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Mushy 02_attack": {
+      "path": "assets/animals/Mushy 02_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "animals/Mushy 02_attack_NOhitbox": {
+      "path": "assets/animals/Mushy 02_attack_NOhitbox.png",
+      "width": 240,
+      "height": 224
+    },
+    "animals/Mushy 02_die": {
+      "path": "assets/animals/Mushy 02_die.png",
+      "width": 16,
+      "height": 64
+    },
+    "animals/Mushy 02_hit": {
+      "path": "assets/animals/Mushy 02_hit.png",
+      "width": 32,
+      "height": 64
+    },
+    "animals/Mushy 02_idle (16x16)": {
+      "path": "assets/animals/Mushy 02_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Mushy 02_walk (16x16)": {
+      "path": "assets/animals/Mushy 02_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Mushy 03_attack": {
+      "path": "assets/animals/Mushy 03_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "animals/Mushy 03_attack_NOhitbox": {
+      "path": "assets/animals/Mushy 03_attack_NOhitbox.png",
+      "width": 240,
+      "height": 224
+    },
+    "animals/Mushy 03_die": {
+      "path": "assets/animals/Mushy 03_die.png",
+      "width": 16,
+      "height": 64
+    },
+    "animals/Mushy 03_hit": {
+      "path": "assets/animals/Mushy 03_hit.png",
+      "width": 32,
+      "height": 64
+    },
+    "animals/Mushy 03_idle (16x16)": {
+      "path": "assets/animals/Mushy 03_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Mushy 03_walk (16x16)": {
+      "path": "assets/animals/Mushy 03_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Mushy 04_attack": {
+      "path": "assets/animals/Mushy 04_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "animals/Mushy 04_attack_NOhitbox": {
+      "path": "assets/animals/Mushy 04_attack_NOhitbox.png",
+      "width": 240,
+      "height": 224
+    },
+    "animals/Mushy 04_die": {
+      "path": "assets/animals/Mushy 04_die.png",
+      "width": 16,
+      "height": 64
+    },
+    "animals/Mushy 04_hit": {
+      "path": "assets/animals/Mushy 04_hit.png",
+      "width": 32,
+      "height": 64
+    },
+    "animals/Mushy 04_idle (16x16)": {
+      "path": "assets/animals/Mushy 04_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Mushy 04_walk (16x16)": {
+      "path": "assets/animals/Mushy 04_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Pig_idle (16x16)": {
+      "path": "assets/animals/Pig_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Pig_walk (16x16)": {
+      "path": "assets/animals/Pig_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Rabbit_Idle (16x16)": {
+      "path": "assets/animals/Rabbit_Idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Rabbit_Move (16x16)": {
+      "path": "assets/animals/Rabbit_Move (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Raven_Idle (16x16)": {
+      "path": "assets/animals/Raven_Idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Raven_Move (16x16)": {
+      "path": "assets/animals/Raven_Move (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Slime 01_idle (16x16)": {
+      "path": "assets/animals/Slime 01_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Slime 01_walk (16x16)": {
+      "path": "assets/animals/Slime 01_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Slime 02_idle (16x16)": {
+      "path": "assets/animals/Slime 02_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Slime 02_walk (16x16)": {
+      "path": "assets/animals/Slime 02_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Slime 03_idle (16x16)": {
+      "path": "assets/animals/Slime 03_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Slime 03_walk (16x16)": {
+      "path": "assets/animals/Slime 03_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Slime 04_idle (16x16)": {
+      "path": "assets/animals/Slime 04_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Slime 04_walk (16x16)": {
+      "path": "assets/animals/Slime 04_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Wolf 01_idle (16x16)": {
+      "path": "assets/animals/Wolf 01_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Wolf 01_walk (16x16)": {
+      "path": "assets/animals/Wolf 01_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Wolf 02_idle (16x16)": {
+      "path": "assets/animals/Wolf 02_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Wolf 02_walk (16x16)": {
+      "path": "assets/animals/Wolf 02_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Wolf 03_idle (16x16)": {
+      "path": "assets/animals/Wolf 03_idle (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "animals/Wolf 03_walk (16x16)": {
+      "path": "assets/animals/Wolf 03_walk (16x16).png",
+      "width": 64,
+      "height": 64
+    },
+    "npcs/Elf_idle (16x24)": {
+      "path": "assets/npcs/Elf_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Elf_walk (16x24)": {
+      "path": "assets/npcs/Elf_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/01 - Full spritesheet (16x24)": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/01 - Full spritesheet (16x24).png",
+      "width": 640,
+      "height": 192
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Alchemist_idle": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Alchemist_idle.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Alchemist_walk": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Alchemist_walk.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Banner": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Banner.png",
+      "width": 474,
+      "height": 375
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Barmaid_idle": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Barmaid_idle.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Barmaid_walk": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Barmaid_walk.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Bartender_idle": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Bartender_idle.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Bartender_walk": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Bartender_walk.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Blacksmith_idle": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Blacksmith_idle.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Blacksmith_walk": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Blacksmith_walk.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Farmer_idle": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Farmer_idle.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Farmer_walk": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Farmer_walk.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Fisherman_idle": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Fisherman_idle.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Fisherman_walk": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Fisherman_walk.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Kid01_idle": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Kid01_idle.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Kid01_walk": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Kid01_walk.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Kid02_idle": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Kid02_idle.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Kid02_walk": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Kid02_walk.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Merchant_idle": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Merchant_idle.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/Medieval Townsfolk pack (bonus)/Merchant_walk": {
+      "path": "assets/npcs/Medieval Townsfolk pack (bonus)/Merchant_walk.png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 01_idle (16x24)": {
+      "path": "assets/npcs/NPC 01_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 01_walk (16x24)": {
+      "path": "assets/npcs/NPC 01_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 02_idle (16x24)": {
+      "path": "assets/npcs/NPC 02_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 02_walk (16x24)": {
+      "path": "assets/npcs/NPC 02_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 03_idle (16x24)": {
+      "path": "assets/npcs/NPC 03_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 03_walk (16x24)": {
+      "path": "assets/npcs/NPC 03_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 04_idle (16x24)": {
+      "path": "assets/npcs/NPC 04_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 04_walk (16x24)": {
+      "path": "assets/npcs/NPC 04_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 05_idle (16x24)": {
+      "path": "assets/npcs/NPC 05_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 05_walk (16x24)": {
+      "path": "assets/npcs/NPC 05_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 06_idle (16x24)": {
+      "path": "assets/npcs/NPC 06_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 06_walk (16x24)": {
+      "path": "assets/npcs/NPC 06_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 07_idle (16x24)": {
+      "path": "assets/npcs/NPC 07_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 07_walk (16x24)": {
+      "path": "assets/npcs/NPC 07_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 08_idle (16x24)": {
+      "path": "assets/npcs/NPC 08_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 08_walk (16x24)": {
+      "path": "assets/npcs/NPC 08_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 09_idle (16x24)": {
+      "path": "assets/npcs/NPC 09_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 09_walk (16x24)": {
+      "path": "assets/npcs/NPC 09_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 10_idle (16x24)": {
+      "path": "assets/npcs/NPC 10_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 10_walk (16x24)": {
+      "path": "assets/npcs/NPC 10_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 11_idle (16x24)": {
+      "path": "assets/npcs/NPC 11_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 11_walk (16x24)": {
+      "path": "assets/npcs/NPC 11_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 12_idle (16x24)": {
+      "path": "assets/npcs/NPC 12_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 12_walk (16x24)": {
+      "path": "assets/npcs/NPC 12_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 13_idle (16x24)": {
+      "path": "assets/npcs/NPC 13_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 13_walk (16x24)": {
+      "path": "assets/npcs/NPC 13_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 14_idle (16x24)": {
+      "path": "assets/npcs/NPC 14_idle (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "npcs/NPC 14_walk (16x24)": {
+      "path": "assets/npcs/NPC 14_walk (16x24).png",
+      "width": 64,
+      "height": 96
+    },
+    "objects/Anvil": {
+      "path": "assets/objects/Anvil.png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Apple": {
+      "path": "assets/objects/Apple.png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Barrel": {
+      "path": "assets/objects/Barrel.png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Barrel_water": {
+      "path": "assets/objects/Barrel_water.png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Chest_big": {
+      "path": "assets/objects/Chest_big.png",
+      "width": 64,
+      "height": 16
+    },
+    "objects/Chest_mimic": {
+      "path": "assets/objects/Chest_mimic.png",
+      "width": 64,
+      "height": 16
+    },
+    "objects/Chest_small": {
+      "path": "assets/objects/Chest_small.png",
+      "width": 64,
+      "height": 16
+    },
+    "objects/Crate": {
+      "path": "assets/objects/Crate.png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Crops (berries)": {
+      "path": "assets/objects/Crops (berries).png",
+      "width": 64,
+      "height": 32
+    },
+    "objects/Crops (carrot)": {
+      "path": "assets/objects/Crops (carrot).png",
+      "width": 64,
+      "height": 32
+    },
+    "objects/Crops (sunflower)": {
+      "path": "assets/objects/Crops (sunflower).png",
+      "width": 64,
+      "height": 32
+    },
+    "objects/Fences (metal)": {
+      "path": "assets/objects/Fences (metal).png",
+      "width": 112,
+      "height": 48
+    },
+    "objects/Fences (stone)": {
+      "path": "assets/objects/Fences (stone).png",
+      "width": 112,
+      "height": 48
+    },
+    "objects/Fences (wood)": {
+      "path": "assets/objects/Fences (wood).png",
+      "width": 112,
+      "height": 48
+    },
+    "objects/High iron fences": {
+      "path": "assets/objects/High iron fences.png",
+      "width": 112,
+      "height": 96
+    },
+    "objects/Mushroom_1": {
+      "path": "assets/objects/Mushroom_1.png",
+      "width": 64,
+      "height": 16
+    },
+    "objects/Mushroom_2": {
+      "path": "assets/objects/Mushroom_2.png",
+      "width": 64,
+      "height": 16
+    },
+    "objects/Mushroom_3": {
+      "path": "assets/objects/Mushroom_3.png",
+      "width": 64,
+      "height": 16
+    },
+    "objects/Mushroom_4": {
+      "path": "assets/objects/Mushroom_4.png",
+      "width": 64,
+      "height": 16
+    },
+    "objects/Orange": {
+      "path": "assets/objects/Orange.png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Peach": {
+      "path": "assets/objects/Peach.png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Potion_blue": {
+      "path": "assets/objects/Potion_blue.png",
+      "width": 64,
+      "height": 16
+    },
+    "objects/Potion_green": {
+      "path": "assets/objects/Potion_green.png",
+      "width": 64,
+      "height": 16
+    },
+    "objects/Potion_red": {
+      "path": "assets/objects/Potion_red.png",
+      "width": 64,
+      "height": 16
+    },
+    "objects/Stool": {
+      "path": "assets/objects/Stool.png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Sword": {
+      "path": "assets/objects/Sword.png",
+      "width": 64,
+      "height": 16
+    },
+    "objects/Torch": {
+      "path": "assets/objects/Torch.png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (arrow_down)": {
+      "path": "assets/objects/Wooden sign (arrow_down).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (arrow_left)": {
+      "path": "assets/objects/Wooden sign (arrow_left).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (arrow_right)": {
+      "path": "assets/objects/Wooden sign (arrow_right).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (arrow_up)": {
+      "path": "assets/objects/Wooden sign (arrow_up).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (beer)": {
+      "path": "assets/objects/Wooden sign (beer).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (book)": {
+      "path": "assets/objects/Wooden sign (book).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (leaf)": {
+      "path": "assets/objects/Wooden sign (leaf).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (magic)": {
+      "path": "assets/objects/Wooden sign (magic).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (potion)": {
+      "path": "assets/objects/Wooden sign (potion).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (shield)": {
+      "path": "assets/objects/Wooden sign (shield).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (skull)": {
+      "path": "assets/objects/Wooden sign (skull).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign (sword)": {
+      "path": "assets/objects/Wooden sign (sword).png",
+      "width": 16,
+      "height": 16
+    },
+    "objects/Wooden sign": {
+      "path": "assets/objects/Wooden sign.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Bush_A": {
+      "path": "assets/tileset/Bush_A.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Bush_B1": {
+      "path": "assets/tileset/Bush_B1.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Bush_B2": {
+      "path": "assets/tileset/Bush_B2.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Bush_B3": {
+      "path": "assets/tileset/Bush_B3.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Bush_B4": {
+      "path": "assets/tileset/Bush_B4.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Bush_C1": {
+      "path": "assets/tileset/Bush_C1.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Bush_C2": {
+      "path": "assets/tileset/Bush_C2.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Bush_C3": {
+      "path": "assets/tileset/Bush_C3.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Bush_C4": {
+      "path": "assets/tileset/Bush_C4.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Bush_D1": {
+      "path": "assets/tileset/Bush_D1.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Bush_D2": {
+      "path": "assets/tileset/Bush_D2.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Bush_D3": {
+      "path": "assets/tileset/Bush_D3.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Bush_D4": {
+      "path": "assets/tileset/Bush_D4.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Cave entrance_1": {
+      "path": "assets/tileset/Cave entrance_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Cave entrance_2": {
+      "path": "assets/tileset/Cave entrance_2.png",
+      "width": 48,
+      "height": 16
+    },
+    "tileset/Chimney": {
+      "path": "assets/tileset/Chimney.png",
+      "width": 16,
+      "height": 32
+    },
+    "tileset/Coastlines": {
+      "path": "assets/tileset/Coastlines.png",
+      "width": 96,
+      "height": 176
+    },
+    "tileset/Dirt": {
+      "path": "assets/tileset/Dirt.png",
+      "width": 96,
+      "height": 48
+    },
+    "tileset/Door (closed)": {
+      "path": "assets/tileset/Door (closed).png",
+      "width": 48,
+      "height": 32
+    },
+    "tileset/Door (open)": {
+      "path": "assets/tileset/Door (open).png",
+      "width": 48,
+      "height": 32
+    },
+    "tileset/Flower_1": {
+      "path": "assets/tileset/Flower_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Flower_2": {
+      "path": "assets/tileset/Flower_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Flower_3": {
+      "path": "assets/tileset/Flower_3.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Flower_4": {
+      "path": "assets/tileset/Flower_4.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Flower_5": {
+      "path": "assets/tileset/Flower_5.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Flower_6": {
+      "path": "assets/tileset/Flower_6.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Flower_7": {
+      "path": "assets/tileset/Flower_7.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Flower_8": {
+      "path": "assets/tileset/Flower_8.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Flower_9": {
+      "path": "assets/tileset/Flower_9.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Forest tiles_1": {
+      "path": "assets/tileset/Forest tiles_1.png",
+      "width": 240,
+      "height": 144
+    },
+    "tileset/Forest tiles_2": {
+      "path": "assets/tileset/Forest tiles_2.png",
+      "width": 240,
+      "height": 144
+    },
+    "tileset/Forest tiles_3": {
+      "path": "assets/tileset/Forest tiles_3.png",
+      "width": 240,
+      "height": 144
+    },
+    "tileset/Grass": {
+      "path": "assets/tileset/Grass.png",
+      "width": 192,
+      "height": 192
+    },
+    "tileset/House_1 (closed)": {
+      "path": "assets/tileset/House_1 (closed).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_1 (open)": {
+      "path": "assets/tileset/House_1 (open).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_2 (closed)": {
+      "path": "assets/tileset/House_2 (closed).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_2 (open)": {
+      "path": "assets/tileset/House_2 (open).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_3 (closed)": {
+      "path": "assets/tileset/House_3 (closed).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_3 (open)": {
+      "path": "assets/tileset/House_3 (open).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_4 (closed)": {
+      "path": "assets/tileset/House_4 (closed).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_4 (open)": {
+      "path": "assets/tileset/House_4 (open).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_big_1 (closed)": {
+      "path": "assets/tileset/House_big_1 (closed).png",
+      "width": 112,
+      "height": 96
+    },
+    "tileset/House_big_1 (open)": {
+      "path": "assets/tileset/House_big_1 (open).png",
+      "width": 112,
+      "height": 96
+    },
+    "tileset/House_big_2 (closed)": {
+      "path": "assets/tileset/House_big_2 (closed).png",
+      "width": 112,
+      "height": 96
+    },
+    "tileset/House_big_2 (open)": {
+      "path": "assets/tileset/House_big_2 (open).png",
+      "width": 112,
+      "height": 96
+    },
+    "tileset/House_big_3 (closed)": {
+      "path": "assets/tileset/House_big_3 (closed).png",
+      "width": 112,
+      "height": 96
+    },
+    "tileset/House_big_3 (open)": {
+      "path": "assets/tileset/House_big_3 (open).png",
+      "width": 112,
+      "height": 96
+    },
+    "tileset/House_big_4 (closed)": {
+      "path": "assets/tileset/House_big_4 (closed).png",
+      "width": 112,
+      "height": 96
+    },
+    "tileset/House_big_4 (open)": {
+      "path": "assets/tileset/House_big_4 (open).png",
+      "width": 112,
+      "height": 96
+    },
+    "tileset/House_small_1 (closed)": {
+      "path": "assets/tileset/House_small_1 (closed).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_small_1 (open)": {
+      "path": "assets/tileset/House_small_1 (open).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_small_2 (closed)": {
+      "path": "assets/tileset/House_small_2 (closed).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_small_2 (open)": {
+      "path": "assets/tileset/House_small_2 (open).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_small_3 (closed)": {
+      "path": "assets/tileset/House_small_3 (closed).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_small_3 (open)": {
+      "path": "assets/tileset/House_small_3 (open).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_small_4 (closed)": {
+      "path": "assets/tileset/House_small_4 (closed).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/House_small_4 (open)": {
+      "path": "assets/tileset/House_small_4 (open).png",
+      "width": 80,
+      "height": 80
+    },
+    "tileset/Leaves_1": {
+      "path": "assets/tileset/Leaves_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Leaves_2": {
+      "path": "assets/tileset/Leaves_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Leaves_3": {
+      "path": "assets/tileset/Leaves_3.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Leaves_4": {
+      "path": "assets/tileset/Leaves_4.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Roads": {
+      "path": "assets/tileset/Roads.png",
+      "width": 80,
+      "height": 48
+    },
+    "tileset/Roads_stone": {
+      "path": "assets/tileset/Roads_stone.png",
+      "width": 112,
+      "height": 48
+    },
+    "tileset/Rock_1": {
+      "path": "assets/tileset/Rock_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Rock_2": {
+      "path": "assets/tileset/Rock_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Rock_3": {
+      "path": "assets/tileset/Rock_3.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Rock_4": {
+      "path": "assets/tileset/Rock_4.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Root_A1": {
+      "path": "assets/tileset/Root_A1.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Root_A2": {
+      "path": "assets/tileset/Root_A2.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Root_A3": {
+      "path": "assets/tileset/Root_A3.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Root_B1": {
+      "path": "assets/tileset/Root_B1.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Root_B2": {
+      "path": "assets/tileset/Root_B2.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Root_B3": {
+      "path": "assets/tileset/Root_B3.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Root_C1": {
+      "path": "assets/tileset/Root_C1.png",
+      "width": 32,
+      "height": 16
+    },
+    "tileset/Root_C2": {
+      "path": "assets/tileset/Root_C2.png",
+      "width": 32,
+      "height": 16
+    },
+    "tileset/Root_C3": {
+      "path": "assets/tileset/Root_C3.png",
+      "width": 32,
+      "height": 16
+    },
+    "tileset/Root_D1": {
+      "path": "assets/tileset/Root_D1.png",
+      "width": 32,
+      "height": 16
+    },
+    "tileset/Root_D2": {
+      "path": "assets/tileset/Root_D2.png",
+      "width": 32,
+      "height": 16
+    },
+    "tileset/Root_D3": {
+      "path": "assets/tileset/Root_D3.png",
+      "width": 32,
+      "height": 16
+    },
+    "tileset/Stone tile": {
+      "path": "assets/tileset/Stone tile.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Tall grass": {
+      "path": "assets/tileset/Tall grass.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Tree stump": {
+      "path": "assets/tileset/Tree stump.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Tree_A1": {
+      "path": "assets/tileset/Tree_A1.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Tree_A2": {
+      "path": "assets/tileset/Tree_A2.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Tree_A3": {
+      "path": "assets/tileset/Tree_A3.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Tree_A4": {
+      "path": "assets/tileset/Tree_A4.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Tree_B1": {
+      "path": "assets/tileset/Tree_B1.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Tree_B2": {
+      "path": "assets/tileset/Tree_B2.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Tree_B3": {
+      "path": "assets/tileset/Tree_B3.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Tree_B4": {
+      "path": "assets/tileset/Tree_B4.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Tree_B_christmas": {
+      "path": "assets/tileset/Tree_B_christmas.png",
+      "width": 32,
+      "height": 48
+    },
+    "tileset/Tree_C1": {
+      "path": "assets/tileset/Tree_C1.png",
+      "width": 32,
+      "height": 48
+    },
+    "tileset/Tree_C2": {
+      "path": "assets/tileset/Tree_C2.png",
+      "width": 32,
+      "height": 48
+    },
+    "tileset/Tree_C3": {
+      "path": "assets/tileset/Tree_C3.png",
+      "width": 32,
+      "height": 48
+    },
+    "tileset/Tree_C4": {
+      "path": "assets/tileset/Tree_C4.png",
+      "width": 32,
+      "height": 48
+    },
+    "tileset/Tree_D1": {
+      "path": "assets/tileset/Tree_D1.png",
+      "width": 32,
+      "height": 48
+    },
+    "tileset/Tree_D2": {
+      "path": "assets/tileset/Tree_D2.png",
+      "width": 32,
+      "height": 48
+    },
+    "tileset/Tree_D3": {
+      "path": "assets/tileset/Tree_D3.png",
+      "width": 32,
+      "height": 48
+    },
+    "tileset/Tree_D4": {
+      "path": "assets/tileset/Tree_D4.png",
+      "width": 32,
+      "height": 48
+    },
+    "tileset/Tree_E1": {
+      "path": "assets/tileset/Tree_E1.png",
+      "width": 48,
+      "height": 48
+    },
+    "tileset/Tree_E2": {
+      "path": "assets/tileset/Tree_E2.png",
+      "width": 48,
+      "height": 48
+    },
+    "tileset/Tree_E3": {
+      "path": "assets/tileset/Tree_E3.png",
+      "width": 48,
+      "height": 48
+    },
+    "tileset/Tree_E4": {
+      "path": "assets/tileset/Tree_E4.png",
+      "width": 48,
+      "height": 48
+    },
+    "tileset/Tree_F1": {
+      "path": "assets/tileset/Tree_F1.png",
+      "width": 32,
+      "height": 64
+    },
+    "tileset/Tree_F2": {
+      "path": "assets/tileset/Tree_F2.png",
+      "width": 32,
+      "height": 64
+    },
+    "tileset/Tree_F3": {
+      "path": "assets/tileset/Tree_F3.png",
+      "width": 32,
+      "height": 64
+    },
+    "tileset/Tree_F4": {
+      "path": "assets/tileset/Tree_F4.png",
+      "width": 32,
+      "height": 64
+    },
+    "tileset/Waterfall tiles (16x16 - 5 frames)": {
+      "path": "assets/tileset/Waterfall tiles (16x16 - 5 frames).png",
+      "width": 240,
+      "height": 48
+    },
+    "tileset/Well_1": {
+      "path": "assets/tileset/Well_1.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Well_2": {
+      "path": "assets/tileset/Well_2.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Well_3": {
+      "path": "assets/tileset/Well_3.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Well_4": {
+      "path": "assets/tileset/Well_4.png",
+      "width": 32,
+      "height": 32
+    },
+    "tileset/Window_1": {
+      "path": "assets/tileset/Window_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Window_2": {
+      "path": "assets/tileset/Window_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "tileset/Wooden logs": {
+      "path": "assets/tileset/Wooden logs.png",
+      "width": 16,
+      "height": 16
+    },
+    "portraits/Beastmaster/Beastmaster (angry)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster (angry).png",
+      "width": 18,
+      "height": 17
+    },
+    "portraits/Beastmaster/Beastmaster (happy)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster (happy).png",
+      "width": 18,
+      "height": 17
+    },
+    "portraits/Beastmaster/Beastmaster (nervous)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster (nervous).png",
+      "width": 18,
+      "height": 17
+    },
+    "portraits/Beastmaster/Beastmaster (sad)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster (sad).png",
+      "width": 18,
+      "height": 17
+    },
+    "portraits/Beastmaster/Beastmaster (sleeping)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster (sleeping).png",
+      "width": 18,
+      "height": 17
+    },
+    "portraits/Beastmaster/Beastmaster": {
+      "path": "assets/portraits/Beastmaster/Beastmaster.png",
+      "width": 18,
+      "height": 17
+    },
+    "portraits/Beastmaster/Beastmaster_frame (angry)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_frame (angry).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Beastmaster/Beastmaster_frame (happy)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_frame (happy).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Beastmaster/Beastmaster_frame (nervous)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_frame (nervous).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Beastmaster/Beastmaster_frame (sad)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_frame (sad).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Beastmaster/Beastmaster_frame (sleeping)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_frame (sleeping).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Beastmaster/Beastmaster_frame": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Beastmaster/Beastmaster_noOutline (angry)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_noOutline (angry).png",
+      "width": 16,
+      "height": 15
+    },
+    "portraits/Beastmaster/Beastmaster_noOutline (happy)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_noOutline (happy).png",
+      "width": 16,
+      "height": 15
+    },
+    "portraits/Beastmaster/Beastmaster_noOutline (nervous)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_noOutline (nervous).png",
+      "width": 16,
+      "height": 15
+    },
+    "portraits/Beastmaster/Beastmaster_noOutline (sad)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_noOutline (sad).png",
+      "width": 16,
+      "height": 15
+    },
+    "portraits/Beastmaster/Beastmaster_noOutline (sleeping)": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_noOutline (sleeping).png",
+      "width": 16,
+      "height": 15
+    },
+    "portraits/Beastmaster/Beastmaster_noOutline": {
+      "path": "assets/portraits/Beastmaster/Beastmaster_noOutline.png",
+      "width": 16,
+      "height": 15
+    },
+    "portraits/DialogBubble_1": {
+      "path": "assets/portraits/DialogBubble_1.png",
+      "width": 10,
+      "height": 8
+    },
+    "portraits/DialogBubble_2": {
+      "path": "assets/portraits/DialogBubble_2.png",
+      "width": 16,
+      "height": 14
+    },
+    "portraits/DialogBubble_3": {
+      "path": "assets/portraits/DialogBubble_3.png",
+      "width": 20,
+      "height": 20
+    },
+    "portraits/Emote_alert": {
+      "path": "assets/portraits/Emote_alert.png",
+      "width": 80,
+      "height": 14
+    },
+    "portraits/Emote_angry": {
+      "path": "assets/portraits/Emote_angry.png",
+      "width": 64,
+      "height": 14
+    },
+    "portraits/Emote_laughing": {
+      "path": "assets/portraits/Emote_laughing.png",
+      "width": 64,
+      "height": 14
+    },
+    "portraits/Emote_nervous": {
+      "path": "assets/portraits/Emote_nervous.png",
+      "width": 64,
+      "height": 14
+    },
+    "portraits/Emote_no": {
+      "path": "assets/portraits/Emote_no.png",
+      "width": 64,
+      "height": 14
+    },
+    "portraits/Emote_question": {
+      "path": "assets/portraits/Emote_question.png",
+      "width": 80,
+      "height": 14
+    },
+    "portraits/Emote_sleeping": {
+      "path": "assets/portraits/Emote_sleeping.png",
+      "width": 40,
+      "height": 8
+    },
+    "portraits/Emote_talking": {
+      "path": "assets/portraits/Emote_talking.png",
+      "width": 80,
+      "height": 14
+    },
+    "portraits/Emote_yes": {
+      "path": "assets/portraits/Emote_yes.png",
+      "width": 64,
+      "height": 14
+    },
+    "portraits/Empty frame": {
+      "path": "assets/portraits/Empty frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Fox/Fox (angry)": {
+      "path": "assets/portraits/Fox/Fox (angry).png",
+      "width": 18,
+      "height": 16
+    },
+    "portraits/Fox/Fox (happy)": {
+      "path": "assets/portraits/Fox/Fox (happy).png",
+      "width": 18,
+      "height": 16
+    },
+    "portraits/Fox/Fox (nervous)": {
+      "path": "assets/portraits/Fox/Fox (nervous).png",
+      "width": 18,
+      "height": 16
+    },
+    "portraits/Fox/Fox (sad)": {
+      "path": "assets/portraits/Fox/Fox (sad).png",
+      "width": 18,
+      "height": 16
+    },
+    "portraits/Fox/Fox (sleeping)": {
+      "path": "assets/portraits/Fox/Fox (sleeping).png",
+      "width": 18,
+      "height": 16
+    },
+    "portraits/Fox/Fox": {
+      "path": "assets/portraits/Fox/Fox.png",
+      "width": 18,
+      "height": 16
+    },
+    "portraits/Fox/Fox_frame (angry)": {
+      "path": "assets/portraits/Fox/Fox_frame (angry).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Fox/Fox_frame (happy)": {
+      "path": "assets/portraits/Fox/Fox_frame (happy).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Fox/Fox_frame (nervous)": {
+      "path": "assets/portraits/Fox/Fox_frame (nervous).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Fox/Fox_frame (sad)": {
+      "path": "assets/portraits/Fox/Fox_frame (sad).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Fox/Fox_frame (sleeping)": {
+      "path": "assets/portraits/Fox/Fox_frame (sleeping).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Fox/Fox_frame": {
+      "path": "assets/portraits/Fox/Fox_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Fox/Fox_noOutline (angry)": {
+      "path": "assets/portraits/Fox/Fox_noOutline (angry).png",
+      "width": 17,
+      "height": 15
+    },
+    "portraits/Fox/Fox_noOutline (happy)": {
+      "path": "assets/portraits/Fox/Fox_noOutline (happy).png",
+      "width": 17,
+      "height": 15
+    },
+    "portraits/Fox/Fox_noOutline (nervous)": {
+      "path": "assets/portraits/Fox/Fox_noOutline (nervous).png",
+      "width": 17,
+      "height": 15
+    },
+    "portraits/Fox/Fox_noOutline (sad)": {
+      "path": "assets/portraits/Fox/Fox_noOutline (sad).png",
+      "width": 17,
+      "height": 15
+    },
+    "portraits/Fox/Fox_noOutline (sleeping)": {
+      "path": "assets/portraits/Fox/Fox_noOutline (sleeping).png",
+      "width": 17,
+      "height": 15
+    },
+    "portraits/Fox/Fox_noOutline": {
+      "path": "assets/portraits/Fox/Fox_noOutline.png",
+      "width": 17,
+      "height": 15
+    },
+    "portraits/Gladiator/Gladiator (angry)": {
+      "path": "assets/portraits/Gladiator/Gladiator (angry).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator (happy)": {
+      "path": "assets/portraits/Gladiator/Gladiator (happy).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator (nervous)": {
+      "path": "assets/portraits/Gladiator/Gladiator (nervous).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator (sad)": {
+      "path": "assets/portraits/Gladiator/Gladiator (sad).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator (sleeping)": {
+      "path": "assets/portraits/Gladiator/Gladiator (sleeping).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator": {
+      "path": "assets/portraits/Gladiator/Gladiator.png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator_frame (angry)": {
+      "path": "assets/portraits/Gladiator/Gladiator_frame (angry).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator_frame (happy)": {
+      "path": "assets/portraits/Gladiator/Gladiator_frame (happy).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator_frame (nervous)": {
+      "path": "assets/portraits/Gladiator/Gladiator_frame (nervous).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator_frame (sad)": {
+      "path": "assets/portraits/Gladiator/Gladiator_frame (sad).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator_frame (sleeping)": {
+      "path": "assets/portraits/Gladiator/Gladiator_frame (sleeping).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator_frame": {
+      "path": "assets/portraits/Gladiator/Gladiator_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Gladiator/Gladiator_noOutline (angry)": {
+      "path": "assets/portraits/Gladiator/Gladiator_noOutline (angry).png",
+      "width": 16,
+      "height": 16
+    },
+    "portraits/Gladiator/Gladiator_noOutline (happy)": {
+      "path": "assets/portraits/Gladiator/Gladiator_noOutline (happy).png",
+      "width": 16,
+      "height": 16
+    },
+    "portraits/Gladiator/Gladiator_noOutline (nervous)": {
+      "path": "assets/portraits/Gladiator/Gladiator_noOutline (nervous).png",
+      "width": 16,
+      "height": 16
+    },
+    "portraits/Gladiator/Gladiator_noOutline (sad)": {
+      "path": "assets/portraits/Gladiator/Gladiator_noOutline (sad).png",
+      "width": 16,
+      "height": 16
+    },
+    "portraits/Gladiator/Gladiator_noOutline (sleeping)": {
+      "path": "assets/portraits/Gladiator/Gladiator_noOutline (sleeping).png",
+      "width": 16,
+      "height": 16
+    },
+    "portraits/Gladiator/Gladiator_noOutline": {
+      "path": "assets/portraits/Gladiator/Gladiator_noOutline.png",
+      "width": 16,
+      "height": 16
+    },
+    "portraits/Sorcerer/Sorcerer (angry)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer (angry).png",
+      "width": 21,
+      "height": 18
+    },
+    "portraits/Sorcerer/Sorcerer (happy)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer (happy).png",
+      "width": 21,
+      "height": 18
+    },
+    "portraits/Sorcerer/Sorcerer (nervous)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer (nervous).png",
+      "width": 21,
+      "height": 18
+    },
+    "portraits/Sorcerer/Sorcerer (sad)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer (sad).png",
+      "width": 21,
+      "height": 18
+    },
+    "portraits/Sorcerer/Sorcerer (sleeping)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer (sleeping).png",
+      "width": 21,
+      "height": 18
+    },
+    "portraits/Sorcerer/Sorcerer": {
+      "path": "assets/portraits/Sorcerer/Sorcerer.png",
+      "width": 21,
+      "height": 17
+    },
+    "portraits/Sorcerer/Sorcerer_frame (angry)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_frame (angry).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Sorcerer/Sorcerer_frame (happy)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_frame (happy).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Sorcerer/Sorcerer_frame (nervous)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_frame (nervous).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Sorcerer/Sorcerer_frame (sad)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_frame (sad).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Sorcerer/Sorcerer_frame (sleeping)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_frame (sleeping).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Sorcerer/Sorcerer_frame": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Sorcerer/Sorcerer_noOutline (angry)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_noOutline (angry).png",
+      "width": 19,
+      "height": 16
+    },
+    "portraits/Sorcerer/Sorcerer_noOutline (happy)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_noOutline (happy).png",
+      "width": 19,
+      "height": 16
+    },
+    "portraits/Sorcerer/Sorcerer_noOutline (nervous)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_noOutline (nervous).png",
+      "width": 19,
+      "height": 16
+    },
+    "portraits/Sorcerer/Sorcerer_noOutline (sad)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_noOutline (sad).png",
+      "width": 19,
+      "height": 16
+    },
+    "portraits/Sorcerer/Sorcerer_noOutline (sleeping)": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_noOutline (sleeping).png",
+      "width": 19,
+      "height": 16
+    },
+    "portraits/Sorcerer/Sorcerer_noOutline": {
+      "path": "assets/portraits/Sorcerer/Sorcerer_noOutline.png",
+      "width": 19,
+      "height": 16
+    },
+    "portraits/Swashbuckler/Swashbuckler (angry)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler (angry).png",
+      "width": 17,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler (happy)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler (happy).png",
+      "width": 17,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler (nervous)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler (nervous).png",
+      "width": 17,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler (sad)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler (sad).png",
+      "width": 17,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler (sleeping)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler (sleeping).png",
+      "width": 17,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler.png",
+      "width": 17,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler_frame (angry)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_frame (angry).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler_frame (happy)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_frame (happy).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler_frame (nervous)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_frame (nervous).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler_frame (sad)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_frame (sad).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler_frame (sleeping)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_frame (sleeping).png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler_frame": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "portraits/Swashbuckler/Swashbuckler_noOutline (angry)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_noOutline (angry).png",
+      "width": 15,
+      "height": 16
+    },
+    "portraits/Swashbuckler/Swashbuckler_noOutline (happy)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_noOutline (happy).png",
+      "width": 15,
+      "height": 16
+    },
+    "portraits/Swashbuckler/Swashbuckler_noOutline (nervous)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_noOutline (nervous).png",
+      "width": 15,
+      "height": 16
+    },
+    "portraits/Swashbuckler/Swashbuckler_noOutline (sad)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_noOutline (sad).png",
+      "width": 15,
+      "height": 16
+    },
+    "portraits/Swashbuckler/Swashbuckler_noOutline (sleeping)": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_noOutline (sleeping).png",
+      "width": 16,
+      "height": 17
+    },
+    "portraits/Swashbuckler/Swashbuckler_noOutline": {
+      "path": "assets/portraits/Swashbuckler/Swashbuckler_noOutline.png",
+      "width": 15,
+      "height": 16
+    },
+    "heroes/Beastmaster/Beastmaster_cast": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_cast.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_death": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_death.png",
+      "width": 384,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_falling": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_falling.png",
+      "width": 144,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_fishing": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_fishing.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_fishing_cast": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_fishing_cast.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_fishing_jerking": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_fishing_jerking.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_grab": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_grab.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_hammering": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_hammering.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_hit": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_hoeing": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_hoeing.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_idle": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_itemGot": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_itemGot.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_jump": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_jump.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_melee_NoHitbox": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_melee_NoHitbox.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_mining": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_mining.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_push": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_push.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_ranged": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_ranged.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_roll": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_roll.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_shovelling": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_shovelling.png",
+      "width": 336,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_sleeping": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_sleeping.png",
+      "width": 192,
+      "height": 48
+    },
+    "heroes/Beastmaster/Beastmaster_walk": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_watering": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_watering.png",
+      "width": 432,
+      "height": 192
+    },
+    "heroes/Beastmaster/Beastmaster_woodcutting": {
+      "path": "assets/heroes/Beastmaster/Beastmaster_woodcutting.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Beastmaster/Shadow": {
+      "path": "assets/heroes/Beastmaster/Shadow.png",
+      "width": 10,
+      "height": 3
+    },
+    "heroes/Fox/Fox_death": {
+      "path": "assets/heroes/Fox/Fox_death.png",
+      "width": 384,
+      "height": 192
+    },
+    "heroes/Fox/Fox_hit": {
+      "path": "assets/heroes/Fox/Fox_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "heroes/Fox/Fox_idle": {
+      "path": "assets/heroes/Fox/Fox_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Fox/Fox_melee_NoHitbox": {
+      "path": "assets/heroes/Fox/Fox_melee_NoHitbox.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Fox/Fox_run": {
+      "path": "assets/heroes/Fox/Fox_run.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Fox/Fox_sleeping": {
+      "path": "assets/heroes/Fox/Fox_sleeping.png",
+      "width": 192,
+      "height": 48
+    },
+    "heroes/Fox/Fox_walk": {
+      "path": "assets/heroes/Fox/Fox_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Fox/Shadow_fox": {
+      "path": "assets/heroes/Fox/Shadow_fox.png",
+      "width": 10,
+      "height": 3
+    },
+    "heroes/Fox/Shadow_fox_sides": {
+      "path": "assets/heroes/Fox/Shadow_fox_sides.png",
+      "width": 13,
+      "height": 3
+    },
+    "heroes/Gladiator/Gladiator_cast": {
+      "path": "assets/heroes/Gladiator/Gladiator_cast.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_charge": {
+      "path": "assets/heroes/Gladiator/Gladiator_charge.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_death": {
+      "path": "assets/heroes/Gladiator/Gladiator_death.png",
+      "width": 384,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_fall": {
+      "path": "assets/heroes/Gladiator/Gladiator_fall.png",
+      "width": 144,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_fishing": {
+      "path": "assets/heroes/Gladiator/Gladiator_fishing.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_fishing_cast": {
+      "path": "assets/heroes/Gladiator/Gladiator_fishing_cast.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_fishing_jerking": {
+      "path": "assets/heroes/Gladiator/Gladiator_fishing_jerking.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_grab": {
+      "path": "assets/heroes/Gladiator/Gladiator_grab.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_hammering": {
+      "path": "assets/heroes/Gladiator/Gladiator_hammering.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_hit": {
+      "path": "assets/heroes/Gladiator/Gladiator_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_hoeing": {
+      "path": "assets/heroes/Gladiator/Gladiator_hoeing.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_idle": {
+      "path": "assets/heroes/Gladiator/Gladiator_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_itemGot": {
+      "path": "assets/heroes/Gladiator/Gladiator_itemGot.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_jump": {
+      "path": "assets/heroes/Gladiator/Gladiator_jump.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_melee_NoHitbox": {
+      "path": "assets/heroes/Gladiator/Gladiator_melee_NoHitbox.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_mining": {
+      "path": "assets/heroes/Gladiator/Gladiator_mining.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_pushing": {
+      "path": "assets/heroes/Gladiator/Gladiator_pushing.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_ranged": {
+      "path": "assets/heroes/Gladiator/Gladiator_ranged.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_shovelling": {
+      "path": "assets/heroes/Gladiator/Gladiator_shovelling.png",
+      "width": 336,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_sleeping": {
+      "path": "assets/heroes/Gladiator/Gladiator_sleeping.png",
+      "width": 192,
+      "height": 48
+    },
+    "heroes/Gladiator/Gladiator_walk": {
+      "path": "assets/heroes/Gladiator/Gladiator_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_watering": {
+      "path": "assets/heroes/Gladiator/Gladiator_watering.png",
+      "width": 432,
+      "height": 192
+    },
+    "heroes/Gladiator/Gladiator_woodcutting": {
+      "path": "assets/heroes/Gladiator/Gladiator_woodcutting.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Gladiator/Shadow": {
+      "path": "assets/heroes/Gladiator/Shadow.png",
+      "width": 10,
+      "height": 3
+    },
+    "heroes/Sorcerer/Shadow": {
+      "path": "assets/heroes/Sorcerer/Shadow.png",
+      "width": 10,
+      "height": 3
+    },
+    "heroes/Sorcerer/Sorcerer_cast": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_cast.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_death": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_death.png",
+      "width": 384,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_falling": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_falling.png",
+      "width": 144,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_fishing": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_fishing.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_fishing_cast": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_fishing_cast.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_fishing_jerking": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_fishing_jerking.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_grab": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_grab.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_hammering": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_hammering.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_hit": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_hoeing": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_hoeing.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_idle": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_itemGot": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_itemGot.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_jump": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_jump.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_melee_NoHitbox": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_melee_NoHitbox.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_mining": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_mining.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_push": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_push.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_ranged": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_ranged.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_shovelling": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_shovelling.png",
+      "width": 336,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_sleeping": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_sleeping.png",
+      "width": 192,
+      "height": 48
+    },
+    "heroes/Sorcerer/Sorcerer_teleport": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_teleport.png",
+      "width": 384,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_walk": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_watering": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_watering.png",
+      "width": 432,
+      "height": 192
+    },
+    "heroes/Sorcerer/Sorcerer_woodcutting": {
+      "path": "assets/heroes/Sorcerer/Sorcerer_woodcutting.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Shadow": {
+      "path": "assets/heroes/Swashbuckler/Shadow.png",
+      "width": 10,
+      "height": 3
+    },
+    "heroes/Swashbuckler/Swashbuckler_cast": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_cast.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_dash": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_dash.png",
+      "width": 144,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_death": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_death.png",
+      "width": 384,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_falling": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_falling.png",
+      "width": 144,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_fishing": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_fishing.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_fishing_cast": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_fishing_cast.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_fishing_jerking": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_fishing_jerking.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_grab": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_grab.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_hammering": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_hammering.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_hit": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_hoeing": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_hoeing.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_idle": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_itemGot": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_itemGot.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_jump": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_jump.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_melee_NoHitbox": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_melee_NoHitbox.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_mining": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_mining.png",
+      "width": 240,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_push": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_push.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_ranged": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_ranged.png",
+      "width": 48,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_shovelling": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_shovelling.png",
+      "width": 336,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_sleeping": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_sleeping.png",
+      "width": 192,
+      "height": 48
+    },
+    "heroes/Swashbuckler/Swashbuckler_walk": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_watering": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_watering.png",
+      "width": 432,
+      "height": 192
+    },
+    "heroes/Swashbuckler/Swashbuckler_woodcutting": {
+      "path": "assets/heroes/Swashbuckler/Swashbuckler_woodcutting.png",
+      "width": 240,
+      "height": 192
+    },
+    "projectiles/Arrow": {
+      "path": "assets/projectiles/Arrow.png",
+      "width": 13,
+      "height": 7
+    },
+    "projectiles/Arrow_impact": {
+      "path": "assets/projectiles/Arrow_impact.png",
+      "width": 18,
+      "height": 15
+    },
+    "projectiles/Bomb": {
+      "path": "assets/projectiles/Bomb.png",
+      "width": 8,
+      "height": 11
+    },
+    "projectiles/Bomb_impact": {
+      "path": "assets/projectiles/Bomb_impact.png",
+      "width": 24,
+      "height": 8
+    },
+    "projectiles/Bomb_red": {
+      "path": "assets/projectiles/Bomb_red.png",
+      "width": 8,
+      "height": 11
+    },
+    "projectiles/Bomb_tilting": {
+      "path": "assets/projectiles/Bomb_tilting.png",
+      "width": 16,
+      "height": 11
+    },
+    "projectiles/Boomerang": {
+      "path": "assets/projectiles/Boomerang.png",
+      "width": 6,
+      "height": 11
+    },
+    "projectiles/Boomerang_impact": {
+      "path": "assets/projectiles/Boomerang_impact.png",
+      "width": 33,
+      "height": 11
+    },
+    "projectiles/Box": {
+      "path": "assets/projectiles/Box.png",
+      "width": 16,
+      "height": 16
+    },
+    "projectiles/Box_breaking": {
+      "path": "assets/projectiles/Box_breaking.png",
+      "width": 240,
+      "height": 48
+    },
+    "projectiles/Box_broken": {
+      "path": "assets/projectiles/Box_broken.png",
+      "width": 48,
+      "height": 48
+    },
+    "projectiles/Dagger": {
+      "path": "assets/projectiles/Dagger.png",
+      "width": 11,
+      "height": 7
+    },
+    "projectiles/Dagger_impact": {
+      "path": "assets/projectiles/Dagger_impact.png",
+      "width": 18,
+      "height": 15
+    },
+    "projectiles/Fireball": {
+      "path": "assets/projectiles/Fireball.png",
+      "width": 10,
+      "height": 5
+    },
+    "projectiles/Fireball_impact": {
+      "path": "assets/projectiles/Fireball_impact.png",
+      "width": 15,
+      "height": 13
+    },
+    "projectiles/Fireball_initial": {
+      "path": "assets/projectiles/Fireball_initial.png",
+      "width": 5,
+      "height": 5
+    },
+    "projectiles/Grass": {
+      "path": "assets/projectiles/Grass.png",
+      "width": 16,
+      "height": 16
+    },
+    "projectiles/Grass_breaking": {
+      "path": "assets/projectiles/Grass_breaking.png",
+      "width": 240,
+      "height": 48
+    },
+    "projectiles/Grass_broken": {
+      "path": "assets/projectiles/Grass_broken.png",
+      "width": 16,
+      "height": 16
+    },
+    "projectiles/IceShard": {
+      "path": "assets/projectiles/IceShard.png",
+      "width": 7,
+      "height": 5
+    },
+    "projectiles/IceShard_impact": {
+      "path": "assets/projectiles/IceShard_impact.png",
+      "width": 18,
+      "height": 15
+    },
+    "projectiles/IceShard_initial": {
+      "path": "assets/projectiles/IceShard_initial.png",
+      "width": 6,
+      "height": 5
+    },
+    "projectiles/LightningBolt": {
+      "path": "assets/projectiles/LightningBolt.png",
+      "width": 10,
+      "height": 7
+    },
+    "projectiles/LightningBolt_impact": {
+      "path": "assets/projectiles/LightningBolt_impact.png",
+      "width": 18,
+      "height": 13
+    },
+    "projectiles/LightningBolt_initial": {
+      "path": "assets/projectiles/LightningBolt_initial.png",
+      "width": 5,
+      "height": 7
+    },
+    "projectiles/MagicMissile": {
+      "path": "assets/projectiles/MagicMissile.png",
+      "width": 10,
+      "height": 5
+    },
+    "projectiles/MagicMissile_impact": {
+      "path": "assets/projectiles/MagicMissile_impact.png",
+      "width": 15,
+      "height": 13
+    },
+    "projectiles/MagicMissile_initial": {
+      "path": "assets/projectiles/MagicMissile_initial.png",
+      "width": 6,
+      "height": 5
+    },
+    "projectiles/Pilum": {
+      "path": "assets/projectiles/Pilum.png",
+      "width": 27,
+      "height": 5
+    },
+    "projectiles/Pilum_impact": {
+      "path": "assets/projectiles/Pilum_impact.png",
+      "width": 18,
+      "height": 15
+    },
+    "projectiles/Pot": {
+      "path": "assets/projectiles/Pot.png",
+      "width": 16,
+      "height": 16
+    },
+    "projectiles/Pot_breaking": {
+      "path": "assets/projectiles/Pot_breaking.png",
+      "width": 240,
+      "height": 16
+    },
+    "projectiles/Pot_broken": {
+      "path": "assets/projectiles/Pot_broken.png",
+      "width": 48,
+      "height": 16
+    },
+    "projectiles/Spear": {
+      "path": "assets/projectiles/Spear.png",
+      "width": 20,
+      "height": 5
+    },
+    "projectiles/Spear_impact": {
+      "path": "assets/projectiles/Spear_impact.png",
+      "width": 18,
+      "height": 15
+    },
+    "extras/Bed cover": {
+      "path": "assets/extras/Bed cover.png",
+      "width": 32,
+      "height": 48
+    },
+    "extras/Bed": {
+      "path": "assets/extras/Bed.png",
+      "width": 32,
+      "height": 48
+    },
+    "extras/Bonfire": {
+      "path": "assets/extras/Bonfire.png",
+      "width": 64,
+      "height": 16
+    },
+    "extras/Fishing bobber": {
+      "path": "assets/extras/Fishing bobber.png",
+      "width": 64,
+      "height": 16
+    },
+    "extras/Gravestone_1": {
+      "path": "assets/extras/Gravestone_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "extras/Gravestone_2": {
+      "path": "assets/extras/Gravestone_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "extras/Gravestone_3": {
+      "path": "assets/extras/Gravestone_3.png",
+      "width": 16,
+      "height": 16
+    },
+    "extras/Leaf_particle1": {
+      "path": "assets/extras/Leaf_particle1.png",
+      "width": 4,
+      "height": 3
+    },
+    "extras/Leaf_particle2": {
+      "path": "assets/extras/Leaf_particle2.png",
+      "width": 4,
+      "height": 4
+    },
+    "extras/Leaf_particle3": {
+      "path": "assets/extras/Leaf_particle3.png",
+      "width": 4,
+      "height": 3
+    },
+    "extras/Particle_dust_1": {
+      "path": "assets/extras/Particle_dust_1.png",
+      "width": 4,
+      "height": 4
+    },
+    "extras/Particle_dust_2": {
+      "path": "assets/extras/Particle_dust_2.png",
+      "width": 2,
+      "height": 3
+    },
+    "extras/Particle_dust_3": {
+      "path": "assets/extras/Particle_dust_3.png",
+      "width": 2,
+      "height": 2
+    },
+    "extras/Particle_dust_4": {
+      "path": "assets/extras/Particle_dust_4.png",
+      "width": 1,
+      "height": 1
+    },
+    "extras/Pumpkin": {
+      "path": "assets/extras/Pumpkin.png",
+      "width": 96,
+      "height": 16
+    },
+    "extras/Rock": {
+      "path": "assets/extras/Rock.png",
+      "width": 16,
+      "height": 16
+    },
+    "extras/Rock_particle1": {
+      "path": "assets/extras/Rock_particle1.png",
+      "width": 3,
+      "height": 3
+    },
+    "extras/Rock_particle2": {
+      "path": "assets/extras/Rock_particle2.png",
+      "width": 3,
+      "height": 3
+    },
+    "extras/Shadow": {
+      "path": "assets/extras/Shadow.png",
+      "width": 10,
+      "height": 3
+    },
+    "extras/Shadow_fox_sides": {
+      "path": "assets/extras/Shadow_fox_sides.png",
+      "width": 13,
+      "height": 3
+    },
+    "extras/Skeleton 01_die": {
+      "path": "assets/extras/Skeleton 01_die.png",
+      "width": 16,
+      "height": 64
+    },
+    "extras/Skeleton 01_idle": {
+      "path": "assets/extras/Skeleton 01_idle.png",
+      "width": 64,
+      "height": 64
+    },
+    "extras/Skeleton 01_spawn": {
+      "path": "assets/extras/Skeleton 01_spawn.png",
+      "width": 64,
+      "height": 64
+    },
+    "extras/Skeleton 01_walk": {
+      "path": "assets/extras/Skeleton 01_walk.png",
+      "width": 64,
+      "height": 64
+    },
+    "extras/Skeleton 02_die": {
+      "path": "assets/extras/Skeleton 02_die.png",
+      "width": 16,
+      "height": 64
+    },
+    "extras/Skeleton 02_idle": {
+      "path": "assets/extras/Skeleton 02_idle.png",
+      "width": 64,
+      "height": 64
+    },
+    "extras/Skeleton 02_spawn": {
+      "path": "assets/extras/Skeleton 02_spawn.png",
+      "width": 64,
+      "height": 64
+    },
+    "extras/Skeleton 02_walk": {
+      "path": "assets/extras/Skeleton 02_walk.png",
+      "width": 64,
+      "height": 64
+    },
+    "extras/Skeleton 03_die": {
+      "path": "assets/extras/Skeleton 03_die.png",
+      "width": 16,
+      "height": 64
+    },
+    "extras/Skeleton 03_idle": {
+      "path": "assets/extras/Skeleton 03_idle.png",
+      "width": 64,
+      "height": 64
+    },
+    "extras/Skeleton 03_spawn": {
+      "path": "assets/extras/Skeleton 03_spawn.png",
+      "width": 64,
+      "height": 64
+    },
+    "extras/Skeleton 03_walk": {
+      "path": "assets/extras/Skeleton 03_walk.png",
+      "width": 64,
+      "height": 64
+    },
+    "extras/Tileset_autumn (free demo)": {
+      "path": "assets/extras/Tileset_autumn (free demo).png",
+      "width": 256,
+      "height": 256
+    },
+    "extras/Tileset_grass (free demo)": {
+      "path": "assets/extras/Tileset_grass (free demo).png",
+      "width": 256,
+      "height": 256
+    },
+    "extras/Tileset_winter (free demo)": {
+      "path": "assets/extras/Tileset_winter (free demo).png",
+      "width": 256,
+      "height": 256
+    },
+    "extras/Tree": {
+      "path": "assets/extras/Tree.png",
+      "width": 32,
+      "height": 32
+    },
+    "extras/Wood_particle1": {
+      "path": "assets/extras/Wood_particle1.png",
+      "width": 5,
+      "height": 4
+    },
+    "extras/Wood_particle2": {
+      "path": "assets/extras/Wood_particle2.png",
+      "width": 4,
+      "height": 4
+    },
+    "monsters/Beholder/Beholder_attack (green)": {
+      "path": "assets/monsters/Beholder/Beholder_attack (green).png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Beholder/Beholder_attack (purple)": {
+      "path": "assets/monsters/Beholder/Beholder_attack (purple).png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Beholder/Beholder_attack (yellow)": {
+      "path": "assets/monsters/Beholder/Beholder_attack (yellow).png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Beholder/Beholder_attack_hitbox (green)": {
+      "path": "assets/monsters/Beholder/Beholder_attack_hitbox (green).png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Beholder/Beholder_attack_hitbox (purple)": {
+      "path": "assets/monsters/Beholder/Beholder_attack_hitbox (purple).png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Beholder/Beholder_attack_hitbox (yellow)": {
+      "path": "assets/monsters/Beholder/Beholder_attack_hitbox (yellow).png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Beholder/Beholder_death": {
+      "path": "assets/monsters/Beholder/Beholder_death.png",
+      "width": 512,
+      "height": 256
+    },
+    "monsters/Beholder/Beholder_hit": {
+      "path": "assets/monsters/Beholder/Beholder_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Beholder/Beholder_idle": {
+      "path": "assets/monsters/Beholder/Beholder_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Beholder/Beholder_move": {
+      "path": "assets/monsters/Beholder/Beholder_move.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Beholder/Beholder_special": {
+      "path": "assets/monsters/Beholder/Beholder_special.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Lizardfolk/Lizardfolk_attack": {
+      "path": "assets/monsters/Lizardfolk/Lizardfolk_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Lizardfolk/Lizardfolk_die": {
+      "path": "assets/monsters/Lizardfolk/Lizardfolk_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Lizardfolk/Lizardfolk_hit": {
+      "path": "assets/monsters/Lizardfolk/Lizardfolk_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Lizardfolk/Lizardfolk_idle": {
+      "path": "assets/monsters/Lizardfolk/Lizardfolk_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Lizardfolk/Lizardfolk_special": {
+      "path": "assets/monsters/Lizardfolk/Lizardfolk_special.png",
+      "width": 144,
+      "height": 224
+    },
+    "monsters/Lizardfolk/Lizardfolk_special_projectile": {
+      "path": "assets/monsters/Lizardfolk/Lizardfolk_special_projectile.png",
+      "width": 25,
+      "height": 7
+    },
+    "monsters/Lizardfolk/Lizardfolk_special_projectile_impact": {
+      "path": "assets/monsters/Lizardfolk/Lizardfolk_special_projectile_impact.png",
+      "width": 39,
+      "height": 23
+    },
+    "monsters/Lizardfolk/Lizardfolk_walk": {
+      "path": "assets/monsters/Lizardfolk/Lizardfolk_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Medusa/Medusa_attack": {
+      "path": "assets/monsters/Medusa/Medusa_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Medusa/Medusa_die": {
+      "path": "assets/monsters/Medusa/Medusa_die.png",
+      "width": 64,
+      "height": 256
+    },
+    "monsters/Medusa/Medusa_hit": {
+      "path": "assets/monsters/Medusa/Medusa_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Medusa/Medusa_idle": {
+      "path": "assets/monsters/Medusa/Medusa_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Medusa/Medusa_special": {
+      "path": "assets/monsters/Medusa/Medusa_special.png",
+      "width": 384,
+      "height": 256
+    },
+    "monsters/Medusa/Medusa_walk": {
+      "path": "assets/monsters/Medusa/Medusa_walk.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Slime/Slime_attack": {
+      "path": "assets/monsters/Slime/Slime_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Slime/Slime_die": {
+      "path": "assets/monsters/Slime/Slime_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Slime/Slime_hit": {
+      "path": "assets/monsters/Slime/Slime_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Slime/Slime_idle": {
+      "path": "assets/monsters/Slime/Slime_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Slime/Slime_move": {
+      "path": "assets/monsters/Slime/Slime_move.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Slime/Slime_special_merge": {
+      "path": "assets/monsters/Slime/Slime_special_merge.png",
+      "width": 432,
+      "height": 192
+    },
+    "monsters/Slime/Slime_special_split": {
+      "path": "assets/monsters/Slime/Slime_special_split.png",
+      "width": 432,
+      "height": 192
+    },
+    "monsters/Anubis Warrior/AnubisWarrior_attack": {
+      "path": "assets/monsters/Anubis Warrior/AnubisWarrior_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Anubis Warrior/AnubisWarrior_die": {
+      "path": "assets/monsters/Anubis Warrior/AnubisWarrior_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Anubis Warrior/AnubisWarrior_hit": {
+      "path": "assets/monsters/Anubis Warrior/AnubisWarrior_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Anubis Warrior/AnubisWarrior_idle": {
+      "path": "assets/monsters/Anubis Warrior/AnubisWarrior_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Anubis Warrior/AnubisWarrior_special": {
+      "path": "assets/monsters/Anubis Warrior/AnubisWarrior_special.png",
+      "width": 336,
+      "height": 224
+    },
+    "monsters/Anubis Warrior/AnubisWarrior_walk": {
+      "path": "assets/monsters/Anubis Warrior/AnubisWarrior_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Djinn/Djinn_attack": {
+      "path": "assets/monsters/Djinn/Djinn_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Djinn/Djinn_die": {
+      "path": "assets/monsters/Djinn/Djinn_die.png",
+      "width": 64,
+      "height": 256
+    },
+    "monsters/Djinn/Djinn_hit": {
+      "path": "assets/monsters/Djinn/Djinn_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Djinn/Djinn_idle": {
+      "path": "assets/monsters/Djinn/Djinn_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Djinn/Djinn_special": {
+      "path": "assets/monsters/Djinn/Djinn_special.png",
+      "width": 448,
+      "height": 256
+    },
+    "monsters/Djinn/Djinn_walk": {
+      "path": "assets/monsters/Djinn/Djinn_walk.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Mummy/Mummy_attack": {
+      "path": "assets/monsters/Mummy/Mummy_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Mummy/Mummy_die": {
+      "path": "assets/monsters/Mummy/Mummy_die.png",
+      "width": 64,
+      "height": 256
+    },
+    "monsters/Mummy/Mummy_hit": {
+      "path": "assets/monsters/Mummy/Mummy_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Mummy/Mummy_idle": {
+      "path": "assets/monsters/Mummy/Mummy_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Mummy/Mummy_special": {
+      "path": "assets/monsters/Mummy/Mummy_special.png",
+      "width": 768,
+      "height": 256
+    },
+    "monsters/Mummy/Mummy_special_clock": {
+      "path": "assets/monsters/Mummy/Mummy_special_clock.png",
+      "width": 768,
+      "height": 256
+    },
+    "monsters/Mummy/Mummy_special_NOclock": {
+      "path": "assets/monsters/Mummy/Mummy_special_NOclock.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Mummy/Mummy_walk": {
+      "path": "assets/monsters/Mummy/Mummy_walk.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Purple Worm/PurpleWorm_attack": {
+      "path": "assets/monsters/Purple Worm/PurpleWorm_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Purple Worm/PurpleWorm_death": {
+      "path": "assets/monsters/Purple Worm/PurpleWorm_death.png",
+      "width": 512,
+      "height": 256
+    },
+    "monsters/Purple Worm/PurpleWorm_hit": {
+      "path": "assets/monsters/Purple Worm/PurpleWorm_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Purple Worm/PurpleWorm_idle": {
+      "path": "assets/monsters/Purple Worm/PurpleWorm_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Purple Worm/PurpleWorm_move": {
+      "path": "assets/monsters/Purple Worm/PurpleWorm_move.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Purple Worm/PurpleWorm_special_burrow": {
+      "path": "assets/monsters/Purple Worm/PurpleWorm_special_burrow.png",
+      "width": 640,
+      "height": 256
+    },
+    "monsters/Purple Worm/PurpleWorm_special_unburrow": {
+      "path": "assets/monsters/Purple Worm/PurpleWorm_special_unburrow.png",
+      "width": 640,
+      "height": 256
+    },
+    "monsters/Adult Red Dragon/AdultRedDragon_attack": {
+      "path": "assets/monsters/Adult Red Dragon/AdultRedDragon_attack.png",
+      "width": 672,
+      "height": 384
+    },
+    "monsters/Adult Red Dragon/AdultRedDragon_die": {
+      "path": "assets/monsters/Adult Red Dragon/AdultRedDragon_die.png",
+      "width": 112,
+      "height": 384
+    },
+    "monsters/Adult Red Dragon/AdultRedDragon_fly": {
+      "path": "assets/monsters/Adult Red Dragon/AdultRedDragon_fly.png",
+      "width": 448,
+      "height": 384
+    },
+    "monsters/Adult Red Dragon/AdultRedDragon_hit": {
+      "path": "assets/monsters/Adult Red Dragon/AdultRedDragon_hit.png",
+      "width": 224,
+      "height": 384
+    },
+    "monsters/Adult Red Dragon/AdultRedDragon_idle": {
+      "path": "assets/monsters/Adult Red Dragon/AdultRedDragon_idle.png",
+      "width": 448,
+      "height": 384
+    },
+    "monsters/Adult Red Dragon/AdultRedDragon_special": {
+      "path": "assets/monsters/Adult Red Dragon/AdultRedDragon_special.png",
+      "width": 672,
+      "height": 384
+    },
+    "icons/01 - Imp's tail": {
+      "path": "assets/icons/01 - Imp's tail.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/02 - Hellhound's collar": {
+      "path": "assets/icons/02 - Hellhound's collar.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/03 - Demon's horn": {
+      "path": "assets/icons/03 - Demon's horn.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/04 - Gog's sulfur": {
+      "path": "assets/icons/04 - Gog's sulfur.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/05 - Efreet's turban": {
+      "path": "assets/icons/05 - Efreet's turban.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/06 - Skeleton's bone": {
+      "path": "assets/icons/06 - Skeleton's bone.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/07 - Bat's wing": {
+      "path": "assets/icons/07 - Bat's wing.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/08 - Vampire's cowl": {
+      "path": "assets/icons/08 - Vampire's cowl.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/09 - Lich's crown": {
+      "path": "assets/icons/09 - Lich's crown.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/10 - DeathKnight's sword": {
+      "path": "assets/icons/10 - DeathKnight's sword.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/11 - Goblin's foot": {
+      "path": "assets/icons/11 - Goblin's foot.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/12 - WolfRider's ponytail": {
+      "path": "assets/icons/12 - WolfRider's ponytail.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/13 - Orc's tusk": {
+      "path": "assets/icons/13 - Orc's tusk.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/14 - Cyclop's skirt": {
+      "path": "assets/icons/14 - Cyclop's skirt.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/15 - Ogre's eye": {
+      "path": "assets/icons/15 - Ogre's eye.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/16 - RabbitSoldier's paw": {
+      "path": "assets/icons/16 - RabbitSoldier's paw.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/17 - FiddleDog's fiddle": {
+      "path": "assets/icons/17 - FiddleDog's fiddle.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/18 - ElderSnail's shell": {
+      "path": "assets/icons/18 - ElderSnail's shell.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/19 - Blemmyae's hat": {
+      "path": "assets/icons/19 - Blemmyae's hat.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/20 - ManticoreBishop's tail": {
+      "path": "assets/icons/20 - ManticoreBishop's tail.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/21 - Redcap's cap": {
+      "path": "assets/icons/21 - Redcap's cap.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/22 - FrostSalamander's tail": {
+      "path": "assets/icons/22 - FrostSalamander's tail.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/23 - IceGolem's crystal": {
+      "path": "assets/icons/23 - IceGolem's crystal.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/24 - BheurHag's necklace": {
+      "path": "assets/icons/24 - BheurHag's necklace.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/25 - FrostGiant's belt": {
+      "path": "assets/icons/25 - FrostGiant's belt.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/26 - Slime's cube": {
+      "path": "assets/icons/26 - Slime's cube.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/27 - SerpentFly's wing": {
+      "path": "assets/icons/27 - SerpentFly's wing.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/28 - Lizardfolk's ear": {
+      "path": "assets/icons/28 - Lizardfolk's ear.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/29 - Medusa's head": {
+      "path": "assets/icons/29 - Medusa's head.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/30 - Beholder's eyestalk": {
+      "path": "assets/icons/30 - Beholder's eyestalk.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/31 - Pixie's bottle": {
+      "path": "assets/icons/31 - Pixie's bottle.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/32 - DisplacerBeast's tentacle": {
+      "path": "assets/icons/32 - DisplacerBeast's tentacle.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/33 - Satyr's panflute": {
+      "path": "assets/icons/33 - Satyr's panflute.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/34 - Dryad's hair": {
+      "path": "assets/icons/34 - Dryad's hair.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/35 - Owlbear's feather": {
+      "path": "assets/icons/35 - Owlbear's feather.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/36 - Mummy's bandages": {
+      "path": "assets/icons/36 - Mummy's bandages.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/37 - Bulette's scale": {
+      "path": "assets/icons/37 - Bulette's scale.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/38 - AnubisWarrior's ear": {
+      "path": "assets/icons/38 - AnubisWarrior's ear.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/39 - Djinn's lamp": {
+      "path": "assets/icons/39 - Djinn's lamp.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/40 - PurpleWorm's poison": {
+      "path": "assets/icons/40 - PurpleWorm's poison.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/41 - Peasant's pitchfork": {
+      "path": "assets/icons/41 - Peasant's pitchfork.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/42 - Griffin's beak": {
+      "path": "assets/icons/42 - Griffin's beak.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/43 - Paladin's greathelm": {
+      "path": "assets/icons/43 - Paladin's greathelm.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/44 - Wizard's orb": {
+      "path": "assets/icons/44 - Wizard's orb.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/45 - Planetar's feather": {
+      "path": "assets/icons/45 - Planetar's feather.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/46 - BlueWyrmling's scale": {
+      "path": "assets/icons/46 - BlueWyrmling's scale.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/47 - YoungGreenDragon's scale": {
+      "path": "assets/icons/47 - YoungGreenDragon's scale.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/48 - AdultRedDragon's scale": {
+      "path": "assets/icons/48 - AdultRedDragon's scale.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/49 - FaerieDragon's tail": {
+      "path": "assets/icons/49 - FaerieDragon's tail.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/50 - AncientBlackDragon's scale": {
+      "path": "assets/icons/50 - AncientBlackDragon's scale.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/51 - Ronin's katana": {
+      "path": "assets/icons/51 - Ronin's katana.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/52 - Kappa's shell": {
+      "path": "assets/icons/52 - Kappa's shell.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/53 - Samurai's kabuto": {
+      "path": "assets/icons/53 - Samurai's kabuto.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/54 - Oni's horn": {
+      "path": "assets/icons/54 - Oni's horn.png",
+      "width": 16,
+      "height": 16
+    },
+    "icons/55 - Tengu's fan": {
+      "path": "assets/icons/55 - Tengu's fan.png",
+      "width": 16,
+      "height": 16
+    },
+    "boss_portraits/AncientBlackDragon_frame": {
+      "path": "assets/boss_portraits/AncientBlackDragon_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "boss_portraits/Beholder_frame": {
+      "path": "assets/boss_portraits/Beholder_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "boss_portraits/DeathKnight_frame": {
+      "path": "assets/boss_portraits/DeathKnight_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "boss_portraits/Efreet_frame": {
+      "path": "assets/boss_portraits/Efreet_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "boss_portraits/FrostGiant_frame": {
+      "path": "assets/boss_portraits/FrostGiant_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "boss_portraits/Lich_frame": {
+      "path": "assets/boss_portraits/Lich_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "boss_portraits/ManticoreBishop_frame": {
+      "path": "assets/boss_portraits/ManticoreBishop_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "boss_portraits/Ogre_frame": {
+      "path": "assets/boss_portraits/Ogre_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "boss_portraits/Owlbear_frame": {
+      "path": "assets/boss_portraits/Owlbear_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "boss_portraits/Planetar_frame": {
+      "path": "assets/boss_portraits/Planetar_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "boss_portraits/PurpleWorm_frame": {
+      "path": "assets/boss_portraits/PurpleWorm_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "boss_portraits/Tengu_frame": {
+      "path": "assets/boss_portraits/Tengu_frame.png",
+      "width": 18,
+      "height": 18
+    },
+    "monster_projectiles/Arrow": {
+      "path": "assets/monster_projectiles/Arrow.png",
+      "width": 14,
+      "height": 3
+    },
+    "monster_projectiles/Arrow_impact": {
+      "path": "assets/monster_projectiles/Arrow_impact.png",
+      "width": 18,
+      "height": 15
+    },
+    "monster_projectiles/DarkOrb": {
+      "path": "assets/monster_projectiles/DarkOrb.png",
+      "width": 8,
+      "height": 8
+    },
+    "monster_projectiles/DarkOrb_impact": {
+      "path": "assets/monster_projectiles/DarkOrb_impact.png",
+      "width": 15,
+      "height": 16
+    },
+    "monster_projectiles/DarkOrb_initial": {
+      "path": "assets/monster_projectiles/DarkOrb_initial.png",
+      "width": 4,
+      "height": 4
+    },
+    "monster_projectiles/DeathCoil": {
+      "path": "assets/monster_projectiles/DeathCoil.png",
+      "width": 11,
+      "height": 9
+    },
+    "monster_projectiles/DeathCoil_impact": {
+      "path": "assets/monster_projectiles/DeathCoil_impact.png",
+      "width": 18,
+      "height": 17
+    },
+    "monster_projectiles/DeathCoil_initial": {
+      "path": "assets/monster_projectiles/DeathCoil_initial.png",
+      "width": 5,
+      "height": 3
+    },
+    "monster_projectiles/DryadSpear": {
+      "path": "assets/monster_projectiles/DryadSpear.png",
+      "width": 28,
+      "height": 7
+    },
+    "monster_projectiles/DryadSpear_impact": {
+      "path": "assets/monster_projectiles/DryadSpear_impact.png",
+      "width": 42,
+      "height": 27
+    },
+    "monster_projectiles/EnergyBall": {
+      "path": "assets/monster_projectiles/EnergyBall.png",
+      "width": 6,
+      "height": 6
+    },
+    "monster_projectiles/EnergyBall_impact": {
+      "path": "assets/monster_projectiles/EnergyBall_impact.png",
+      "width": 24,
+      "height": 8
+    },
+    "monster_projectiles/FaerieBall": {
+      "path": "assets/monster_projectiles/FaerieBall.png",
+      "width": 6,
+      "height": 6
+    },
+    "monster_projectiles/FaerieBall_impact": {
+      "path": "assets/monster_projectiles/FaerieBall_impact.png",
+      "width": 42,
+      "height": 14
+    },
+    "monster_projectiles/Fireball": {
+      "path": "assets/monster_projectiles/Fireball.png",
+      "width": 10,
+      "height": 5
+    },
+    "monster_projectiles/FireballBig": {
+      "path": "assets/monster_projectiles/FireballBig.png",
+      "width": 16,
+      "height": 14
+    },
+    "monster_projectiles/FireballBig_impact": {
+      "path": "assets/monster_projectiles/FireballBig_impact.png",
+      "width": 36,
+      "height": 24
+    },
+    "monster_projectiles/FireballBig_initial": {
+      "path": "assets/monster_projectiles/FireballBig_initial.png",
+      "width": 9,
+      "height": 8
+    },
+    "monster_projectiles/Fireball_impact": {
+      "path": "assets/monster_projectiles/Fireball_impact.png",
+      "width": 15,
+      "height": 13
+    },
+    "monster_projectiles/Fireball_initial": {
+      "path": "assets/monster_projectiles/Fireball_initial.png",
+      "width": 5,
+      "height": 5
+    },
+    "monster_projectiles/Frostbolt": {
+      "path": "assets/monster_projectiles/Frostbolt.png",
+      "width": 8,
+      "height": 6
+    },
+    "monster_projectiles/Frostbolt_impact": {
+      "path": "assets/monster_projectiles/Frostbolt_impact.png",
+      "width": 24,
+      "height": 14
+    },
+    "monster_projectiles/MagicMissile": {
+      "path": "assets/monster_projectiles/MagicMissile.png",
+      "width": 10,
+      "height": 5
+    },
+    "monster_projectiles/MagicMissile_impact": {
+      "path": "assets/monster_projectiles/MagicMissile_impact.png",
+      "width": 15,
+      "height": 13
+    },
+    "monster_projectiles/MagicMissile_initial": {
+      "path": "assets/monster_projectiles/MagicMissile_initial.png",
+      "width": 6,
+      "height": 5
+    },
+    "monster_projectiles/Rock_big": {
+      "path": "assets/monster_projectiles/Rock_big.png",
+      "width": 10,
+      "height": 8
+    },
+    "monster_projectiles/Rock_big_impact": {
+      "path": "assets/monster_projectiles/Rock_big_impact.png",
+      "width": 33,
+      "height": 18
+    },
+    "monster_projectiles/Rock_small": {
+      "path": "assets/monster_projectiles/Rock_small.png",
+      "width": 6,
+      "height": 6
+    },
+    "monster_projectiles/Rock_small_impact": {
+      "path": "assets/monster_projectiles/Rock_small_impact.png",
+      "width": 18,
+      "height": 15
+    },
+    "monster_projectiles/Spear": {
+      "path": "assets/monster_projectiles/Spear.png",
+      "width": 20,
+      "height": 5
+    },
+    "monster_projectiles/Spear_impact": {
+      "path": "assets/monster_projectiles/Spear_impact.png",
+      "width": 18,
+      "height": 15
+    },
+    "monsters/Bheur Hag/BheurHag_attack": {
+      "path": "assets/monsters/Bheur Hag/BheurHag_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Bheur Hag/BheurHag_die": {
+      "path": "assets/monsters/Bheur Hag/BheurHag_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Bheur Hag/BheurHag_hit": {
+      "path": "assets/monsters/Bheur Hag/BheurHag_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Bheur Hag/BheurHag_idle": {
+      "path": "assets/monsters/Bheur Hag/BheurHag_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Bheur Hag/BheurHag_special": {
+      "path": "assets/monsters/Bheur Hag/BheurHag_special.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Bheur Hag/BheurHag_special_pillar_break": {
+      "path": "assets/monsters/Bheur Hag/BheurHag_special_pillar_break.png",
+      "width": 96,
+      "height": 48
+    },
+    "monsters/Bheur Hag/BheurHag_special_pillar_spawn": {
+      "path": "assets/monsters/Bheur Hag/BheurHag_special_pillar_spawn.png",
+      "width": 192,
+      "height": 48
+    },
+    "monsters/Bheur Hag/BheurHag_walk": {
+      "path": "assets/monsters/Bheur Hag/BheurHag_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Frost Giant/FrostGiant_attack": {
+      "path": "assets/monsters/Frost Giant/FrostGiant_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Frost Giant/FrostGiant_death": {
+      "path": "assets/monsters/Frost Giant/FrostGiant_death.png",
+      "width": 704,
+      "height": 256
+    },
+    "monsters/Frost Giant/FrostGiant_hit": {
+      "path": "assets/monsters/Frost Giant/FrostGiant_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Frost Giant/FrostGiant_idle": {
+      "path": "assets/monsters/Frost Giant/FrostGiant_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Frost Giant/FrostGiant_special": {
+      "path": "assets/monsters/Frost Giant/FrostGiant_special.png",
+      "width": 768,
+      "height": 256
+    },
+    "monsters/Frost Giant/FrostGiant_walk": {
+      "path": "assets/monsters/Frost Giant/FrostGiant_walk.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Frost Salamander/FrostSalamander_attack": {
+      "path": "assets/monsters/Frost Salamander/FrostSalamander_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Frost Salamander/FrostSalamander_die": {
+      "path": "assets/monsters/Frost Salamander/FrostSalamander_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Frost Salamander/FrostSalamander_hit": {
+      "path": "assets/monsters/Frost Salamander/FrostSalamander_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Frost Salamander/FrostSalamander_idle": {
+      "path": "assets/monsters/Frost Salamander/FrostSalamander_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Frost Salamander/FrostSalamander_special": {
+      "path": "assets/monsters/Frost Salamander/FrostSalamander_special.png",
+      "width": 384,
+      "height": 192
+    },
+    "monsters/Frost Salamander/FrostSalamander_walk": {
+      "path": "assets/monsters/Frost Salamander/FrostSalamander_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Ice Golem/IceGolem_attack": {
+      "path": "assets/monsters/Ice Golem/IceGolem_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Ice Golem/IceGolem_die": {
+      "path": "assets/monsters/Ice Golem/IceGolem_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Ice Golem/IceGolem_hit": {
+      "path": "assets/monsters/Ice Golem/IceGolem_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Ice Golem/IceGolem_idle": {
+      "path": "assets/monsters/Ice Golem/IceGolem_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Ice Golem/IceGolem_special": {
+      "path": "assets/monsters/Ice Golem/IceGolem_special.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Ice Golem/IceGolem_special_projectile": {
+      "path": "assets/monsters/Ice Golem/IceGolem_special_projectile.png",
+      "width": 10,
+      "height": 11
+    },
+    "monsters/Ice Golem/IceGolem_special_projectile_impact": {
+      "path": "assets/monsters/Ice Golem/IceGolem_special_projectile_impact.png",
+      "width": 36,
+      "height": 23
+    },
+    "monsters/Ice Golem/IceGolem_walk": {
+      "path": "assets/monsters/Ice Golem/IceGolem_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Redcap/Redcap_attack": {
+      "path": "assets/monsters/Redcap/Redcap_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Redcap/Redcap_die": {
+      "path": "assets/monsters/Redcap/Redcap_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Redcap/Redcap_hit": {
+      "path": "assets/monsters/Redcap/Redcap_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Redcap/Redcap_idle": {
+      "path": "assets/monsters/Redcap/Redcap_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Redcap/Redcap_special": {
+      "path": "assets/monsters/Redcap/Redcap_special.png",
+      "width": 528,
+      "height": 192
+    },
+    "monsters/Redcap/Redcap_walk": {
+      "path": "assets/monsters/Redcap/Redcap_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Demon/Demon_attack": {
+      "path": "assets/monsters/Demon/Demon_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Demon/Demon_die": {
+      "path": "assets/monsters/Demon/Demon_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Demon/Demon_hit": {
+      "path": "assets/monsters/Demon/Demon_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Demon/Demon_idle": {
+      "path": "assets/monsters/Demon/Demon_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Demon/Demon_special": {
+      "path": "assets/monsters/Demon/Demon_special.png",
+      "width": 384,
+      "height": 224
+    },
+    "monsters/Demon/Demon_walk": {
+      "path": "assets/monsters/Demon/Demon_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Efreet/Efreet_attack": {
+      "path": "assets/monsters/Efreet/Efreet_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Efreet/Efreet_death": {
+      "path": "assets/monsters/Efreet/Efreet_death.png",
+      "width": 704,
+      "height": 256
+    },
+    "monsters/Efreet/Efreet_fly": {
+      "path": "assets/monsters/Efreet/Efreet_fly.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Efreet/Efreet_hit": {
+      "path": "assets/monsters/Efreet/Efreet_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Efreet/Efreet_idle": {
+      "path": "assets/monsters/Efreet/Efreet_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Efreet/Efreet_special_1": {
+      "path": "assets/monsters/Efreet/Efreet_special_1.png",
+      "width": 1216,
+      "height": 256
+    },
+    "monsters/Efreet/Efreet_special_2": {
+      "path": "assets/monsters/Efreet/Efreet_special_2.png",
+      "width": 1216,
+      "height": 256
+    },
+    "monsters/Efreet/Efreet_special_3": {
+      "path": "assets/monsters/Efreet/Efreet_special_3.png",
+      "width": 1216,
+      "height": 256
+    },
+    "monsters/Efreet/Efreet_special_4": {
+      "path": "assets/monsters/Efreet/Efreet_special_4.png",
+      "width": 1216,
+      "height": 256
+    },
+    "monsters/Gog/Gog_attack": {
+      "path": "assets/monsters/Gog/Gog_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Gog/Gog_die": {
+      "path": "assets/monsters/Gog/Gog_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Gog/Gog_hit": {
+      "path": "assets/monsters/Gog/Gog_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Gog/Gog_idle": {
+      "path": "assets/monsters/Gog/Gog_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Gog/Gog_special": {
+      "path": "assets/monsters/Gog/Gog_special.png",
+      "width": 960,
+      "height": 192
+    },
+    "monsters/Gog/Gog_walk": {
+      "path": "assets/monsters/Gog/Gog_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Hellhound/Hellhound_attack": {
+      "path": "assets/monsters/Hellhound/Hellhound_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Hellhound/Hellhound_die": {
+      "path": "assets/monsters/Hellhound/Hellhound_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Hellhound/Hellhound_hit": {
+      "path": "assets/monsters/Hellhound/Hellhound_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Hellhound/Hellhound_idle": {
+      "path": "assets/monsters/Hellhound/Hellhound_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Hellhound/Hellhound_special": {
+      "path": "assets/monsters/Hellhound/Hellhound_special.png",
+      "width": 480,
+      "height": 192
+    },
+    "monsters/Hellhound/Hellhound_walk": {
+      "path": "assets/monsters/Hellhound/Hellhound_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Imp/Imp_attack": {
+      "path": "assets/monsters/Imp/Imp_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Imp/Imp_die": {
+      "path": "assets/monsters/Imp/Imp_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Imp/Imp_hit": {
+      "path": "assets/monsters/Imp/Imp_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Imp/Imp_idle": {
+      "path": "assets/monsters/Imp/Imp_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Imp/Imp_special": {
+      "path": "assets/monsters/Imp/Imp_special.png",
+      "width": 432,
+      "height": 192
+    },
+    "monsters/Imp/Imp_special_reversed": {
+      "path": "assets/monsters/Imp/Imp_special_reversed.png",
+      "width": 480,
+      "height": 192
+    },
+    "monsters/Imp/Imp_walk": {
+      "path": "assets/monsters/Imp/Imp_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Bat/Bat_attack": {
+      "path": "assets/monsters/Bat/Bat_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Bat/Bat_die": {
+      "path": "assets/monsters/Bat/Bat_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Bat/Bat_fly": {
+      "path": "assets/monsters/Bat/Bat_fly.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Bat/Bat_hit": {
+      "path": "assets/monsters/Bat/Bat_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Bat/Bat_idle": {
+      "path": "assets/monsters/Bat/Bat_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Bat/Bat_special": {
+      "path": "assets/monsters/Bat/Bat_special.png",
+      "width": 672,
+      "height": 192
+    },
+    "monsters/Death Knight/DeathKnight_attack": {
+      "path": "assets/monsters/Death Knight/DeathKnight_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Death Knight/DeathKnight_death": {
+      "path": "assets/monsters/Death Knight/DeathKnight_death.png",
+      "width": 640,
+      "height": 256
+    },
+    "monsters/Death Knight/DeathKnight_hit": {
+      "path": "assets/monsters/Death Knight/DeathKnight_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Death Knight/DeathKnight_idle": {
+      "path": "assets/monsters/Death Knight/DeathKnight_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Death Knight/DeathKnight_special": {
+      "path": "assets/monsters/Death Knight/DeathKnight_special.png",
+      "width": 640,
+      "height": 256
+    },
+    "monsters/Death Knight/DeathKnight_walk": {
+      "path": "assets/monsters/Death Knight/DeathKnight_walk.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Lich/Lich_attack": {
+      "path": "assets/monsters/Lich/Lich_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Lich/Lich_charging": {
+      "path": "assets/monsters/Lich/Lich_charging.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Lich/Lich_die": {
+      "path": "assets/monsters/Lich/Lich_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Lich/Lich_hit": {
+      "path": "assets/monsters/Lich/Lich_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Lich/Lich_idle": {
+      "path": "assets/monsters/Lich/Lich_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Lich/Lich_special": {
+      "path": "assets/monsters/Lich/Lich_special.png",
+      "width": 336,
+      "height": 224
+    },
+    "monsters/Lich/Lich_walk": {
+      "path": "assets/monsters/Lich/Lich_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Skeleton/Skeleton_attack": {
+      "path": "assets/monsters/Skeleton/Skeleton_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Skeleton/Skeleton_die": {
+      "path": "assets/monsters/Skeleton/Skeleton_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Skeleton/Skeleton_hit": {
+      "path": "assets/monsters/Skeleton/Skeleton_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Skeleton/Skeleton_idle": {
+      "path": "assets/monsters/Skeleton/Skeleton_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Skeleton/Skeleton_spawn": {
+      "path": "assets/monsters/Skeleton/Skeleton_spawn.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Skeleton/Skeleton_special": {
+      "path": "assets/monsters/Skeleton/Skeleton_special.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Skeleton/Skeleton_special_projectile": {
+      "path": "assets/monsters/Skeleton/Skeleton_special_projectile.png",
+      "width": 44,
+      "height": 11
+    },
+    "monsters/Skeleton/Skeleton_special_projectile_impact": {
+      "path": "assets/monsters/Skeleton/Skeleton_special_projectile_impact.png",
+      "width": 24,
+      "height": 8
+    },
+    "monsters/Skeleton/Skeleton_walk": {
+      "path": "assets/monsters/Skeleton/Skeleton_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Vampire/Vampire_attack": {
+      "path": "assets/monsters/Vampire/Vampire_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Vampire/Vampire_die": {
+      "path": "assets/monsters/Vampire/Vampire_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Vampire/Vampire_hit": {
+      "path": "assets/monsters/Vampire/Vampire_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Vampire/Vampire_idle": {
+      "path": "assets/monsters/Vampire/Vampire_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Vampire/Vampire_special": {
+      "path": "assets/monsters/Vampire/Vampire_special.png",
+      "width": 336,
+      "height": 224
+    },
+    "monsters/Vampire/Vampire_walk": {
+      "path": "assets/monsters/Vampire/Vampire_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Goblin/Goblin_attack": {
+      "path": "assets/monsters/Goblin/Goblin_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Goblin/Goblin_die": {
+      "path": "assets/monsters/Goblin/Goblin_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Goblin/Goblin_hit": {
+      "path": "assets/monsters/Goblin/Goblin_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Goblin/Goblin_idle": {
+      "path": "assets/monsters/Goblin/Goblin_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Goblin/Goblin_special": {
+      "path": "assets/monsters/Goblin/Goblin_special.png",
+      "width": 336,
+      "height": 192
+    },
+    "monsters/Goblin/Goblin_walk": {
+      "path": "assets/monsters/Goblin/Goblin_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Orc/Orc_attack": {
+      "path": "assets/monsters/Orc/Orc_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Orc/Orc_die": {
+      "path": "assets/monsters/Orc/Orc_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Orc/Orc_hit": {
+      "path": "assets/monsters/Orc/Orc_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Orc/Orc_idle": {
+      "path": "assets/monsters/Orc/Orc_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Orc/Orc_special": {
+      "path": "assets/monsters/Orc/Orc_special.png",
+      "width": 528,
+      "height": 224
+    },
+    "monsters/Orc/Orc_walk": {
+      "path": "assets/monsters/Orc/Orc_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "ui_icons/pickaxe": {
+      "path": "assets/ui_icons/pickaxe.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/sword": {
+      "path": "assets/ui_icons/sword.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/shovel": {
+      "path": "assets/ui_icons/shovel.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/fishing_rod": {
+      "path": "assets/ui_icons/fishing_rod.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/bow": {
+      "path": "assets/ui_icons/bow.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/iron_ingot": {
+      "path": "assets/ui_icons/iron_ingot.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/gold_ingot": {
+      "path": "assets/ui_icons/gold_ingot.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/fish": {
+      "path": "assets/ui_icons/fish.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/cooked_fish": {
+      "path": "assets/ui_icons/cooked_fish.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/coin": {
+      "path": "assets/ui_icons/coin.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/berries": {
+      "path": "assets/ui_icons/berries.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/carrot": {
+      "path": "assets/ui_icons/carrot.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/potion_red": {
+      "path": "assets/ui_icons/potion_red.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/potion_blue": {
+      "path": "assets/ui_icons/potion_blue.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/necro_rod": {
+      "path": "assets/ui_icons/necro_rod.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/thunder_rod": {
+      "path": "assets/ui_icons/thunder_rod.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/ice_rod": {
+      "path": "assets/ui_icons/ice_rod.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/fire_rod": {
+      "path": "assets/ui_icons/fire_rod.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/bridge": {
+      "path": "assets/ui_icons/bridge.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/furnace": {
+      "path": "assets/ui_icons/furnace.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/lighthouse": {
+      "path": "assets/ui_icons/lighthouse.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/mining_rod": {
+      "path": "assets/ui_icons/mining_rod.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/sigil_off": {
+      "path": "assets/ui_icons/sigil_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/sigil_on": {
+      "path": "assets/ui_icons/sigil_on.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/armor_leather": {
+      "path": "assets/ui_icons/armor_leather.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/armor_iron": {
+      "path": "assets/ui_icons/armor_iron.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/armor_frost": {
+      "path": "assets/ui_icons/armor_frost.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/armor_obsidian": {
+      "path": "assets/ui_icons/armor_obsidian.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/ring_copper": {
+      "path": "assets/ui_icons/ring_copper.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/charm_miner": {
+      "path": "assets/ui_icons/charm_miner.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/amulet_dragon": {
+      "path": "assets/ui_icons/amulet_dragon.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/pickaxe_gold": {
+      "path": "assets/ui_icons/pickaxe_gold.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/pickaxe_crystal": {
+      "path": "assets/ui_icons/pickaxe_crystal.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/sword_gold": {
+      "path": "assets/ui_icons/sword_gold.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/sword_obsidian": {
+      "path": "assets/ui_icons/sword_obsidian.png",
+      "width": 16,
+      "height": 16
+    }
+  },
+  "heroes": {
+    "Beastmaster": {
+      "cast": {
+        "key": "heroes/Beastmaster/Beastmaster_cast",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "death": {
+        "key": "heroes/Beastmaster/Beastmaster_death",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 8,
+        "rows": 4
+      },
+      "falling": {
+        "key": "heroes/Beastmaster/Beastmaster_falling",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 3,
+        "rows": 4
+      },
+      "fishing": {
+        "key": "heroes/Beastmaster/Beastmaster_fishing",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "fishing_cast": {
+        "key": "heroes/Beastmaster/Beastmaster_fishing_cast",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "fishing_jerking": {
+        "key": "heroes/Beastmaster/Beastmaster_fishing_jerking",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "grab": {
+        "key": "heroes/Beastmaster/Beastmaster_grab",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "hammering": {
+        "key": "heroes/Beastmaster/Beastmaster_hammering",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "hit": {
+        "key": "heroes/Beastmaster/Beastmaster_hit",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 2,
+        "rows": 4
+      },
+      "hoeing": {
+        "key": "heroes/Beastmaster/Beastmaster_hoeing",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "idle": {
+        "key": "heroes/Beastmaster/Beastmaster_idle",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "itemGot": {
+        "key": "heroes/Beastmaster/Beastmaster_itemGot",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "jump": {
+        "key": "heroes/Beastmaster/Beastmaster_jump",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "melee": {
+        "key": "heroes/Beastmaster/Beastmaster_melee_NoHitbox",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "mining": {
+        "key": "heroes/Beastmaster/Beastmaster_mining",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "push": {
+        "key": "heroes/Beastmaster/Beastmaster_push",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "ranged": {
+        "key": "heroes/Beastmaster/Beastmaster_ranged",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "roll": {
+        "key": "heroes/Beastmaster/Beastmaster_roll",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "shovelling": {
+        "key": "heroes/Beastmaster/Beastmaster_shovelling",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 7,
+        "rows": 4
+      },
+      "sleeping": {
+        "key": "heroes/Beastmaster/Beastmaster_sleeping",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 1
+      },
+      "walk": {
+        "key": "heroes/Beastmaster/Beastmaster_walk",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "watering": {
+        "key": "heroes/Beastmaster/Beastmaster_watering",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 9,
+        "rows": 4
+      },
+      "woodcutting": {
+        "key": "heroes/Beastmaster/Beastmaster_woodcutting",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      }
+    },
+    "Gladiator": {
+      "cast": {
+        "key": "heroes/Gladiator/Gladiator_cast",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "charge": {
+        "key": "heroes/Gladiator/Gladiator_charge",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "death": {
+        "key": "heroes/Gladiator/Gladiator_death",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 8,
+        "rows": 4
+      },
+      "fall": {
+        "key": "heroes/Gladiator/Gladiator_fall",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 3,
+        "rows": 4
+      },
+      "fishing": {
+        "key": "heroes/Gladiator/Gladiator_fishing",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "fishing_cast": {
+        "key": "heroes/Gladiator/Gladiator_fishing_cast",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "fishing_jerking": {
+        "key": "heroes/Gladiator/Gladiator_fishing_jerking",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "grab": {
+        "key": "heroes/Gladiator/Gladiator_grab",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "hammering": {
+        "key": "heroes/Gladiator/Gladiator_hammering",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "hit": {
+        "key": "heroes/Gladiator/Gladiator_hit",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 2,
+        "rows": 4
+      },
+      "hoeing": {
+        "key": "heroes/Gladiator/Gladiator_hoeing",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "idle": {
+        "key": "heroes/Gladiator/Gladiator_idle",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "itemGot": {
+        "key": "heroes/Gladiator/Gladiator_itemGot",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "jump": {
+        "key": "heroes/Gladiator/Gladiator_jump",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "melee": {
+        "key": "heroes/Gladiator/Gladiator_melee_NoHitbox",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "mining": {
+        "key": "heroes/Gladiator/Gladiator_mining",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "pushing": {
+        "key": "heroes/Gladiator/Gladiator_pushing",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "ranged": {
+        "key": "heroes/Gladiator/Gladiator_ranged",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "shovelling": {
+        "key": "heroes/Gladiator/Gladiator_shovelling",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 7,
+        "rows": 4
+      },
+      "sleeping": {
+        "key": "heroes/Gladiator/Gladiator_sleeping",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 1
+      },
+      "walk": {
+        "key": "heroes/Gladiator/Gladiator_walk",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "watering": {
+        "key": "heroes/Gladiator/Gladiator_watering",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 9,
+        "rows": 4
+      },
+      "woodcutting": {
+        "key": "heroes/Gladiator/Gladiator_woodcutting",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      }
+    },
+    "Sorcerer": {
+      "cast": {
+        "key": "heroes/Sorcerer/Sorcerer_cast",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "death": {
+        "key": "heroes/Sorcerer/Sorcerer_death",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 8,
+        "rows": 4
+      },
+      "falling": {
+        "key": "heroes/Sorcerer/Sorcerer_falling",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 3,
+        "rows": 4
+      },
+      "fishing": {
+        "key": "heroes/Sorcerer/Sorcerer_fishing",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "fishing_cast": {
+        "key": "heroes/Sorcerer/Sorcerer_fishing_cast",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "fishing_jerking": {
+        "key": "heroes/Sorcerer/Sorcerer_fishing_jerking",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "grab": {
+        "key": "heroes/Sorcerer/Sorcerer_grab",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "hammering": {
+        "key": "heroes/Sorcerer/Sorcerer_hammering",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "hit": {
+        "key": "heroes/Sorcerer/Sorcerer_hit",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 2,
+        "rows": 4
+      },
+      "hoeing": {
+        "key": "heroes/Sorcerer/Sorcerer_hoeing",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "idle": {
+        "key": "heroes/Sorcerer/Sorcerer_idle",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "itemGot": {
+        "key": "heroes/Sorcerer/Sorcerer_itemGot",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "jump": {
+        "key": "heroes/Sorcerer/Sorcerer_jump",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "melee": {
+        "key": "heroes/Sorcerer/Sorcerer_melee_NoHitbox",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "mining": {
+        "key": "heroes/Sorcerer/Sorcerer_mining",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "push": {
+        "key": "heroes/Sorcerer/Sorcerer_push",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "ranged": {
+        "key": "heroes/Sorcerer/Sorcerer_ranged",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "shovelling": {
+        "key": "heroes/Sorcerer/Sorcerer_shovelling",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 7,
+        "rows": 4
+      },
+      "sleeping": {
+        "key": "heroes/Sorcerer/Sorcerer_sleeping",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 1
+      },
+      "teleport": {
+        "key": "heroes/Sorcerer/Sorcerer_teleport",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 8,
+        "rows": 4
+      },
+      "walk": {
+        "key": "heroes/Sorcerer/Sorcerer_walk",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "watering": {
+        "key": "heroes/Sorcerer/Sorcerer_watering",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 9,
+        "rows": 4
+      },
+      "woodcutting": {
+        "key": "heroes/Sorcerer/Sorcerer_woodcutting",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      }
+    },
+    "Swashbuckler": {
+      "cast": {
+        "key": "heroes/Swashbuckler/Swashbuckler_cast",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "dash": {
+        "key": "heroes/Swashbuckler/Swashbuckler_dash",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 3,
+        "rows": 4
+      },
+      "death": {
+        "key": "heroes/Swashbuckler/Swashbuckler_death",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 8,
+        "rows": 4
+      },
+      "falling": {
+        "key": "heroes/Swashbuckler/Swashbuckler_falling",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 3,
+        "rows": 4
+      },
+      "fishing": {
+        "key": "heroes/Swashbuckler/Swashbuckler_fishing",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "fishing_cast": {
+        "key": "heroes/Swashbuckler/Swashbuckler_fishing_cast",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "fishing_jerking": {
+        "key": "heroes/Swashbuckler/Swashbuckler_fishing_jerking",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "grab": {
+        "key": "heroes/Swashbuckler/Swashbuckler_grab",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "hammering": {
+        "key": "heroes/Swashbuckler/Swashbuckler_hammering",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "hit": {
+        "key": "heroes/Swashbuckler/Swashbuckler_hit",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 2,
+        "rows": 4
+      },
+      "hoeing": {
+        "key": "heroes/Swashbuckler/Swashbuckler_hoeing",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "idle": {
+        "key": "heroes/Swashbuckler/Swashbuckler_idle",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "itemGot": {
+        "key": "heroes/Swashbuckler/Swashbuckler_itemGot",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "jump": {
+        "key": "heroes/Swashbuckler/Swashbuckler_jump",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "melee": {
+        "key": "heroes/Swashbuckler/Swashbuckler_melee_NoHitbox",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "mining": {
+        "key": "heroes/Swashbuckler/Swashbuckler_mining",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      },
+      "push": {
+        "key": "heroes/Swashbuckler/Swashbuckler_push",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "ranged": {
+        "key": "heroes/Swashbuckler/Swashbuckler_ranged",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 1,
+        "rows": 4
+      },
+      "shovelling": {
+        "key": "heroes/Swashbuckler/Swashbuckler_shovelling",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 7,
+        "rows": 4
+      },
+      "sleeping": {
+        "key": "heroes/Swashbuckler/Swashbuckler_sleeping",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 1
+      },
+      "walk": {
+        "key": "heroes/Swashbuckler/Swashbuckler_walk",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "watering": {
+        "key": "heroes/Swashbuckler/Swashbuckler_watering",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 9,
+        "rows": 4
+      },
+      "woodcutting": {
+        "key": "heroes/Swashbuckler/Swashbuckler_woodcutting",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 5,
+        "rows": 4
+      }
+    },
+    "Fox": {
+      "death": {
+        "key": "heroes/Fox/Fox_death",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 8,
+        "rows": 4
+      },
+      "hit": {
+        "key": "heroes/Fox/Fox_hit",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 2,
+        "rows": 4
+      },
+      "idle": {
+        "key": "heroes/Fox/Fox_idle",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "melee": {
+        "key": "heroes/Fox/Fox_melee_NoHitbox",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "run": {
+        "key": "heroes/Fox/Fox_run",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      },
+      "sleeping": {
+        "key": "heroes/Fox/Fox_sleeping",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 1
+      },
+      "walk": {
+        "key": "heroes/Fox/Fox_walk",
+        "frameWidth": 48,
+        "frameHeight": 48,
+        "cols": 4,
+        "rows": 4
+      }
+    }
+  },
+  "monsters": {
+    "Beholder": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "anims": {
+        "attack (green)": {
+          "key": "monsters/Beholder/Beholder_attack (green)",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "attack (purple)": {
+          "key": "monsters/Beholder/Beholder_attack (purple)",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "attack (yellow)": {
+          "key": "monsters/Beholder/Beholder_attack (yellow)",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "attack_hitbox (green)": {
+          "key": "monsters/Beholder/Beholder_attack_hitbox (green)",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "attack_hitbox (purple)": {
+          "key": "monsters/Beholder/Beholder_attack_hitbox (purple)",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "attack_hitbox (yellow)": {
+          "key": "monsters/Beholder/Beholder_attack_hitbox (yellow)",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "death": {
+          "key": "monsters/Beholder/Beholder_death",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 8,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Beholder/Beholder_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Beholder/Beholder_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "move": {
+          "key": "monsters/Beholder/Beholder_move",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Beholder/Beholder_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Lizardfolk": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "anims": {
+        "attack": {
+          "key": "monsters/Lizardfolk/Lizardfolk_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Lizardfolk/Lizardfolk_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Lizardfolk/Lizardfolk_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Lizardfolk/Lizardfolk_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Lizardfolk/Lizardfolk_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 3,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Lizardfolk/Lizardfolk_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Medusa": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "anims": {
+        "attack": {
+          "key": "monsters/Medusa/Medusa_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Medusa/Medusa_die",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Medusa/Medusa_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Medusa/Medusa_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Medusa/Medusa_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 6,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Medusa/Medusa_walk",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Slime": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "anims": {
+        "attack": {
+          "key": "monsters/Slime/Slime_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Slime/Slime_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Slime/Slime_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Slime/Slime_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "move": {
+          "key": "monsters/Slime/Slime_move",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special_merge": {
+          "key": "monsters/Slime/Slime_special_merge",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 9,
+          "rows": 4
+        },
+        "special_split": {
+          "key": "monsters/Slime/Slime_special_split",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 9,
+          "rows": 4
+        }
+      }
+    },
+    "Anubis Warrior": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "anims": {
+        "attack": {
+          "key": "monsters/Anubis Warrior/AnubisWarrior_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Anubis Warrior/AnubisWarrior_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Anubis Warrior/AnubisWarrior_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Anubis Warrior/AnubisWarrior_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Anubis Warrior/AnubisWarrior_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 7,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Anubis Warrior/AnubisWarrior_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Djinn": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "anims": {
+        "attack": {
+          "key": "monsters/Djinn/Djinn_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Djinn/Djinn_die",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Djinn/Djinn_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Djinn/Djinn_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Djinn/Djinn_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 7,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Djinn/Djinn_walk",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Mummy": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "anims": {
+        "attack": {
+          "key": "monsters/Mummy/Mummy_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Mummy/Mummy_die",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Mummy/Mummy_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Mummy/Mummy_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Mummy/Mummy_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 12,
+          "rows": 4
+        },
+        "special_clock": {
+          "key": "monsters/Mummy/Mummy_special_clock",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 12,
+          "rows": 4
+        },
+        "special_NOclock": {
+          "key": "monsters/Mummy/Mummy_special_NOclock",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Mummy/Mummy_walk",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Purple Worm": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "anims": {
+        "attack": {
+          "key": "monsters/Purple Worm/PurpleWorm_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "death": {
+          "key": "monsters/Purple Worm/PurpleWorm_death",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 8,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Purple Worm/PurpleWorm_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Purple Worm/PurpleWorm_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "move": {
+          "key": "monsters/Purple Worm/PurpleWorm_move",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special_burrow": {
+          "key": "monsters/Purple Worm/PurpleWorm_special_burrow",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 10,
+          "rows": 4
+        },
+        "special_unburrow": {
+          "key": "monsters/Purple Worm/PurpleWorm_special_unburrow",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 10,
+          "rows": 4
+        }
+      }
+    },
+    "Adult Red Dragon": {
+      "frameWidth": 112,
+      "frameHeight": 96,
+      "anims": {
+        "attack": {
+          "key": "monsters/Adult Red Dragon/AdultRedDragon_attack",
+          "frameWidth": 112,
+          "frameHeight": 96,
+          "cols": 6,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Adult Red Dragon/AdultRedDragon_die",
+          "frameWidth": 112,
+          "frameHeight": 96,
+          "cols": 1,
+          "rows": 4
+        },
+        "fly": {
+          "key": "monsters/Adult Red Dragon/AdultRedDragon_fly",
+          "frameWidth": 112,
+          "frameHeight": 96,
+          "cols": 4,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Adult Red Dragon/AdultRedDragon_hit",
+          "frameWidth": 112,
+          "frameHeight": 96,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Adult Red Dragon/AdultRedDragon_idle",
+          "frameWidth": 112,
+          "frameHeight": 96,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Adult Red Dragon/AdultRedDragon_special",
+          "frameWidth": 112,
+          "frameHeight": 96,
+          "cols": 6,
+          "rows": 4
+        }
+      }
+    },
+    "Bheur Hag": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "anims": {
+        "attack": {
+          "key": "monsters/Bheur Hag/BheurHag_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Bheur Hag/BheurHag_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Bheur Hag/BheurHag_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Bheur Hag/BheurHag_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Bheur Hag/BheurHag_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special_pillar_break": {
+          "key": "monsters/Bheur Hag/BheurHag_special_pillar_break",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 1
+        },
+        "special_pillar_spawn": {
+          "key": "monsters/Bheur Hag/BheurHag_special_pillar_spawn",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 1
+        },
+        "walk": {
+          "key": "monsters/Bheur Hag/BheurHag_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Frost Giant": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "anims": {
+        "attack": {
+          "key": "monsters/Frost Giant/FrostGiant_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "death": {
+          "key": "monsters/Frost Giant/FrostGiant_death",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 11,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Frost Giant/FrostGiant_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Frost Giant/FrostGiant_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Frost Giant/FrostGiant_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 12,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Frost Giant/FrostGiant_walk",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Frost Salamander": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "anims": {
+        "attack": {
+          "key": "monsters/Frost Salamander/FrostSalamander_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Frost Salamander/FrostSalamander_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Frost Salamander/FrostSalamander_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Frost Salamander/FrostSalamander_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Frost Salamander/FrostSalamander_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 8,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Frost Salamander/FrostSalamander_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Ice Golem": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "anims": {
+        "attack": {
+          "key": "monsters/Ice Golem/IceGolem_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Ice Golem/IceGolem_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Ice Golem/IceGolem_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Ice Golem/IceGolem_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Ice Golem/IceGolem_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Ice Golem/IceGolem_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Redcap": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "anims": {
+        "attack": {
+          "key": "monsters/Redcap/Redcap_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Redcap/Redcap_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Redcap/Redcap_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Redcap/Redcap_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Redcap/Redcap_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 11,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Redcap/Redcap_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Demon": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "anims": {
+        "attack": {
+          "key": "monsters/Demon/Demon_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Demon/Demon_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Demon/Demon_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Demon/Demon_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Demon/Demon_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 8,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Demon/Demon_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Efreet": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "anims": {
+        "attack": {
+          "key": "monsters/Efreet/Efreet_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "death": {
+          "key": "monsters/Efreet/Efreet_death",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 11,
+          "rows": 4
+        },
+        "fly": {
+          "key": "monsters/Efreet/Efreet_fly",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Efreet/Efreet_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Efreet/Efreet_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special_1": {
+          "key": "monsters/Efreet/Efreet_special_1",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 19,
+          "rows": 4
+        },
+        "special_2": {
+          "key": "monsters/Efreet/Efreet_special_2",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 19,
+          "rows": 4
+        },
+        "special_3": {
+          "key": "monsters/Efreet/Efreet_special_3",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 19,
+          "rows": 4
+        },
+        "special_4": {
+          "key": "monsters/Efreet/Efreet_special_4",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 19,
+          "rows": 4
+        }
+      }
+    },
+    "Gog": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "anims": {
+        "attack": {
+          "key": "monsters/Gog/Gog_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Gog/Gog_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Gog/Gog_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Gog/Gog_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Gog/Gog_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 20,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Gog/Gog_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Hellhound": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "anims": {
+        "attack": {
+          "key": "monsters/Hellhound/Hellhound_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Hellhound/Hellhound_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Hellhound/Hellhound_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Hellhound/Hellhound_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Hellhound/Hellhound_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 10,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Hellhound/Hellhound_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Imp": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "anims": {
+        "attack": {
+          "key": "monsters/Imp/Imp_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Imp/Imp_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Imp/Imp_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Imp/Imp_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Imp/Imp_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 9,
+          "rows": 4
+        },
+        "special_reversed": {
+          "key": "monsters/Imp/Imp_special_reversed",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 10,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Imp/Imp_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Bat": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "anims": {
+        "attack": {
+          "key": "monsters/Bat/Bat_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Bat/Bat_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "fly": {
+          "key": "monsters/Bat/Bat_fly",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Bat/Bat_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Bat/Bat_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Bat/Bat_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 14,
+          "rows": 4
+        }
+      }
+    },
+    "Death Knight": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "anims": {
+        "attack": {
+          "key": "monsters/Death Knight/DeathKnight_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "death": {
+          "key": "monsters/Death Knight/DeathKnight_death",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 10,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Death Knight/DeathKnight_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Death Knight/DeathKnight_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Death Knight/DeathKnight_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 10,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Death Knight/DeathKnight_walk",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Lich": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "anims": {
+        "attack": {
+          "key": "monsters/Lich/Lich_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "charging": {
+          "key": "monsters/Lich/Lich_charging",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Lich/Lich_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Lich/Lich_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Lich/Lich_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Lich/Lich_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 7,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Lich/Lich_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Skeleton": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "anims": {
+        "attack": {
+          "key": "monsters/Skeleton/Skeleton_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Skeleton/Skeleton_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Skeleton/Skeleton_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Skeleton/Skeleton_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "spawn": {
+          "key": "monsters/Skeleton/Skeleton_spawn",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Skeleton/Skeleton_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Skeleton/Skeleton_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Vampire": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "anims": {
+        "attack": {
+          "key": "monsters/Vampire/Vampire_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Vampire/Vampire_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Vampire/Vampire_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Vampire/Vampire_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Vampire/Vampire_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 7,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Vampire/Vampire_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Goblin": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "anims": {
+        "attack": {
+          "key": "monsters/Goblin/Goblin_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Goblin/Goblin_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Goblin/Goblin_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Goblin/Goblin_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Goblin/Goblin_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 7,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Goblin/Goblin_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Orc": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "anims": {
+        "attack": {
+          "key": "monsters/Orc/Orc_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Orc/Orc_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Orc/Orc_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Orc/Orc_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Orc/Orc_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 11,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Orc/Orc_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    }
+  }
+}
