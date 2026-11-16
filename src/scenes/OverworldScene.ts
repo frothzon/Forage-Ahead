@@ -115,6 +115,9 @@ export class OverworldScene extends Phaser.Scene {
 
   private respawnTimerMs = 0;
   private regenTimerMs = 0;
+  private minimapTimerMs = 0;
+  private lowEnergyToastMs = 0;
+  private sandstormBonusTimerMs = 0;
 
   private keys!: {
     W: Phaser.Input.Keyboard.Key;
@@ -325,7 +328,19 @@ export class OverworldScene extends Phaser.Scene {
   private ensureBridgeVisual(tx: number, ty: number): void {
     const key = `${tx},${ty}`;
     if (this.bridgeSprites.has(key)) return;
-    const spr = this.add.image(tx * TILE_PX + 8, ty * TILE_PX + 8, 'ui_icons/bridge').setDepth(2.5);
+    const baseY = ty * TILE_PX + 8;
+    const spr = this.add.image(tx * TILE_PX + 8, baseY, 'ui_icons/bridge').setDepth(2.5);
+    // Gentle 2-second bobbing wave cycle staggered per plank
+    const phaseMs = ((tx * 3 + ty * 5) % 10) * 180;
+    this.tweens.add({
+      targets: spr,
+      y: { from: baseY - 1.5, to: baseY + 1.5 },
+      duration: 1000,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+      delay: phaseMs,
+    });
     this.bridgeSprites.set(key, spr);
   }
 
@@ -790,6 +805,7 @@ export class OverworldScene extends Phaser.Scene {
     kb.on('keydown-M', () => this.hud.toggleModal('map'));
     kb.on('keydown-I', () => this.hud.toggleModal('inventory'));
     kb.on('keydown-P', () => this.hud.toggleModal('progress'));
+    kb.on('keydown-N', () => this.hud.toggleMinimap());
     kb.on('keydown-ESC', () => {
       if (gameState.pendingBuildRecipeId) {
         gameState.pendingBuildRecipeId = null;
@@ -956,11 +972,23 @@ export class OverworldScene extends Phaser.Scene {
     const nx = dx / dist;
     const ny = dy / dist;
 
-    // Ranged Bow & Relic Rods
+    // Ranged Bow & Relic Rods consume Energy (EN)
     if (itemId === 'bow' || def.category === 'relic') {
+      const enCost = gameState.getRangedEnergyCost(itemId);
+      if (enCost > 0 && gameState.energy < enCost) {
+        if (this.lowEnergyToastMs <= 0) {
+          this.lowEnergyToastMs = 650;
+          spawnFloatingText(this, this.player.x, this.player.y - 16, 'Low Energy!', '#ff8a93');
+        }
+        return;
+      }
       const cd = gameState.hasSkill('magic_archmage') ? Math.round((def.cooldownMs ?? 320) * 0.7) : (def.cooldownMs ?? 320);
       const anim = itemId === 'bow' ? 'ranged' : 'cast';
       if (!this.player.startAction(anim, cd, nx, ny, 160)) return;
+      if (enCost > 0) {
+        gameState.energy = Math.max(0, gameState.energy - enCost);
+        gameState.emitVitals();
+      }
       SFX.playCast();
       const projSpeed = 190;
       const dmg = gameState.getWeaponDamage(itemId);
@@ -1166,6 +1194,14 @@ export class OverworldScene extends Phaser.Scene {
       if (gameState.hasSkill('industry_prospecting') && (d.itemId === 'coal' || d.itemId === 'iron_ore' || d.itemId === 'gold_ore' || d.itemId === 'crystal')) {
         qty += 1;
       }
+      // Nighttime rarity shimmer on Crystal & Obsidian veins
+      if (
+        (node.kind === 'crystal_vein' || node.kind === 'obsidian_vein') &&
+        this.lighting.getAmbientColor().nightFactor >= 0.6 &&
+        Math.random() < 0.4
+      ) {
+        qty += 1;
+      }
       qty = Math.max(1, Math.round(qty * mult));
       this.spawnLoot(node.x, node.y, d.itemId, qty);
     }
@@ -1193,7 +1229,8 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private damageEnemy(enemy: Enemy, baseDmg: number, dirX: number, dirY: number): void {
-    const crit = Math.random() < gameState.getCritChance();
+    const bonusCrit = this.player.dodgeMomentumMs > 0 ? 15 : 0;
+    const crit = Math.random() < gameState.getCritChance(bonusCrit);
     const dmg = crit ? Math.round(baseDmg * 2) : baseDmg;
     SFX.playHit();
     spawnFloatingText(this, enemy.x, enemy.y - 16, crit ? `${dmg}!` : `${dmg}`, crit ? '#ffe066' : '#ffffff');
@@ -1322,13 +1359,24 @@ export class OverworldScene extends Phaser.Scene {
 
     // Passive HP/Energy trickle (only emit lightweight vitals update when values actually change)
     this.regenTimerMs += dt;
+    if (this.lowEnergyToastMs > 0) this.lowEnergyToastMs = Math.max(0, this.lowEnergyToastMs - dt);
+
     if (this.regenTimerMs >= 1000) {
       this.regenTimerMs = 0;
       const maxEn = gameState.getMaxEnergy();
       const maxHp = gameState.getMaxHp();
       const prevEn = gameState.energy;
       const prevHp = gameState.hp;
-      const enRegen = gameState.hasSkill('magic_vitality') ? 4.5 : 2.2;
+      const { nightFactor } = this.lighting.getAmbientColor();
+      const nearWarmth =
+        nightFactor >= 0.45 &&
+        this.buildings.some(
+          (b) =>
+            b.active &&
+            (b.structureType === 'bonfire' || b.structureType === 'furnace' || b.structureType === 'lighthouse') &&
+            Math.hypot(b.x - this.player.x, b.y - this.player.y) <= 72,
+        );
+      const enRegen = (gameState.hasSkill('magic_vitality') ? 4.5 : 2.2) * (nearWarmth ? 1.5 : 1);
       if (gameState.energy < maxEn) {
         gameState.energy = Math.min(maxEn, gameState.energy + enRegen);
       }
@@ -1368,13 +1416,71 @@ export class OverworldScene extends Phaser.Scene {
           (this.keys.W.isDown || this.keys.UP.isDown ? 1 : 0),
       );
       if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
-        this.player.tryDash(dir);
+        if (this.player.tryDash(dir)) {
+          const dodgedThreat = this.enemies.some(
+            (e) =>
+              e.active &&
+              !e.isDead &&
+              (e.isWindingUp() || Math.hypot(e.x - this.player.x, e.y - this.player.y) <= 60),
+          );
+          if (dodgedThreat) {
+            this.player.grantDodgeMomentum(2200);
+            spawnFloatingText(this, this.player.x, this.player.y - 18, 'DODGE CRIT!', '#ffe57f', '8px');
+          }
+        }
+      }
+      // Hold Left Mouse Button for smooth continuous gather / attack swings
+      const ptr = this.input.activePointer;
+      if (
+        ptr.leftButtonDown() &&
+        !gameState.pendingBuildRecipeId &&
+        !(ptr.event && ptr.event.target !== this.game.canvas)
+      ) {
+        const curItem = gameState.hotbar[gameState.selectedHotbarIndex] || 'pickaxe';
+        if (curItem !== 'fishing_rod') {
+          const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+          this.handlePrimaryAction(wp.x, wp.y);
+        }
       }
       const ptx = Math.floor(this.player.x / TILE_PX);
       const pty = Math.floor(this.player.y / TILE_PX);
       const onRoad = this.overlayGrid[pty]?.[ptx] === 'road';
       this.player.updatePlayer(dt, dir, this.isWalkable, onRoad ? 1.15 : 1);
-      this.fox.updateCompanion(dt, this.player.x, this.player.y);
+      this.fox.updateCompanion(dt, this.player.x, this.player.y, {
+        findTarget: () => {
+          let best: Enemy | null = null;
+          let bestD = 78;
+          for (const e of this.enemies) {
+            if (!e.active || e.isDead) continue;
+            const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+            if (d < bestD) {
+              bestD = d;
+              best = e;
+            }
+          }
+          return best ? { x: best.x, y: best.y } : null;
+        },
+        onBite: (fx, fy, dmg) => {
+          const target = this.enemies.find(
+            (e) => e.active && !e.isDead && Math.hypot(e.x - fx, e.y - fy) <= 18,
+          );
+          if (target) {
+            spawnBurstParticles(this, target.x, target.y - 4, 0xffaa44, 5);
+            const nx = (target.x - this.fox.x) / (Math.hypot(target.x - this.fox.x, target.y - this.fox.y) || 1);
+            const ny = (target.y - this.fox.y) / (Math.hypot(target.x - this.fox.x, target.y - this.fox.y) || 1);
+            this.damageEnemy(target, dmg, nx, ny);
+          }
+        },
+        onForage: (fx, fy) => {
+          if (Math.random() < 0.55) {
+            this.spawnLoot(fx, fy, 'berries', 1);
+            spawnFloatingText(this, fx, fy - 12, 'Fox +1 Berries', '#8ef5a7', '7px');
+          } else {
+            this.spawnCoin(fx, fy, 3);
+            spawnFloatingText(this, fx, fy - 12, 'Fox +3g', '#ffe066', '7px');
+          }
+        },
+      });
     } else if (this.fishingMinigame.isActive()) {
       this.player.playHeroAnim('fishing');
       if (this.fishingBobber?.active) {
@@ -1418,6 +1524,7 @@ export class OverworldScene extends Phaser.Scene {
           }
         },
         isFertileSoil: (tx, ty) => this.overlayGrid[ty]?.[tx] === 'dirt',
+        rainWatered: this.weather.weather === 'rain',
       });
     }
 
@@ -1425,34 +1532,42 @@ export class OverworldScene extends Phaser.Scene {
       this.hud.updateCraftQueueInPlace();
     }
 
-    // Enemies
+    // Enemies (half-island leash & reduced aggro range in Sandstorms)
+    const aggroMult = this.weather.weather === 'sandstorm' ? 0.8 : 1;
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       if (!e.active) {
         this.enemies.splice(i, 1);
         continue;
       }
-      e.updateEnemy(dt, this.player.x, this.player.y, this.isWalkable, {
-        onMeleeHitPlayer: (dmg, dx, dy) => {
-          if (this.player.takeDamage(dmg, dx, dy, this.isWalkable)) {
-            spawnFloatingText(this, this.player.x, this.player.y - 14, `-${dmg}`, '#ff5e6c');
-            this.checkPlayerDeath();
-          }
+      e.updateEnemy(
+        dt,
+        this.player.x,
+        this.player.y,
+        this.isWalkable,
+        {
+          onMeleeHitPlayer: (dmg, dx, dy) => {
+            if (this.player.takeDamage(dmg, dx, dy, this.isWalkable)) {
+              spawnFloatingText(this, this.player.x, this.player.y - 14, `-${dmg}`, '#ff5e6c');
+              this.checkPlayerDeath();
+            }
+          },
+          onFireProjectile: (px, py, vx, vy, dmg, texKey) => {
+            const spr = this.add.image(px, py, texKey).setDepth(5000);
+            this.projectiles.push({
+              sprite: spr,
+              vx,
+              vy,
+              damage: dmg,
+              fromPlayer: false,
+              lifeMs: 1800,
+              kind: 'enemy',
+            });
+          },
+          onBossSummon: () => {},
         },
-        onFireProjectile: (px, py, vx, vy, dmg, texKey) => {
-          const spr = this.add.image(px, py, texKey).setDepth(5000);
-          this.projectiles.push({
-            sprite: spr,
-            vx,
-            vy,
-            damage: dmg,
-            fromPlayer: false,
-            lifeMs: 1800,
-            kind: 'enemy',
-          });
-        },
-        onBossSummon: () => {},
-      });
+        { aggroMult },
+      );
     }
 
     // Projectiles
@@ -1490,20 +1605,49 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    // Ocean Waves, Caustics, Reflections & Weather + Day/Night Lighting
+    // Ocean Waves, Caustics, Splashes & Weather + Day/Night Lighting
     this.syncBiomeFromPlayer();
     const { nightFactor } = this.lighting.getAmbientColor();
-    this.ocean.update(
-      dt,
-      this.weather.wind,
-      nightFactor,
-      this.terrainGrid,
-      this.terrainLayer,
-      this.nodes,
-      this.buildings,
-    );
+    this.ocean.update(dt, this.weather.wind, nightFactor);
     this.weather.update(dt);
     this.updateLighting(dt);
+
+    // Desert Sandstorm periodic wind-blown coin / amber finds
+    if (this.weather.weather === 'sandstorm' && this.weather.currentBiome === 'autumn') {
+      this.sandstormBonusTimerMs += dt;
+      if (this.sandstormBonusTimerMs >= 16000) {
+        this.sandstormBonusTimerMs = 0;
+        const rx = this.player.x + Phaser.Math.Between(-56, 56);
+        const ry = this.player.y + Phaser.Math.Between(-56, 56);
+        if (this.isWalkable(rx, ry)) {
+          if (Math.random() < 0.45) this.spawnLoot(rx, ry, 'amber', 1);
+          else this.spawnCoin(rx, ry, 5);
+        }
+      }
+    }
+
+    // Corner Minimap refresh (~5 Hz)
+    this.minimapTimerMs += dt;
+    if (this.minimapTimerMs >= 200) {
+      this.minimapTimerMs = 0;
+      const bridges: Array<{ tx: number; ty: number }> = [];
+      for (const bk of this.bridgeSet) {
+        const [bx, by] = bk.split(',').map(Number);
+        bridges.push({ tx: bx, ty: by });
+      }
+      this.hud.updateMinimap({
+        worldTiles: WORLD_TILES,
+        playerTx: Math.floor(this.player.x / TILE_PX),
+        playerTy: Math.floor(this.player.y / TILE_PX),
+        terrainGrid: this.terrainGrid,
+        bridges,
+        buildings: this.buildings.filter((b) => b.active).map((b) => ({ tx: b.tx, ty: b.ty })),
+        portals: this.dungeonPortals.map((p) => ({ tx: Math.floor(p.x / TILE_PX), ty: Math.floor(p.y / TILE_PX) })),
+        enemies: this.enemies
+          .filter((e) => e.active && !e.isDead)
+          .map((e) => ({ tx: Math.floor(e.x / TILE_PX), ty: Math.floor(e.y / TILE_PX) })),
+      });
+    }
   }
 
   private syncBiomeFromPlayer(): void {

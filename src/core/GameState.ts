@@ -666,8 +666,18 @@ export class GameState {
     return Math.round(dmg);
   }
 
-  public getCritChance(): number {
-    let chance = (this.heroClass === 'Swashbuckler' ? 12 : 5) + this.getEquippedStats().critPct;
+  public getRangedEnergyCost(itemId: string): number {
+    const def = ITEMS[itemId];
+    const base = def?.energyCost ?? 0;
+    if (base <= 0) return 0;
+    if (def?.category === 'relic' && this.hasSkill('magic_archmage')) {
+      return Math.max(1, Math.round(base * 0.75));
+    }
+    return base;
+  }
+
+  public getCritChance(extraPct = 0): number {
+    let chance = (this.heroClass === 'Swashbuckler' ? 12 : 5) + this.getEquippedStats().critPct + extraPct;
     if (this.hasSkill('magic_critical')) chance += 20;
     return Math.min(0.85, chance / 100);
   }

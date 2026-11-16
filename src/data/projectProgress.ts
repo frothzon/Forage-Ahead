@@ -65,7 +65,14 @@ export const IMPLEMENTED_FEATURES: FeatureCatalogEntry[] = [
     category: 'Atmosphere & World VFX',
     title: 'Dynamic Weather, Daily Wind Shader, Ocean Waves & Lighting',
     details:
-      'Biome-specific weather (sunny, rain, snow, Perlin-noise cloud ground shadows, desert haze & sandstorms), daily changing wind driving foliage/trees and wind-aligned ocean waves/caustics/reflections, fishing splash particles, smooth circular player glow, and tower-anchored soft-falloff spotlights.',
+      'Biome-specific weather (sunny, rain auto-watering, snow, Perlin-noise cloud ground shadows, desert haze & sandstorms), daily changing wind driving foliage/trees and wind-aligned ocean waves/caustics/glints, 2s bobbing wooden bridges, fishing splashes, smooth circular player glow, and tower-anchored soft-falloff spotlights.',
+    status: 'Complete',
+  },
+  {
+    category: 'Combat & Exploration',
+    title: 'Energy-Cost Ranged Magic/Bow, Telegraphs, Fox Assists & Minimap',
+    details:
+      'Bow and Relic Rods consume Energy (reduced by Archmage); half-island (112px) overworld monster aggro caps; doubled tree trunk collision radius (11px); enemy attack telegraphs + dodge crit counterplay; active Fox companion combat bites & foraging; hold-to-gather swings; and live corner Minimap [N].',
     status: 'Complete',
   },
   {

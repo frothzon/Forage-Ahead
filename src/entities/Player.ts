@@ -12,6 +12,7 @@ export class Player extends Phaser.GameObjects.Container {
   public isDashing = false;
   public isActionLocked = false;
   public invulnerableMs = 0;
+  public dodgeMomentumMs = 0;
 
   private actionCooldownMs = 0;
   private dashCooldownMs = 0;
@@ -43,6 +44,14 @@ export class Player extends Phaser.GameObjects.Container {
     if (!force && this.currentAnimKey === target && this.sprite.anims.isPlaying) return;
     this.currentAnimKey = target;
     this.sprite.play(target, true);
+  }
+
+  public grantDodgeMomentum(ms = 2200): void {
+    this.dodgeMomentumMs = Math.max(this.dodgeMomentumMs, ms);
+    this.sprite.setTint(0xffe57f);
+    this.scene.time.delayedCall(180, () => {
+      if (this.sprite.active) this.sprite.clearTint();
+    });
   }
 
   public tryDash(moveVec: Phaser.Math.Vector2): boolean {
@@ -116,6 +125,7 @@ export class Player extends Phaser.GameObjects.Container {
     speedBonus = 1,
   ): void {
     const dt = dtMs / 1000;
+    if (this.dodgeMomentumMs > 0) this.dodgeMomentumMs = Math.max(0, this.dodgeMomentumMs - dtMs);
     if (this.actionCooldownMs > 0) this.actionCooldownMs = Math.max(0, this.actionCooldownMs - dtMs);
     if (this.dashCooldownMs > 0) this.dashCooldownMs = Math.max(0, this.dashCooldownMs - dtMs);
     if (this.invulnerableMs > 0) {
@@ -168,6 +178,11 @@ export class FoxCompanion extends Phaser.GameObjects.Container {
   private sprite: Phaser.GameObjects.Sprite;
   private facing: Direction = 'down';
   private curAnim = '';
+  private attackCooldownMs = 2500;
+  private forageCooldownMs = 18000;
+  private strikeLungeMs = 0;
+  private strikeTargetX = 0;
+  private strikeTargetY = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
@@ -181,15 +196,48 @@ export class FoxCompanion extends Phaser.GameObjects.Container {
     scene.add.existing(this);
   }
 
-  public updateCompanion(dtMs: number, targetX: number, targetY: number): void {
-    const dx = targetX - 16 - this.x;
-    const dy = targetY + 6 - this.y;
+  public updateCompanion(
+    dtMs: number,
+    targetX: number,
+    targetY: number,
+    assists?: {
+      findTarget: () => { x: number; y: number } | null;
+      onBite: (x: number, y: number, dmg: number) => void;
+      onForage: (x: number, y: number) => void;
+    },
+  ): void {
+    if (this.attackCooldownMs > 0) this.attackCooldownMs -= dtMs;
+    if (this.forageCooldownMs > 0) this.forageCooldownMs -= dtMs;
+    if (this.strikeLungeMs > 0) this.strikeLungeMs -= dtMs;
+
+    if (assists) {
+      if (this.attackCooldownMs <= 0) {
+        const foe = assists.findTarget();
+        if (foe && Math.hypot(foe.x - targetX, foe.y - targetY) <= 78) {
+          this.attackCooldownMs = 5200;
+          this.strikeLungeMs = 260;
+          this.strikeTargetX = foe.x;
+          this.strikeTargetY = foe.y;
+          const dmg = Math.round(5 + gameState.level * 1.5);
+          assists.onBite(foe.x, foe.y, dmg);
+        }
+      }
+      if (this.forageCooldownMs <= 0 && !assists.findTarget()) {
+        this.forageCooldownMs = 21000;
+        assists.onForage(this.x, this.y);
+      }
+    }
+
+    const goalX = this.strikeLungeMs > 0 ? this.strikeTargetX : targetX - 16;
+    const goalY = this.strikeLungeMs > 0 ? this.strikeTargetY : targetY + 6;
+    const dx = goalX - this.x;
+    const dy = goalY - this.y;
     const dist = Math.hypot(dx, dy);
     if (dist > 140) {
       this.x = targetX - 16;
       this.y = targetY + 6;
-    } else if (dist > 14) {
-      const spd = Math.min(95, dist * 3.5) * (dtMs / 1000);
+    } else if (dist > (this.strikeLungeMs > 0 ? 4 : 14)) {
+      const spd = Math.min(this.strikeLungeMs > 0 ? 180 : 95, dist * 4.0) * (dtMs / 1000);
       this.x += (dx / dist) * spd;
       this.y += (dy / dist) * spd;
       this.facing = vectorToDirection(dx, dy, this.facing);

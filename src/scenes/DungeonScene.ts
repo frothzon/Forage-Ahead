@@ -382,7 +382,16 @@ export class DungeonScene extends Phaser.Scene {
     const ny = dy / dist;
 
     if (itemId === 'bow' || def.category === 'relic') {
+      const enCost = gameState.getRangedEnergyCost(itemId);
+      if (enCost > 0 && gameState.energy < enCost) {
+        spawnFloatingText(this, this.player.x, this.player.y - 16, 'Low Energy!', '#ff8a93');
+        return;
+      }
       if (!this.player.startAction(itemId === 'bow' ? 'ranged' : 'cast', def.cooldownMs ?? 300, nx, ny, 160)) return;
+      if (enCost > 0) {
+        gameState.energy = Math.max(0, gameState.energy - enCost);
+        gameState.emitVitals();
+      }
       SFX.playCast();
       const texMap: Record<string, { tex: string; kind: ActiveProjectile['kind'] }> = {
         bow: { tex: 'projectiles/Arrow', kind: 'arrow' },
@@ -431,7 +440,7 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private damageEnemy(enemy: Enemy, baseDmg: number, dirX: number, dirY: number): void {
-    const crit = Math.random() < gameState.getCritChance();
+    const crit = Math.random() < gameState.getCritChance(this.player.dodgeMomentumMs > 0 ? 15 : 0);
     const dmg = crit ? Math.round(baseDmg * 2) : baseDmg;
     SFX.playHit();
     spawnFloatingText(this, enemy.x, enemy.y - 16, crit ? `${dmg}!` : `${dmg}`, crit ? '#ffe066' : '#ffffff');
@@ -527,7 +536,18 @@ export class DungeonScene extends Phaser.Scene {
           (this.keys.W.isDown || this.keys.UP.isDown ? 1 : 0),
       );
       if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
-        this.player.tryDash(dir);
+        if (this.player.tryDash(dir)) {
+          const dodged = this.enemies.some(
+            (e) =>
+              e.active &&
+              !e.isDead &&
+              (e.isWindingUp() || Math.hypot(e.x - this.player.x, e.y - this.player.y) <= 60),
+          );
+          if (dodged) {
+            this.player.grantDodgeMomentum(2200);
+            spawnFloatingText(this, this.player.x, this.player.y - 18, 'DODGE CRIT!', '#ffe57f', '8px');
+          }
+        }
       }
       this.player.updatePlayer(dt, dir, this.isWalkable);
     }

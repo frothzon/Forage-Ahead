@@ -1,5 +1,8 @@
 export type MonsterAI = 'chase' | 'ranged' | 'hopper' | 'boss_summoner' | 'boss_charge';
 
+/** Half of a 14-tile island cell (7 tiles * 16px = 112px). */
+export const HALF_ISLAND_AGGRO_PX = 112;
+
 export interface MonsterDef {
   id: string;
   name: string;
@@ -28,7 +31,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [2, 5],
     ai: 'hopper',
     attackRange: 22,
-    aggroRange: 130,
+    aggroRange: 96,
     drops: [{ itemId: 'slime_gel', chance: 0.75, count: 1 }],
   },
   Goblin: {
@@ -41,7 +44,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [4, 9],
     ai: 'chase',
     attackRange: 24,
-    aggroRange: 145,
+    aggroRange: 105,
     drops: [
       { itemId: 'wood', chance: 0.5, count: 2 },
       { itemId: 'berries', chance: 0.35, count: 1 },
@@ -57,7 +60,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [7, 14],
     ai: 'chase',
     attackRange: 26,
-    aggroRange: 150,
+    aggroRange: 108,
     drops: [
       { itemId: 'iron_ore', chance: 0.55, count: 2 },
       { itemId: 'coal', chance: 0.4, count: 1 },
@@ -73,7 +76,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [6, 12],
     ai: 'chase',
     attackRange: 24,
-    aggroRange: 140,
+    aggroRange: 102,
     drops: [{ itemId: 'amber', chance: 0.6, count: 1 }],
   },
   'Anubis Warrior': {
@@ -86,7 +89,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [9, 17],
     ai: 'chase',
     attackRange: 28,
-    aggroRange: 160,
+    aggroRange: 110,
     drops: [
       { itemId: 'amber', chance: 0.7, count: 1 },
       { itemId: 'gold_ore', chance: 0.45, count: 1 },
@@ -102,8 +105,8 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [10, 18],
     ai: 'ranged',
     projectileKey: 'monster_projectiles/EnergyBall',
-    attackRange: 135,
-    aggroRange: 175,
+    attackRange: 108,
+    aggroRange: HALF_ISLAND_AGGRO_PX,
     drops: [
       { itemId: 'amber', chance: 0.65, count: 1 },
       { itemId: 'gold_ore', chance: 0.5, count: 2 },
@@ -119,7 +122,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [5, 11],
     ai: 'chase',
     attackRange: 24,
-    aggroRange: 150,
+    aggroRange: 105,
     drops: [{ itemId: 'bone', chance: 0.8, count: 1 }],
   },
   Bat: {
@@ -132,7 +135,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [3, 8],
     ai: 'chase',
     attackRange: 22,
-    aggroRange: 160,
+    aggroRange: 108,
     drops: [{ itemId: 'bone', chance: 0.4, count: 1 }],
   },
   Vampire: {
@@ -145,7 +148,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [8, 16],
     ai: 'chase',
     attackRange: 26,
-    aggroRange: 165,
+    aggroRange: HALF_ISLAND_AGGRO_PX,
     drops: [
       { itemId: 'bone', chance: 0.65, count: 2 },
       { itemId: 'potion_red', chance: 0.2, count: 1 },
@@ -161,7 +164,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [12, 24],
     ai: 'chase',
     attackRange: 30,
-    aggroRange: 165,
+    aggroRange: HALF_ISLAND_AGGRO_PX,
     drops: [
       { itemId: 'bone', chance: 0.8, count: 2 },
       { itemId: 'iron_ingot', chance: 0.5, count: 1 },
@@ -177,8 +180,8 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [6, 12],
     ai: 'ranged',
     projectileKey: 'monster_projectiles/Spear',
-    attackRange: 120,
-    aggroRange: 160,
+    attackRange: 104,
+    aggroRange: HALF_ISLAND_AGGRO_PX,
     drops: [{ itemId: 'slime_gel', chance: 0.6, count: 2 }],
   },
   Medusa: {
@@ -191,8 +194,8 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [9, 17],
     ai: 'ranged',
     projectileKey: 'monster_projectiles/Arrow',
-    attackRange: 135,
-    aggroRange: 175,
+    attackRange: 108,
+    aggroRange: HALF_ISLAND_AGGRO_PX,
     drops: [{ itemId: 'bone', chance: 0.6, count: 2 }],
   },
   'Ice Golem': {
@@ -205,7 +208,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [10, 20],
     ai: 'chase',
     attackRange: 28,
-    aggroRange: 150,
+    aggroRange: 105,
     drops: [{ itemId: 'crystal', chance: 0.75, count: 1 }],
   },
   'Frost Salamander': {
@@ -218,7 +221,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [8, 15],
     ai: 'chase',
     attackRange: 24,
-    aggroRange: 160,
+    aggroRange: 108,
     drops: [{ itemId: 'crystal', chance: 0.5, count: 1 }],
   },
   'Bheur Hag': {
@@ -231,8 +234,8 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [11, 22],
     ai: 'ranged',
     projectileKey: 'monster_projectiles/Frostbolt',
-    attackRange: 145,
-    aggroRange: 180,
+    attackRange: 108,
+    aggroRange: HALF_ISLAND_AGGRO_PX,
     drops: [
       { itemId: 'crystal', chance: 0.7, count: 2 },
       { itemId: 'potion_blue', chance: 0.25, count: 1 },
@@ -248,7 +251,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [8, 16],
     ai: 'chase',
     attackRange: 24,
-    aggroRange: 160,
+    aggroRange: 108,
     drops: [{ itemId: 'coal', chance: 0.6, count: 2 }],
   },
   Imp: {
@@ -261,7 +264,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [10, 18],
     ai: 'chase',
     attackRange: 24,
-    aggroRange: 165,
+    aggroRange: HALF_ISLAND_AGGRO_PX,
     drops: [{ itemId: 'coal', chance: 0.7, count: 2 }],
   },
   Gog: {
@@ -274,8 +277,8 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [12, 24],
     ai: 'ranged',
     projectileKey: 'monster_projectiles/Fireball',
-    attackRange: 145,
-    aggroRange: 185,
+    attackRange: 108,
+    aggroRange: HALF_ISLAND_AGGRO_PX,
     drops: [{ itemId: 'obsidian', chance: 0.55, count: 1 }],
   },
   Hellhound: {
@@ -288,7 +291,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [12, 22],
     ai: 'chase',
     attackRange: 26,
-    aggroRange: 175,
+    aggroRange: HALF_ISLAND_AGGRO_PX,
     drops: [{ itemId: 'demon_horn', chance: 0.55, count: 1 }],
   },
   Demon: {
@@ -301,7 +304,7 @@ export const MONSTERS: Record<string, MonsterDef> = {
     coins: [16, 30],
     ai: 'chase',
     attackRange: 30,
-    aggroRange: 170,
+    aggroRange: HALF_ISLAND_AGGRO_PX,
     drops: [
       { itemId: 'demon_horn', chance: 0.8, count: 1 },
       { itemId: 'obsidian', chance: 0.6, count: 1 },

@@ -44,6 +44,7 @@ export interface ItemDef {
   stats?: GearStats;
   range?: number;
   cooldownMs?: number;
+  energyCost?: number;
 }
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -458,6 +459,7 @@ export const ITEMS: Record<string, ItemDef> = {
     stats: { attack: 20, critPct: 10, speedPct: 5 },
     range: 260,
     cooldownMs: 310,
+    energyCost: 6,
   },
 
   // Armor (Equip in Armor slot)
@@ -562,6 +564,7 @@ export const ITEMS: Record<string, ItemDef> = {
     stats: { attack: 34, critPct: 10, maxHp: 20 },
     range: 260,
     cooldownMs: 330,
+    energyCost: 9,
   },
   thunder_rod: {
     id: 'thunder_rod',
@@ -576,6 +579,7 @@ export const ITEMS: Record<string, ItemDef> = {
     stats: { attack: 40, critPct: 12, speedPct: 10 },
     range: 280,
     cooldownMs: 310,
+    energyCost: 9,
   },
   ice_rod: {
     id: 'ice_rod',
@@ -590,6 +594,7 @@ export const ITEMS: Record<string, ItemDef> = {
     stats: { attack: 38, critPct: 12, armor: 5 },
     range: 270,
     cooldownMs: 295,
+    energyCost: 9,
   },
   fire_rod: {
     id: 'fire_rod',
@@ -604,5 +609,6 @@ export const ITEMS: Record<string, ItemDef> = {
     stats: { attack: 50, critPct: 16, maxEnergy: 25 },
     range: 280,
     cooldownMs: 300,
+    energyCost: 11,
   },
 };

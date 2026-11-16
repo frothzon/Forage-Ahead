@@ -272,6 +272,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       onFishTrapCatch: (bx: number, by: number) => void;
       onCraftComplete: (bx: number, by: number, itemId: string, count: number) => void;
       isFertileSoil?: (tx: number, ty: number) => boolean;
+      rainWatered?: boolean;
     },
   ): void {
     this.actionTimerMs += dtMs;
@@ -316,6 +317,9 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         let growStepMs = gameState.hasSkill('foraging_farming') ? 6000 : 12000;
         if (callbacks.isFertileSoil?.(this.tx, this.ty)) {
           growStepMs = Math.round(growStepMs * 0.65);
+        }
+        if (callbacks.rainWatered) {
+          growStepMs = Math.round(growStepMs * 0.55);
         }
         if (this.actionTimerMs >= growStepMs) {
           this.actionTimerMs = 0;

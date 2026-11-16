@@ -137,7 +137,7 @@ export class ResourceNode extends Phaser.GameObjects.Container {
           solid: true,
           originY: 0.85,
           offsetY: 6,
-          radius: 5.5,
+          radius: 11,
           tint,
         };
       }

@@ -33,6 +33,17 @@ export interface WorldDebugStats {
   hasSavedData: boolean;
 }
 
+export interface MinimapSnapshot {
+  worldTiles: number;
+  playerTx: number;
+  playerTy: number;
+  terrainGrid: string[][];
+  bridges: Array<{ tx: number; ty: number }>;
+  buildings: Array<{ tx: number; ty: number }>;
+  portals: Array<{ tx: number; ty: number }>;
+  enemies: Array<{ tx: number; ty: number }>;
+}
+
 type DragPayload =
   | { source: 'bag'; bagIdx: number; itemId: string }
   | { source: 'equip'; slot: EquipSlot; itemId: string }
@@ -69,9 +80,11 @@ export class HudController {
   private unsubVitals?: () => void;
   private unsubFeed?: () => void;
   private chromeBuilt = false;
+  private minimapVisible = true;
+  private minimapCanvas?: HTMLCanvasElement;
   private toastTimer?: number;
   private toastMsg = '';
-  private timeLabelText = 'Day 13:40';
+  private timeLabelText = 'Day 1 • Sunny';
   private bossInfo: { name: string; hp: number; maxHp: number; portrait?: string } | null = null;
 
   private callbacks: {
@@ -163,6 +176,71 @@ export class HudController {
     this.timeLabelText = label;
     const el = this.chromeLayer.querySelector<HTMLElement>('#hud-time-badge');
     if (el) el.textContent = label;
+  }
+
+  public toggleMinimap(): void {
+    this.minimapVisible = !this.minimapVisible;
+    const body = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-body');
+    const btn = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-toggle');
+    if (body) body.style.display = this.minimapVisible ? 'block' : 'none';
+    if (btn) btn.textContent = this.minimapVisible ? 'Hide' : 'Show';
+  }
+
+  public updateMinimap(data: MinimapSnapshot): void {
+    if (!this.minimapVisible || !this.minimapCanvas) return;
+    const ctx = this.minimapCanvas.getContext('2d');
+    if (!ctx) return;
+    const W = this.minimapCanvas.width;
+    const H = this.minimapCanvas.height;
+    const scale = W / data.worldTiles;
+
+    ctx.fillStyle = '#183f59';
+    ctx.fillRect(0, 0, W, H);
+
+    const colMap: Record<string, string> = {
+      grass: '#58b354',
+      autumn: '#d6975c',
+      winter: '#cce8f4',
+      graveyard: '#736c8a',
+      infernal: '#a8474c',
+    };
+
+    for (let y = 0; y < data.worldTiles; y++) {
+      const row = data.terrainGrid[y];
+      if (!row) continue;
+      for (let x = 0; x < data.worldTiles; x++) {
+        const t = row[x];
+        if (t === 'water') continue;
+        ctx.fillStyle = colMap[t] ?? '#58b354';
+        ctx.fillRect(Math.floor(x * scale), Math.floor(y * scale), Math.ceil(scale), Math.ceil(scale));
+      }
+    }
+
+    ctx.fillStyle = '#a36b3c';
+    for (const br of data.bridges) {
+      ctx.fillRect(Math.floor(br.tx * scale), Math.floor(br.ty * scale), Math.max(2, Math.ceil(scale)), Math.max(2, Math.ceil(scale)));
+    }
+
+    ctx.fillStyle = '#ffe066';
+    for (const b of data.buildings) {
+      ctx.fillRect(Math.round(b.tx * scale) - 1, Math.round(b.ty * scale) - 1, 2, 2);
+    }
+
+    ctx.fillStyle = '#c77dff';
+    for (const p of data.portals) {
+      ctx.fillRect(Math.round(p.tx * scale) - 1, Math.round(p.ty * scale) - 1, 3, 3);
+    }
+
+    ctx.fillStyle = '#ff5e6c';
+    for (const e of data.enemies) {
+      ctx.fillRect(Math.round(e.tx * scale), Math.round(e.ty * scale), 2, 2);
+    }
+
+    // Player pulse blip
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(Math.round(data.playerTx * scale) - 2, Math.round(data.playerTy * scale) - 2, 4, 4);
+    ctx.fillStyle = '#ffe066';
+    ctx.fillRect(Math.round(data.playerTx * scale) - 1, Math.round(data.playerTy * scale) - 1, 2, 2);
   }
 
   private setupLayers(): void {
@@ -495,6 +573,16 @@ export class HudController {
           <button class="hud-btn" data-action="music" id="hud-music-btn">Music: Off</button>
           <button class="hud-btn" data-action="mute" id="hud-mute-btn">SFX</button>
         </div>
+
+        <div id="hud-minimap-wrap" class="hud-panel hud-interactive" style="position:absolute; bottom:12px; right:12px; padding:5px 6px; z-index:25;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;">
+            <span style="font-size:10px; font-weight:700; color:#b6dcff;">Minimap [N]</span>
+            <button class="hud-btn" id="hud-minimap-toggle" style="padding:1px 5px; font-size:9px;">Hide</button>
+          </div>
+          <div id="hud-minimap-body" style="display:block;">
+            <canvas id="hud-minimap-canvas" width="108" height="108" style="display:block; border:1px solid #3c506b; border-radius:3px; image-rendering:pixelated;"></canvas>
+          </div>
+        </div>
       `;
 
       this.chromeLayer.querySelectorAll<HTMLElement>('[data-nav]').forEach((el) => {
@@ -509,6 +597,10 @@ export class HudController {
         SFX.muted = !SFX.muted;
         this.renderChrome();
       };
+      this.minimapCanvas = this.chromeLayer.querySelector<HTMLCanvasElement>('#hud-minimap-canvas') ?? undefined;
+      this.chromeLayer.querySelector('#hud-minimap-toggle')?.addEventListener('click', () => {
+        this.toggleMinimap();
+      });
       this.chromeBuilt = true;
     }
 
@@ -872,7 +964,15 @@ export class HudController {
 
       <div style="font-size:11px; color:#c8daeb; margin-bottom:8px;">${def.description}</div>
 
-      ${statsList ? `<div style="display:flex; flex-direction:column; gap:2px; padding:6px; background:#131f30; border-radius:4px;">${statsList}</div>` : ''}
+      ${
+        statsList || def.energyCost
+          ? `<div style="display:flex; flex-direction:column; gap:2px; padding:6px; background:#131f30; border-radius:4px;">${statsList}${
+              def.energyCost
+                ? `<div style="display:flex; justify-content:space-between; font-size:11px;"><span>Energy Cost</span><strong style="color:#7ef59a;">${gameState.getRangedEnergyCost(itemId)} EN</strong></div>`
+                : ''
+            }</div>`
+          : ''
+      }
       ${compareHtml}
       ${hotbarAssignHtml}
 

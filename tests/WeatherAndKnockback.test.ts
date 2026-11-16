@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { gameState } from '../src/core/GameState';
+import { ITEMS } from '../src/data/items';
+import { HALF_ISLAND_AGGRO_PX, MONSTERS } from '../src/data/monsters';
 import { applySafeKnockback } from '../src/entities/knockback';
 import { periodicPerlinFbm2D, rollWeatherForBiome, rollWindForDay } from '../src/world/weatherRules';
 
@@ -53,5 +56,26 @@ describe('applySafeKnockback', () => {
     expect(corner.y).toBeGreaterThanOrEqual(104);
     expect(corner.x).toBeGreaterThan(120);
     expect(isWalkable(corner.x, corner.y)).toBe(true);
+  });
+});
+
+describe('Half-island monster aggro & ranged energy costs', () => {
+  it('caps all non-boss monsters at HALF_ISLAND_AGGRO_PX (112px)', () => {
+    for (const m of Object.values(MONSTERS)) {
+      if (!m.isBoss) {
+        expect(m.aggroRange).toBeLessThanOrEqual(HALF_ISLAND_AGGRO_PX);
+      }
+    }
+  });
+
+  it('requires positive EN for bow and all relic rods and respects magic_archmage discount', () => {
+    gameState.reset('Sorcerer');
+    for (const id of ['bow', 'necro_rod', 'thunder_rod', 'ice_rod', 'fire_rod']) {
+      expect(ITEMS[id].energyCost).toBeGreaterThan(0);
+      expect(gameState.getRangedEnergyCost(id)).toBeGreaterThan(0);
+    }
+    const baseFire = gameState.getRangedEnergyCost('fire_rod');
+    gameState.unlockedSkills.add('magic_archmage');
+    expect(gameState.getRangedEnergyCost('fire_rod')).toBeLessThan(baseFire);
   });
 });

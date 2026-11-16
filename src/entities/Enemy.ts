@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MONSTERS, type MonsterDef } from '../data/monsters';
+import { HALF_ISLAND_AGGRO_PX, MONSTERS, type MonsterDef } from '../data/monsters';
 import { vectorToDirection, type Direction } from './AnimationRegistry';
 import { applySafeKnockback } from './knockback';
 import manifest from '../data/assetManifest.json';
@@ -23,6 +23,11 @@ export class Enemy extends Phaser.GameObjects.Container {
   private wanderTimerMs = 0;
   private wanderVec = new Phaser.Math.Vector2(0, 0);
   private hitStunMs = 0;
+
+  // Brief attack wind-up telegraph so player can react & dash
+  private telegraphMs = 0;
+  private pendingAttackType: 'melee' | 'ranged' | null = null;
+  private baseScale = 1;
 
   // Obstacle detour steering memory
   private detourSign: 1 | -1 = 1;
@@ -50,6 +55,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     )[def.id];
 
     const scale = def.id === 'Adult Red Dragon' ? 0.75 : 1;
+    this.baseScale = scale;
     const feetOffset = (mSpec?.feetOffset ?? 8) * scale;
     const shadowW = def.isBoss ? 26 : 12;
     const shadowH = def.isBoss ? 8 : 5;
@@ -135,6 +141,10 @@ export class Enemy extends Phaser.GameObjects.Container {
     return false;
   }
 
+  public isWindingUp(): boolean {
+    return this.telegraphMs > 0;
+  }
+
   public updateEnemy(
     dtMs: number,
     playerX: number,
@@ -145,6 +155,7 @@ export class Enemy extends Phaser.GameObjects.Container {
       onFireProjectile: (x: number, y: number, vx: number, vy: number, dmg: number, texKey: string) => void;
       onBossSummon: (x: number, y: number, monsterId: string) => void;
     },
+    opts?: { aggroMult?: number; maxAggroPx?: number },
   ): void {
     if (this.isDead) return;
     const dt = dtMs / 1000;
@@ -159,7 +170,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     if (this.slowMs > 0) {
       this.slowMs -= dtMs;
       this.sprite.setTint(0x74e5ff);
-      if (this.slowMs <= 0) this.sprite.clearTint();
+      if (this.slowMs <= 0 && this.telegraphMs <= 0) this.sprite.clearTint();
     }
 
     const speedMult = this.slowMs > 0 ? 0.5 : 1;
@@ -167,7 +178,38 @@ export class Enemy extends Phaser.GameObjects.Container {
     const dy = playerY - this.y;
     const dist = Math.hypot(dx, dy);
 
-    if (dist <= this.def.aggroRange) {
+    // Handle active wind-up telegraph -> strike completion
+    if (this.telegraphMs > 0) {
+      this.telegraphMs -= dtMs;
+      this.sprite.setTint(0xff9f43);
+      this.sprite.setScale(this.baseScale * 1.1);
+      if (this.telegraphMs <= 0) {
+        this.sprite.setScale(this.baseScale);
+        if (this.slowMs > 0) this.sprite.setTint(0x74e5ff);
+        else this.sprite.clearTint();
+
+        const nx = dist > 0.01 ? dx / dist : 0;
+        const ny = dist > 0.01 ? dy / dist : 1;
+        this.facing = vectorToDirection(nx, ny, this.facing);
+        if (this.pendingAttackType === 'ranged') {
+          this.attackCooldownMs = this.def.isBoss ? 1400 : 1800;
+          this.playMonAnim('attack', true);
+          const proj = this.def.projectileKey ?? 'monster_projectiles/EnergyBall';
+          actions.onFireProjectile(this.x, this.y - 4, nx * 110, ny * 110, this.def.damage, proj);
+        } else if (this.pendingAttackType === 'melee' && dist <= this.def.attackRange + 8) {
+          this.attackCooldownMs = 1100;
+          this.playMonAnim('attack', true);
+          actions.onMeleeHitPlayer(this.def.damage, nx, ny);
+        }
+        this.pendingAttackType = null;
+      }
+      return;
+    }
+
+    const cap = this.def.isBoss ? this.def.aggroRange : (opts?.maxAggroPx ?? HALF_ISLAND_AGGRO_PX);
+    const effectiveAggro = Math.min(this.def.aggroRange, cap) * (opts?.aggroMult ?? 1);
+
+    if (dist <= effectiveAggro) {
       const nx = dist > 0.01 ? dx / dist : 0;
       const ny = dist > 0.01 ? dy / dist : 1;
       this.facing = vectorToDirection(nx, ny, this.facing);
@@ -210,19 +252,16 @@ export class Enemy extends Phaser.GameObjects.Container {
           this.playMonAnim('idle');
         }
         if (dist <= this.def.attackRange && this.attackCooldownMs <= 0) {
-          this.attackCooldownMs = this.def.isBoss ? 1400 : 1800;
-          this.playMonAnim('attack', true);
-          const proj = this.def.projectileKey ?? 'monster_projectiles/EnergyBall';
-          actions.onFireProjectile(this.x, this.y - 4, nx * 110, ny * 110, this.def.damage, proj);
+          this.telegraphMs = 240;
+          this.pendingAttackType = 'ranged';
         }
       } else {
         if (dist > this.def.attackRange * 0.78) {
           this.steerAroundObstacles(nx * this.def.speed * speedMult * dt, ny * this.def.speed * speedMult * dt, isWalkable);
           this.playMonAnim('walk');
         } else if (this.attackCooldownMs <= 0) {
-          this.attackCooldownMs = 1100;
-          this.playMonAnim('attack', true);
-          actions.onMeleeHitPlayer(this.def.damage, nx, ny);
+          this.telegraphMs = 250;
+          this.pendingAttackType = 'melee';
         }
       }
     } else {
