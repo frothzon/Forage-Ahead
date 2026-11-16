@@ -9,7 +9,9 @@ describe('IslandGenerator', () => {
         const res = generateIslandMask(gx, gy, 1337);
         expect(res.fillRate).toBeGreaterThanOrEqual(0.65);
         expect(res.fillRate).toBeLessThanOrEqual(0.85);
-        expect(res.actualFillRatio).toBeGreaterThanOrEqual(0.4);
+        expect(res.holesCarved).toBeGreaterThanOrEqual(0);
+        expect(res.holesCarved).toBeLessThanOrEqual(4);
+        expect(res.actualFillRatio).toBeGreaterThanOrEqual(0.3);
 
         // Verify 100% 4-connected contiguity via BFS
         let totalLand = 0;

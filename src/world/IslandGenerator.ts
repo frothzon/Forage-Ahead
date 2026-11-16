@@ -13,6 +13,7 @@ function mulberry32(seed: number): () => number {
 export interface GeneratedIslandMask {
   fillRate: number;
   actualFillRatio: number;
+  holesCarved: number;
   land: boolean[][]; // [INNER_ISLAND_SIZE][INNER_ISLAND_SIZE]
 }
 
@@ -20,9 +21,10 @@ export interface GeneratedIslandMask {
  * Generates an odd-shaped, contiguous 24x24 island landmass:
  * 1. Picks a per-island fill rate between 65% and 85%.
  * 2. Seeds a central core and randomly fills remaining cells at fillRate.
- * 3. Runs cellular-automata smoothing passes to eliminate isolated/spiky cells.
- * 4. Runs BFS flood-fill from the center so the entire island is 100% contiguous.
- * 5. Pads thin 1-tile bridges/diagonal pinches so 3x3 coastline auto-tiles stay seamless.
+ * 3. Carves 0-4 random cutout holes (width & height <= 25% of island dimensions) before smoothing.
+ * 4. Runs cellular-automata smoothing passes to eliminate isolated/spiky cells.
+ * 5. Runs BFS flood-fill from the center so the entire island is 100% contiguous.
+ * 6. Pads thin 1-tile bridges/diagonal pinches so 3x3 coastline auto-tiles stay seamless.
  */
 export function generateIslandMask(gx: number, gy: number, worldSeed = 1337): GeneratedIslandMask {
   const seed = (worldSeed * 73856093) ^ ((gx + 11) * 19349663) ^ ((gy + 29) * 83492791);
@@ -48,6 +50,24 @@ export function generateIslandMask(gx: number, gy: number, worldSeed = 1337): Ge
         const distFromCenter = Math.hypot(x - mid, y - mid) / maxRadius;
         const prob = Math.max(0.22, Math.min(0.95, fillRate + (0.42 - distFromCenter) * 0.26));
         grid[y][x] = rng() < prob;
+      }
+    }
+  }
+
+  // Carve 0-4 random cutout holes (each <= 25% width and <= 25% height) BEFORE smoothing
+  const maxHoleW = Math.max(1, Math.floor(INNER_ISLAND_SIZE * 0.25));
+  const maxHoleH = Math.max(1, Math.floor(INNER_ISLAND_SIZE * 0.25));
+  const holeCount = Math.floor(rng() * 5); // 0..4 inclusive
+  for (let h = 0; h < holeCount; h++) {
+    const holeW = 1 + Math.floor(rng() * maxHoleW);
+    const holeH = 1 + Math.floor(rng() * maxHoleH);
+    const hx = Math.floor(rng() * (INNER_ISLAND_SIZE - holeW + 1));
+    const hy = Math.floor(rng() * (INNER_ISLAND_SIZE - holeH + 1));
+    for (let y = hy; y < hy + holeH; y++) {
+      for (let x = hx; x < hx + holeW; x++) {
+        // Keep tiny 2x2 spawn pin intact
+        if (Math.abs(x - mid) <= 1 && Math.abs(y - mid) <= 1) continue;
+        grid[y][x] = false;
       }
     }
   }
@@ -159,6 +179,7 @@ export function generateIslandMask(gx: number, gy: number, worldSeed = 1337): Ge
   return {
     fillRate,
     actualFillRatio: landCount / (INNER_ISLAND_SIZE * INNER_ISLAND_SIZE),
+    holesCarved: holeCount,
     land: grid,
   };
 }

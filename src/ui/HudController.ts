@@ -1377,7 +1377,7 @@ export class HudController {
       ? `
         <div class="hud-panel" style="padding:10px 14px; margin-bottom:12px; background:linear-gradient(90deg, #2b4a2f, #4c3b14); border-color:#ffe066; text-align:center;">
           <strong style="color:#ffe596; font-size:14px;">GRAND VICTORY — ALL 25 ISLANDS & 4 BOSS DUNGEONS CONQUERED!</strong>
-          <div style="font-size:11px; color:#e6ffea; margin-top:2px;">You have mastered the Isles of Foraging and claimed all 4 Elemental Relic Rods.</div>
+          <div style="font-size:11px; color:#e6ffea; margin-top:2px;">You have mastered Forage Ahead and claimed all 4 Elemental Relic Rods.</div>
         </div>
       `
       : '';

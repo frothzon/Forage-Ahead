@@ -70,7 +70,7 @@ export class TitleScene extends Phaser.Scene {
     }
 
     this.add
-      .text(width / 2, 54, 'ISLES OF FORAGING', {
+      .text(width / 2, 54, 'FORAGE AHEAD', {
         fontSize: '34px',
         fontStyle: 'bold',
         color: '#ffe596',
