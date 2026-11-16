@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { gameState } from '../core/GameState';
 import { SFX } from '../core/SoundFX';
 import { ITEMS } from '../data/items';
+import { tryActivateGadget } from '../entities/GadgetHelper';
+import { getBlueprintsForMonster, tryUnlockBlueprintFromPool } from '../data/blueprints';
 import type { DungeonId } from '../data/islands';
 import { TILE_PX } from '../data/islands';
 import {
@@ -370,13 +372,33 @@ export class DungeonScene extends Phaser.Scene {
     const itemId = gameState.hotbar[gameState.selectedHotbarIndex] || 'sword';
     const def = ITEMS[itemId];
     if (!def) return;
+    const dx = wx - this.player.x;
+    const dy = wy - this.player.y;
+
     if (def.healHp || def.healEnergy) {
+      if ((gameState.inventory[itemId] ?? 0) <= 0) return;
+      if (!this.player.startAction('melee', 260, dx, dy, 180)) return;
       this.tryConsumeItem(itemId);
       return;
     }
 
-    const dx = wx - this.player.x;
-    const dy = wy - this.player.y;
+    if (def.category === 'gadget') {
+      tryActivateGadget(
+        {
+          scene: this,
+          player: this.player,
+          enemies: this.enemies,
+          isWalkable: (x, y) => this.isWalkable(x, y),
+          onDamageEnemy: (e, dmg, dx, dy) => this.damageEnemy(e, dmg, dx, dy),
+          showToast: (m) => this.hud.showToast(m),
+        },
+        itemId,
+        wx,
+        wy,
+      );
+      return;
+    }
+
     const dist = Math.hypot(dx, dy) || 1;
     const nx = dx / dist;
     const ny = dy / dist;
@@ -471,6 +493,14 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     if (killed) {
+      gameState.recordQuestProgress('kill', enemy.def.id, 1);
+      const bpName = tryUnlockBlueprintFromPool(
+        getBlueprintsForMonster(enemy.def.id, enemy === this.boss),
+        enemy === this.boss ? 1.0 : 0.22,
+      );
+      if (bpName) {
+        this.hud.showToast(`BLUEPRINT UNLOCKED: ${bpName}!`);
+      }
       this.drops.push(
         new LootDrop(this, enemy.x, enemy.y, 'coin', Phaser.Math.Between(enemy.def.coins[0], enemy.def.coins[1]), true),
       );

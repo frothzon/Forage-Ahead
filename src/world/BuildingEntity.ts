@@ -10,12 +10,20 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
   public readonly tx: number;
   public readonly ty: number;
   public readonly solid: boolean;
-  public readonly interactStation?: 'furnace' | 'anvil' | 'bonfire' | 'chest';
+  public readonly interactStation?:
+    | 'furnace'
+    | 'anvil'
+    | 'bonfire'
+    | 'alchemy_lab'
+    | 'frost_kiln'
+    | 'infernal_forge'
+    | 'chest';
   public readonly collisionOffsetY: number;
   public readonly collisionRadius: number;
 
   public readonly maxQueueSize = 5;
   public craftQueue: CraftQueueJob[];
+  public nestEgg: { speciesId: string; remainingMs: number; totalMs: number } | null = null;
 
   private actionTimerMs = 0;
   private bobClockMs = 0;
@@ -52,7 +60,8 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       type !== 'crop_berries' &&
       type !== 'crop_carrot' &&
       type !== 'crop_sunflower' &&
-      type !== 'fish_trap';
+      type !== 'fish_trap' &&
+      type !== 'nest';
 
     switch (type) {
       case 'furnace': {
@@ -75,9 +84,40 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         this.add(spr);
         break;
       }
+      case 'alchemy_lab': {
+        this.interactStation = 'alchemy_lab';
+        this.auraCircle = scene.add.circle(0, 0, 22, 0xc77dff, 0.1).setStrokeStyle(1, 0xc77dff, 0.35);
+        this.mainSprite = scene.add.image(0, 2, 'objects/Barrel').setOrigin(0.5, 0.75).setTint(0xc78cff).setScale(1.1);
+        this.add([this.auraCircle, this.mainSprite]);
+        break;
+      }
+      case 'frost_kiln': {
+        this.interactStation = 'frost_kiln';
+        this.auraCircle = scene.add.circle(0, 0, 24, 0x6ce5ff, 0.1).setStrokeStyle(1, 0x6ce5ff, 0.35);
+        this.mainSprite = scene.add.image(0, 3, 'ui_icons/furnace').setOrigin(0.5, 0.8).setTint(0x8ae8ff).setScale(1.1);
+        this.add([this.auraCircle, this.mainSprite]);
+        break;
+      }
+      case 'infernal_forge': {
+        this.interactStation = 'infernal_forge';
+        this.auraCircle = scene.add.circle(0, 0, 24, 0xff6b4a, 0.12).setStrokeStyle(1, 0xff6b4a, 0.4);
+        this.mainSprite = scene.add.image(0, 2, 'objects/Anvil').setOrigin(0.5, 0.75).setTint(0xff8066).setScale(1.15);
+        this.add([this.auraCircle, this.mainSprite]);
+        break;
+      }
       case 'chest': {
         this.interactStation = 'chest';
         this.mainSprite = scene.add.image(0, 2, 'objects/Chest_small', 0).setOrigin(0.5, 0.7);
+        this.add(this.mainSprite);
+        break;
+      }
+      case 'nest': {
+        this.mainSprite = scene.add.image(0, 2, 'tileset/Wooden logs').setOrigin(0.5, 0.7).setTint(0xe8c474).setScale(0.9);
+        this.add(this.mainSprite);
+        break;
+      }
+      case 'fence': {
+        this.mainSprite = scene.add.image(0, 2, 'objects/Fences (stone)', 0).setOrigin(0.5, 0.75);
         this.add(this.mainSprite);
         break;
       }
@@ -265,18 +305,44 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     };
   }
 
+  public placeEggOnNest(speciesId: string, hatchMs: number): boolean {
+    if (this.structureType !== 'nest' || this.nestEgg) return false;
+    this.nestEgg = { speciesId, remainingMs: hatchMs, totalMs: hatchMs };
+    if (this.craftGlow && this.craftIcon) {
+      this.craftGlow.setVisible(true);
+      this.craftIcon.setTexture('ui_icons/berries').setVisible(true);
+    }
+    return true;
+  }
+
   public updateBuilding(
     dtMs: number,
     callbacks: {
       onMiningRodPulse: (bx: number, by: number, radiusPx: number, dmg: number) => void;
       onFishTrapCatch: (bx: number, by: number) => void;
       onCraftComplete: (bx: number, by: number, itemId: string, count: number) => void;
+      onNestHatch?: (speciesId: string, bx: number, by: number) => void;
       isFertileSoil?: (tx: number, ty: number) => boolean;
       rainWatered?: boolean;
     },
   ): void {
     this.actionTimerMs += dtMs;
     this.bobClockMs += dtMs;
+
+    // Nest Egg Hatching
+    if (this.structureType === 'nest' && this.nestEgg) {
+      this.nestEgg.remainingMs -= dtMs;
+      if (this.craftIcon) {
+        this.craftIcon.y = -18 + Math.sin(this.bobClockMs * 0.008) * 2;
+      }
+      if (this.nestEgg.remainingMs <= 0) {
+        const hatchedSpecies = this.nestEgg.speciesId;
+        this.nestEgg = null;
+        this.craftGlow?.setVisible(false);
+        this.craftIcon?.setVisible(false);
+        callbacks.onNestHatch?.(hatchedSpecies, this.x, this.y);
+      }
+    }
 
     // Crafting Queue Processing
     if (this.craftQueue.length > 0) {

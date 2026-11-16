@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { gameState } from '../core/GameState';
+import { gameState, type RanchCreatureSave } from '../core/GameState';
+import { getSpeciesByEgg, getSpeciesById, RANCH_SPECIES } from '../data/ranchCreatures';
 import { SFX } from '../core/SoundFX';
 import { ITEMS } from '../data/items';
 import {
@@ -23,7 +24,9 @@ import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
 import { FoxCompanion, Player } from '../entities/Player';
 import { FishingMinigame } from '../ui/FishingMinigame';
-import { HudController } from '../ui/HudController';
+import { tryActivateGadget } from '../entities/GadgetHelper';
+import { HudController, type QueuedStationType } from '../ui/HudController';
+import { getBlueprintsForMonster, getBlueprintsForNode, tryUnlockBlueprintFromPool } from '../data/blueprints';
 import {
   BIOME_TILESETS,
   computeOverlayTile,
@@ -62,6 +65,15 @@ interface NpcEntity {
   prompt: Phaser.GameObjects.Text;
   x: number;
   y: number;
+}
+
+interface RanchEntity {
+  save: RanchCreatureSave;
+  sprite: Phaser.GameObjects.Sprite;
+  label: Phaser.GameObjects.Text;
+  vx: number;
+  vy: number;
+  wanderTimerMs: number;
 }
 
 interface DungeonPortalEntity {
@@ -109,6 +121,7 @@ export class OverworldScene extends Phaser.Scene {
   private bombs: ActiveBomb[] = [];
   private purchaseMarkers: IslandPurchaseMarker[] = [];
   private npcs: NpcEntity[] = [];
+  private ranchEntities: RanchEntity[] = [];
   private dungeonPortals: DungeonPortalEntity[] = [];
   private bridgeSprites = new Map<string, Phaser.GameObjects.Image>();
   private buildCursor!: Phaser.GameObjects.Rectangle;
@@ -151,6 +164,7 @@ export class OverworldScene extends Phaser.Scene {
     this.bombs = [];
     this.purchaseMarkers = [];
     this.npcs = [];
+    this.ranchEntities = [];
     this.dungeonPortals = [];
     this.bridgeSprites.clear();
     this.bridgeSet.clear();
@@ -369,6 +383,25 @@ export class OverworldScene extends Phaser.Scene {
         new BuildingEntity(this, b.id, b.type, b.tx, b.ty, b.craftQueue ?? [], b.cropStage ?? 0),
       );
     }
+    for (const rc of gameState.ranchCreatures) {
+      this.spawnRanchSprite(rc);
+    }
+  }
+
+  private spawnRanchSprite(rc: RanchCreatureSave): void {
+    const sp = getSpeciesById(rc.speciesId);
+    if (!sp) return;
+    const spr = this.add.sprite(rc.x, rc.y, sp.spriteKey, 0).setDepth(rc.y);
+    const label = this.add
+      .text(rc.x, rc.y - 14, '', {
+        fontSize: '7px',
+        color: '#ff9ec4',
+        stroke: '#000',
+        strokeThickness: 2,
+      })
+      .setOrigin(0.5)
+      .setDepth(8000);
+    this.ranchEntities.push({ save: rc, sprite: spr, label, vx: 0, vy: 0, wanderTimerMs: 1200 });
   }
 
   private findNearestLandTileOnIsland(
@@ -466,7 +499,7 @@ export class OverworldScene extends Phaser.Scene {
       const animKey = `npc_${spec.npc.spriteKey.split('/').pop()!.replace('_idle', '')}_idle_down`;
       if (this.anims.exists(animKey)) spr.play(animKey);
       const prompt = this.add
-        .text(spr.x, spr.y - 14, `[E] ${spec.npc.name}`, {
+        .text(spr.x, spr.y - 14, this.getNpcPromptText(spec.npc.id, spec.npc.name), {
           fontSize: '7px',
           color: '#ffe066',
           stroke: '#000',
@@ -542,6 +575,18 @@ export class OverworldScene extends Phaser.Scene {
     if (!spec) return false;
     const ox = gx * ISLAND_CELL_TILES;
     const oy = gy * ISLAND_CELL_TILES;
+
+    // Periodic respawns (when avoidTx < 0) can also spawn a water whirlpool (fish_spot)
+    if (avoidTx < 0 && Math.random() < 0.2) {
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const fx = ox + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
+        const fy = oy + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
+        if (this.terrainGrid[fy]?.[fx] === 'water' && !this.hasNodeAt(fx, fy) && !this.hasBuildingAt(fx, fy)) {
+          this.nodes.push(new ResourceNode(this, fx, fy, 'fish_spot', spec.biome));
+          return true;
+        }
+      }
+    }
 
     for (let attempt = 0; attempt < 16; attempt++) {
       const tx = ox + Phaser.Math.Between(1, ISLAND_CELL_TILES - 2);
@@ -677,7 +722,7 @@ export class OverworldScene extends Phaser.Scene {
           .filter((b) => b.active && b.structureType === stationType)
           .map((b) => ({
             id: b.id,
-            type: b.structureType as 'furnace' | 'anvil' | 'bonfire',
+            type: b.structureType as QueuedStationType,
             maxQueueSize: b.maxQueueSize,
             craftQueue: b.craftQueue,
           })),
@@ -807,6 +852,7 @@ export class OverworldScene extends Phaser.Scene {
       this.hud.toggleModal('craft');
     });
     kb.on('keydown-K', () => this.hud.toggleModal('skills'));
+    kb.on('keydown-Q', () => this.hud.toggleModal('quests'));
     kb.on('keydown-M', () => this.hud.toggleModal('map'));
     kb.on('keydown-I', () => this.hud.toggleModal('inventory'));
     kb.on('keydown-P', () => this.hud.toggleModal('progress'));
@@ -928,6 +974,7 @@ export class OverworldScene extends Phaser.Scene {
       this.buildings.push(new BuildingEntity(this, id, st, tx, ty));
       gameState.buildings.push({ id, type: st, tx, ty });
     }
+    gameState.recordQuestProgress('build', st, 1);
 
     // Keep placing bridges/roads smoothly while materials last!
     if ((st !== 'bridge' && st !== 'road_stone') || !gameState.canCraft(rec)) {
@@ -957,22 +1004,42 @@ export class OverworldScene extends Phaser.Scene {
     const def = ITEMS[itemId];
     if (!def) return;
 
+    const dx = wx - this.player.x;
+    const dy = wy - this.player.y;
+
     if (def.healHp || def.healEnergy) {
+      if ((gameState.inventory[itemId] ?? 0) <= 0) return;
+      if (!this.player.startAction('melee', 260, dx, dy, 180)) return;
       this.tryConsumeItem(itemId);
+      return;
+    }
+
+    if (def.category === 'gadget') {
+      tryActivateGadget(
+        {
+          scene: this,
+          player: this.player,
+          enemies: this.enemies,
+          isWalkable: (x, y) => this.isWalkable(x, y),
+          onDamageEnemy: (e, dmg, dx, dy) => this.damageEnemy(e, dmg, dx, dy),
+          showToast: (m) => this.hud.showToast(m),
+        },
+        itemId,
+        wx,
+        wy,
+      );
       return;
     }
 
     if (itemId === 'bomb') {
       if ((gameState.inventory.bomb ?? 0) <= 0) return;
+      if (!this.player.startAction('melee', 240, dx, dy, 160)) return;
       gameState.removeItem('bomb', 1);
       const bombSpr = this.add.image(this.player.x, this.player.y, 'projectiles/Bomb').setDepth(this.player.y);
       this.tweens.add({ targets: bombSpr, scale: { from: 1, to: 1.35 }, duration: 220, yoyo: true, repeat: -1 });
       this.bombs.push({ sprite: bombSpr, fuseMs: 1100 });
       return;
     }
-
-    const dx = wx - this.player.x;
-    const dy = wy - this.player.y;
     const dist = Math.hypot(dx, dy) || 1;
     const nx = dx / dist;
     const ny = dy / dist;
@@ -1059,33 +1126,24 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    // Stardew-style 20-second Fishing Minigame
+    // Stardew-style Fishing Minigame (only over a whirlpool; whirlpool disappears on pass or fail)
     if (itemId === 'fishing_rod') {
       if (this.fishingMinigame.isActive()) return;
-      const tx = Math.floor(wx / TILE_PX);
-      const ty = Math.floor(wy / TILE_PX);
       const targetSpot = this.nodes.find(
         (n) =>
           n.active &&
           n.kind === 'fish_spot' &&
-          Math.hypot(n.x - this.player.x, n.y - this.player.y) <= 68 &&
+          Math.hypot(n.x - this.player.x, n.y - this.player.y) <= 72 &&
           Math.hypot(n.x - wx, n.y - wy) <= 32,
       );
-      const aimedWater =
-        tx >= 0 &&
-        ty >= 0 &&
-        tx < WORLD_TILES &&
-        ty < WORLD_TILES &&
-        this.terrainGrid[ty][tx] === 'water' &&
-        Math.hypot(wx - this.player.x, wy - this.player.y) <= 68;
 
-      if (!targetSpot && !aimedWater) {
-        this.hud.showToast('Cast your Fishing Rod onto nearby water or a fish ripple!');
+      if (!targetSpot) {
+        this.hud.showToast('Cast your Fishing Rod onto a whirlpool!');
         return;
       }
 
-      const castX = targetSpot ? targetSpot.x : tx * TILE_PX + 8;
-      const castY = targetSpot ? targetSpot.y : ty * TILE_PX + 8;
+      const castX = targetSpot.x;
+      const castY = targetSpot.y;
       this.player.startAction('fishing_cast', 400, castX - this.player.x, castY - this.player.y, 260);
       this.fishingBobber?.destroy();
       this.fishingBobber = this.add.sprite(castX, castY, 'extras/Fishing bobber').setDepth(castY);
@@ -1107,12 +1165,17 @@ export class OverworldScene extends Phaser.Scene {
           }
           this.awardXp(25);
           this.hud.showToast(`Caught Fresh Fish x${count}!`);
-          if (targetSpot && targetSpot.active) {
-            targetSpot.destroy();
-            this.nodes = this.nodes.filter((n) => n.active);
+          const bpName = tryUnlockBlueprintFromPool(['craft_charm_miner', 'craft_ring_copper'], 0.16);
+          if (bpName) {
+            SFX.playLevelUp();
+            this.hud.showToast(`BLUEPRINT UNLOCKED: ${bpName}!`);
           }
         } else {
           this.hud.showToast('The fish got away!');
+        }
+        if (targetSpot && targetSpot.active) {
+          targetSpot.destroy();
+          this.nodes = this.nodes.filter((n) => n.active);
         }
       });
       return;
@@ -1220,6 +1283,11 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     this.awardXp(node.xpReward);
+    const bpName = tryUnlockBlueprintFromPool(getBlueprintsForNode(node.kind, node.biome), 0.18);
+    if (bpName) {
+      SFX.playLevelUp();
+      this.hud.showToast(`BLUEPRINT UNLOCKED: ${bpName}!`);
+    }
     this.nodes = this.nodes.filter((n) => n.active);
   }
 
@@ -1243,6 +1311,12 @@ export class OverworldScene extends Phaser.Scene {
 
     const killed = enemy.takeDamage(dmg, dirX, dirY, (nx, ny) => this.isWalkable(nx, ny));
     if (killed) {
+      gameState.recordQuestProgress('kill', enemy.def.id, 1);
+      const bpName = tryUnlockBlueprintFromPool(getBlueprintsForMonster(enemy.def.id, false), 0.22);
+      if (bpName) {
+        SFX.playLevelUp();
+        this.hud.showToast(`BLUEPRINT UNLOCKED: ${bpName}!`);
+      }
       const mult = this.getLighthouseMultiplier(enemy.x, enemy.y);
       const coinRoll = Phaser.Math.Between(enemy.def.coins[0], enemy.def.coins[1]);
       const finalCoins = Math.round(coinRoll * mult * (gameState.hasSkill('economy_coinage') ? 1.4 : 1));
@@ -1311,30 +1385,83 @@ export class OverworldScene extends Phaser.Scene {
     // 2. Check nearby Quest NPC
     for (const npc of this.npcs) {
       if (Math.hypot(npc.x - this.player.x, npc.y - this.player.y) <= 30) {
-        const q = npc.spec;
-        if (gameState.completedQuests.has(q.id)) {
-          this.hud.showToast(`${q.name}: Safe travels, hero!`);
+        const q = gameState.getNextQuestForNpc(npc.spec.id);
+        if (!q) {
+          this.hud.showToast(`${npc.spec.name}: Safe travels, hero!`);
           return;
         }
-        const have = gameState.inventory[q.requestItemId] ?? 0;
-        if (have >= q.requestCount) {
-          gameState.removeItem(q.requestItemId, q.requestCount);
-          gameState.coins += q.rewardCoins;
-          if (q.rewardItemId) gameState.addItem(q.rewardItemId, q.rewardItemCount ?? 1);
-          gameState.completedQuests.add(q.id);
-          this.awardXp(q.rewardXp);
-          SFX.playLevelUp();
-          npc.prompt.setText(`${q.name} (Done)`);
-          this.hud.showToast(`Quest Complete! +${q.rewardCoins}g +${q.rewardXp} XP`);
+        if (gameState.isQuestActive(q.id)) {
+          if (gameState.isQuestReadyToTurnIn(q.id)) {
+            const done = gameState.completeQuest(q.id);
+            if (done) {
+              SFX.playLevelUp();
+              this.hud.showToast(`Quest Complete: ${done.title}! +${done.rewards.coins}g +${done.rewards.xp} XP`);
+              const nextQ = gameState.getNextQuestForNpc(npc.spec.id);
+              if (nextQ) {
+                gameState.acceptQuest(nextQ.id);
+                gameState.setTrackedQuest(nextQ.id);
+                this.hud.showToast(`New Quest: ${nextQ.title}`);
+              }
+            }
+          } else {
+            const summary = q.objectives
+              .map((o) => `${o.label}: ${gameState.getObjectiveProgress(q.id, o)}/${o.count}`)
+              .join(' • ');
+            this.hud.showToast(`${npc.spec.name}: ${summary}`);
+          }
         } else {
-          const itemLabel = ITEMS[q.requestItemId]?.name ?? q.requestItemId;
-          this.hud.showToast(`${q.name}: Bring ${q.requestCount} ${itemLabel} (${have}/${q.requestCount})`);
+          gameState.acceptQuest(q.id);
+          gameState.setTrackedQuest(q.id);
+          SFX.playPickup();
+          this.hud.showToast(`Quest Accepted: ${q.title} [Q]`);
+        }
+        this.refreshNpcPrompts();
+        return;
+      }
+    }
+
+    // 3. Check nearby Ranch Creature (Pet & Collect Eggs) or Nest (Place Egg)
+    for (const rc of this.ranchEntities) {
+      if (Math.hypot(rc.save.x - this.player.x, rc.save.y - this.player.y) <= 28) {
+        const sp = getSpeciesById(rc.save.speciesId);
+        const res = gameState.petRanchCreature(rc.save.id);
+        SFX.playPickup();
+        if (res.eggsCollected > 0 && sp) {
+          gameState.addItem(sp.eggItemId, res.eggsCollected);
+          spawnFloatingText(this, rc.save.x, rc.save.y - 16, `+${res.eggsCollected} Egg!`, '#ffe066');
+          this.hud.showToast(`Collected ${res.eggsCollected}x ${ITEMS[sp.eggItemId]?.name ?? 'Egg'} from ${sp.name}!`);
+        } else {
+          spawnFloatingText(this, rc.save.x, rc.save.y - 16, res.petted ? '♥ Happy!' : `♥ ${res.happiness}%`, '#ff8eb8');
+          this.hud.showToast(`${sp?.name ?? 'Creature'} Happiness: ${res.happiness}%`);
         }
         return;
       }
     }
 
-    // 3. Check nearby Crafting Station or Chest
+    for (const b of this.buildings) {
+      if (b.active && b.structureType === 'nest' && Math.hypot(b.x - this.player.x, b.y - this.player.y) <= 28) {
+        if (b.nestEgg) {
+          const sp = getSpeciesById(b.nestEgg.speciesId);
+          this.hud.showToast(`${sp?.name ?? 'Egg'} hatching in ${Math.ceil(b.nestEgg.remainingMs / 1000)}s...`);
+          return;
+        }
+        const selectedId = gameState.hotbar[gameState.selectedHotbarIndex];
+        const chosenSpecies =
+          (selectedId ? getSpeciesByEgg(selectedId) : undefined) ??
+          RANCH_SPECIES.find((s) => (gameState.inventory[s.eggItemId] ?? 0) > 0);
+        if (!chosenSpecies || (gameState.inventory[chosenSpecies.eggItemId] ?? 0) <= 0) {
+          this.hud.showToast('Monster Nest: Bring an Egg from wild monsters to hatch!');
+          return;
+        }
+        gameState.removeItem(chosenSpecies.eggItemId, 1);
+        b.placeEggOnNest(chosenSpecies.id, chosenSpecies.hatchMs);
+        SFX.playCraft();
+        this.hud.showToast(`Placed ${ITEMS[chosenSpecies.eggItemId]?.name} on Nest! Hatching...`);
+        return;
+      }
+    }
+
+    // 4. Check nearby Crafting Station or Chest
     for (const b of this.buildings) {
       if (b.active && b.interactStation && Math.hypot(b.x - this.player.x, b.y - this.player.y) <= 28) {
         if (b.interactStation === 'chest') {
@@ -1385,7 +1512,7 @@ export class OverworldScene extends Phaser.Scene {
       if (gameState.energy < maxEn) {
         gameState.energy = Math.min(maxEn, gameState.energy + enRegen);
       }
-      if (gameState.hasSkill('magic_vitality') && gameState.hp < maxHp) {
+      if ((gameState.hasSkill('magic_vitality') || gameState.hasTrinketEffect('regen_out_combat')) && gameState.hp < maxHp) {
         gameState.hp = Math.min(maxHp, gameState.hp + 2);
       }
       if (gameState.energy !== prevEn || gameState.hp !== prevHp) {
@@ -1522,15 +1649,81 @@ export class OverworldScene extends Phaser.Scene {
           SFX.playCraft();
           spawnBurstParticles(this, bx, by - 10, 0xffe066, 6);
           this.spawnLoot(bx, by, itemId, count);
+          for (const rec of RECIPES) {
+            if (rec.outputItemId === itemId) {
+              gameState.recordQuestProgress('craft', rec.id, 1);
+            }
+          }
           this.awardXp(8);
           this.syncBuildingQueuesToSave();
           if (this.hud.activeModal === 'craft') {
             this.hud.render();
           }
         },
+        onNestHatch: (speciesId, bx, by) => {
+          const sp = getSpeciesById(speciesId);
+          if (!sp) return;
+          const rc = gameState.addRanchCreature(speciesId, bx, by + 6, sp.layIntervalMs);
+          this.spawnRanchSprite(rc);
+          SFX.playLevelUp();
+          spawnBurstParticles(this, bx, by, 0xffe066, 10);
+          this.hud.showToast(`${sp.name} hatched! Build Fences to keep it safe & pet it for Eggs!`);
+        },
         isFertileSoil: (tx, ty) => this.overlayGrid[ty]?.[tx] === 'dirt',
         rainWatered: this.weather.weather === 'rain',
       });
+    }
+
+    // Friendly Ranch Creatures (wander on walkable land, blocked by water & fences, lay eggs when happy)
+    for (const rc of this.ranchEntities) {
+      const sp = getSpeciesById(rc.save.speciesId);
+      if (!sp) continue;
+      rc.wanderTimerMs -= dt;
+      if (rc.wanderTimerMs <= 0) {
+        rc.wanderTimerMs = Phaser.Math.Between(1400, 3200);
+        if (Math.random() < 0.45) {
+          rc.vx = 0;
+          rc.vy = 0;
+        } else {
+          const ang = Math.random() * Math.PI * 2;
+          rc.vx = Math.cos(ang) * 16;
+          rc.vy = Math.sin(ang) * 16;
+        }
+      }
+      if (rc.vx !== 0 || rc.vy !== 0) {
+        const nx = rc.save.x + (rc.vx * dt) / 1000;
+        const ny = rc.save.y + (rc.vy * dt) / 1000;
+        if (this.isWalkable(nx, ny)) {
+          rc.save.x = nx;
+          rc.save.y = ny;
+          rc.sprite.setPosition(nx, ny);
+          rc.sprite.setDepth(ny);
+          if (rc.vx !== 0) rc.sprite.setFlipX(rc.vx < 0);
+        } else {
+          rc.vx = -rc.vx;
+          rc.vy = -rc.vy;
+        }
+      }
+      if (rc.save.happiness >= 40 && rc.save.readyEggs < 3) {
+        rc.save.layTimerMs -= dt;
+        if (rc.save.layTimerMs <= 0) {
+          rc.save.layTimerMs = sp.layIntervalMs;
+          rc.save.readyEggs += 1;
+        }
+      }
+      rc.label.setPosition(rc.save.x, rc.save.y - 14);
+      const near = Math.hypot(rc.save.x - this.player.x, rc.save.y - this.player.y) <= 32;
+      if (rc.save.readyEggs > 0) {
+        rc.label.setText(`[E] Egg x${rc.save.readyEggs}`);
+        rc.label.setColor('#ffe066');
+        rc.label.setVisible(true);
+      } else if (near) {
+        rc.label.setText(`[E] Pet ♥${rc.save.happiness}%`);
+        rc.label.setColor('#ff9ec4');
+        rc.label.setVisible(true);
+      } else {
+        rc.label.setVisible(false);
+      }
     }
 
     if (this.hud.activeModal === 'craft') {
@@ -1640,6 +1833,14 @@ export class OverworldScene extends Phaser.Scene {
         const [bx, by] = bk.split(',').map(Number);
         bridges.push({ tx: bx, ty: by });
       }
+      const tracked = gameState.getTrackedQuest();
+      const waypoint = tracked?.waypoint
+        ? {
+            tx: tracked.waypoint.gx * ISLAND_CELL_TILES + Math.floor(ISLAND_CELL_TILES / 2),
+            ty: tracked.waypoint.gy * ISLAND_CELL_TILES + Math.floor(ISLAND_CELL_TILES / 2),
+            label: tracked.waypoint.label,
+          }
+        : undefined;
       this.hud.updateMinimap({
         worldTiles: WORLD_TILES,
         playerTx: Math.floor(this.player.x / TILE_PX),
@@ -1651,7 +1852,23 @@ export class OverworldScene extends Phaser.Scene {
         enemies: this.enemies
           .filter((e) => e.active && !e.isDead)
           .map((e) => ({ tx: Math.floor(e.x / TILE_PX), ty: Math.floor(e.y / TILE_PX) })),
+        waypoint,
       });
+    }
+  }
+
+  private getNpcPromptText(npcId: string, name: string): string {
+    const q = gameState.getNextQuestForNpc(npcId);
+    if (!q) return `${name} (Done)`;
+    if (gameState.isQuestActive(q.id)) {
+      return gameState.isQuestReadyToTurnIn(q.id) ? `[E] ${name} (?)` : `[E] ${name} (...)`;
+    }
+    return `[E] ${name} (!)`;
+  }
+
+  private refreshNpcPrompts(): void {
+    for (const npc of this.npcs) {
+      npc.prompt.setText(this.getNpcPromptText(npc.spec.id, npc.spec.name));
     }
   }
 

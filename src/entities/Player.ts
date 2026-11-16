@@ -2,12 +2,14 @@ import Phaser from 'phaser';
 import { gameState } from '../core/GameState';
 import { SFX } from '../core/SoundFX';
 import manifest from '../data/assetManifest.json';
+import { ITEMS } from '../data/items';
 import { vectorToDirection, type Direction } from './AnimationRegistry';
 import { applySafeKnockback } from './knockback';
 
 export class Player extends Phaser.GameObjects.Container {
   public sprite: Phaser.GameObjects.Sprite;
   public shadow: Phaser.GameObjects.Ellipse;
+  public heldItemSprite: Phaser.GameObjects.Image;
   public facing: Direction = 'down';
   public isDashing = false;
   public isActionLocked = false;
@@ -19,6 +21,9 @@ export class Player extends Phaser.GameObjects.Container {
   private dashTimerMs = 0;
   private dashDir = new Phaser.Math.Vector2(0, 1);
   private currentAnimKey = '';
+  private heldItemKey = '';
+  private swingTimerMs = 0;
+  private swingDurationMs = 180;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
@@ -30,11 +35,64 @@ export class Player extends Phaser.GameObjects.Container {
     this.shadow = scene.add.ellipse(0, -1.5, 11, 5, 0x000000, 0.4);
     const startTex = `heroes/${gameState.heroClass}/${gameState.heroClass}_idle`;
     this.sprite = scene.add.sprite(0, -feetOffset, startTex, 0);
-    this.add([this.shadow, this.sprite]);
+    this.heldItemSprite = scene.add.image(6, -6, 'ui_icons/pickaxe').setScale(0.55).setVisible(false);
+    this.add([this.shadow, this.sprite, this.heldItemSprite]);
     this.setDepth(y);
     scene.add.existing(this);
 
     this.playHeroAnim('idle', true);
+    this.syncHeldItem();
+  }
+
+  public syncHeldItem(): void {
+    const itemId = gameState.hotbar[gameState.selectedHotbarIndex];
+    const def = itemId ? ITEMS[itemId] : undefined;
+    const hasQty =
+      def && (!def.equipSlot && def.category !== 'gadget' ? (gameState.inventory[itemId] ?? 0) > 0 : true);
+    const texKey = def && hasQty ? def.iconKey ?? '' : '';
+
+    if (texKey && this.scene.textures.exists(texKey)) {
+      if (this.heldItemKey !== texKey) {
+        this.heldItemKey = texKey;
+        this.heldItemSprite.setTexture(texKey);
+      }
+      this.heldItemSprite.setVisible(true);
+    } else {
+      this.heldItemKey = '';
+      this.heldItemSprite.setVisible(false);
+    }
+    this.positionHeldItem();
+  }
+
+  private positionHeldItem(): void {
+    if (!this.heldItemSprite.visible) return;
+    const handOffsets: Record<Direction, { x: number; y: number; flipX: boolean; baseAngle: number }> = {
+      down: { x: 6, y: -5, flipX: false, baseAngle: 15 },
+      up: { x: -6, y: -9, flipX: true, baseAngle: -25 },
+      left: { x: -7, y: -6, flipX: true, baseAngle: -20 },
+      right: { x: 7, y: -6, flipX: false, baseAngle: 20 },
+    };
+    const off = handOffsets[this.facing];
+    let swingAngle = off.baseAngle;
+    let thrustX = 0;
+    let thrustY = 0;
+    if (this.swingTimerMs > 0) {
+      const t = 1 - this.swingTimerMs / this.swingDurationMs;
+      const arc = Math.sin(t * Math.PI);
+      const dirSign = this.facing === 'left' ? -1 : 1;
+      swingAngle = off.baseAngle + dirSign * (-55 + t * 115);
+      thrustX = (this.facing === 'left' ? -1 : this.facing === 'right' ? 1 : 0) * arc * 4;
+      thrustY = (this.facing === 'up' ? -1 : this.facing === 'down' ? 1 : 0) * arc * 4;
+    }
+    this.heldItemSprite.setPosition(off.x + thrustX, off.y + thrustY);
+    this.heldItemSprite.setFlipX(off.flipX);
+    this.heldItemSprite.setAngle(swingAngle);
+    if (this.facing === 'up') {
+      this.sendToBack(this.heldItemSprite);
+      this.sendToBack(this.shadow);
+    } else {
+      this.bringToTop(this.heldItemSprite);
+    }
   }
 
   public playHeroAnim(anim: string, force = false): void {
@@ -91,6 +149,8 @@ export class Player extends Phaser.GameObjects.Container {
     this.facing = vectorToDirection(aimDx, aimDy, this.facing);
     this.actionCooldownMs = cooldownMs;
     this.isActionLocked = true;
+    this.swingDurationMs = Math.max(120, lockMs);
+    this.swingTimerMs = this.swingDurationMs;
     this.playHeroAnim(animName, true);
     this.scene.time.delayedCall(lockMs, () => {
       this.isActionLocked = false;
@@ -128,6 +188,7 @@ export class Player extends Phaser.GameObjects.Container {
     if (this.dodgeMomentumMs > 0) this.dodgeMomentumMs = Math.max(0, this.dodgeMomentumMs - dtMs);
     if (this.actionCooldownMs > 0) this.actionCooldownMs = Math.max(0, this.actionCooldownMs - dtMs);
     if (this.dashCooldownMs > 0) this.dashCooldownMs = Math.max(0, this.dashCooldownMs - dtMs);
+    if (this.swingTimerMs > 0) this.swingTimerMs = Math.max(0, this.swingTimerMs - dtMs);
     if (this.invulnerableMs > 0) {
       this.invulnerableMs = Math.max(0, this.invulnerableMs - dtMs);
       this.sprite.alpha = Math.floor(this.invulnerableMs / 70) % 2 === 0 ? 0.55 : 1;
@@ -170,6 +231,7 @@ export class Player extends Phaser.GameObjects.Container {
       this.y = nextY;
     }
 
+    this.syncHeldItem();
     this.setDepth(this.y);
   }
 }

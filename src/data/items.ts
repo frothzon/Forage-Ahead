@@ -6,6 +6,7 @@ export type ItemCategory =
   | 'armor'
   | 'accessory'
   | 'relic'
+  | 'gadget'
   | 'consumable';
 
 export type ItemRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'relic';
@@ -45,6 +46,8 @@ export interface ItemDef {
   range?: number;
   cooldownMs?: number;
   energyCost?: number;
+  trinketEffect?: 'regen_out_combat' | 'pickup_magnet' | 'crit_spark';
+  gadgetEffect?: 'blink' | 'ward' | 'frost_nova';
 }
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -610,5 +613,151 @@ export const ITEMS: Record<string, ItemDef> = {
     range: 280,
     cooldownMs: 300,
     energyCost: 11,
+  },
+
+  // Trinkets (3-slot passive gear)
+  trinket_regen: {
+    id: 'trinket_regen',
+    name: 'Vitality Band',
+    category: 'accessory',
+    rarity: 'uncommon',
+    description: 'Trinket: +25 Max HP, +2 Armor, and passive HP regeneration.',
+    color: '#6ce08a',
+    iconKey: 'ui_icons/ring_copper',
+    sellValue: 45,
+    equipSlot: 'accessory',
+    stats: { maxHp: 25, armor: 2 },
+    trinketEffect: 'regen_out_combat',
+  },
+  trinket_swift: {
+    id: 'trinket_swift',
+    name: 'Windrunner Charm',
+    category: 'accessory',
+    rarity: 'rare',
+    description: 'Trinket: +15% Move Speed, +20 Max Energy, and wider item pickup.',
+    color: '#4fa8ff',
+    iconKey: 'ui_icons/charm_miner',
+    sellValue: 70,
+    equipSlot: 'accessory',
+    stats: { speedPct: 15, maxEnergy: 20 },
+    trinketEffect: 'pickup_magnet',
+  },
+  trinket_crit: {
+    id: 'trinket_crit',
+    name: 'Ember Spark',
+    category: 'accessory',
+    rarity: 'epic',
+    description: 'Trinket: +10 Attack, +12% Crit Chance.',
+    color: '#c77dff',
+    iconKey: 'ui_icons/amulet_dragon',
+    sellValue: 110,
+    equipSlot: 'accessory',
+    stats: { attack: 10, critPct: 12 },
+    trinketEffect: 'crit_spark',
+  },
+
+  // Cooldown Gadgets (Active hotbar devices, never consumed)
+  gadget_blink: {
+    id: 'gadget_blink',
+    name: 'Blink Stone',
+    category: 'gadget',
+    rarity: 'rare',
+    description: 'Gadget (6s CD): Teleport toward cursor & gain brief dodge invulnerability.',
+    color: '#4fa8ff',
+    iconKey: 'ui_icons/thunder_rod',
+    sellValue: 65,
+    cooldownMs: 6000,
+    energyCost: 12,
+    gadgetEffect: 'blink',
+  },
+  gadget_ward: {
+    id: 'gadget_ward',
+    name: 'Aegis Ward',
+    category: 'gadget',
+    rarity: 'rare',
+    description: 'Gadget (12s CD): Emit a shockwave knocking back foes & granting 3s shield.',
+    color: '#ffd95a',
+    iconKey: 'ui_icons/armor_iron',
+    sellValue: 80,
+    cooldownMs: 12000,
+    energyCost: 16,
+    gadgetEffect: 'ward',
+  },
+  gadget_nova: {
+    id: 'gadget_nova',
+    name: 'Frost Nova Totem',
+    category: 'gadget',
+    rarity: 'epic',
+    description: 'Gadget (10s CD): Shatter nearby enemies with 42 frost damage & knockback.',
+    color: '#6cf0ff',
+    iconKey: 'ui_icons/ice_rod',
+    sellValue: 95,
+    cooldownMs: 10000,
+    energyCost: 18,
+    gadgetEffect: 'frost_nova',
+  },
+
+  // Monster Eggs & Egg Recipes
+  egg_slime: {
+    id: 'egg_slime',
+    name: 'Slime Egg',
+    category: 'material',
+    rarity: 'uncommon',
+    description: 'Place on a Monster Nest to hatch a friendly Slime, sell, or cook.',
+    color: '#6ce08a',
+    iconKey: "icons/26 - Slime's cube",
+    sellValue: 18,
+  },
+  egg_bat: {
+    id: 'egg_bat',
+    name: 'Dusk Bat Egg',
+    category: 'material',
+    rarity: 'uncommon',
+    description: 'Place on a Monster Nest to hatch a friendly Dusk Bat, sell, or brew.',
+    color: '#a884f3',
+    iconKey: "icons/06 - Skeleton's bone",
+    sellValue: 26,
+  },
+  egg_mummy: {
+    id: 'egg_mummy',
+    name: 'Sandling Egg',
+    category: 'material',
+    rarity: 'rare',
+    description: 'Place on a Monster Nest to hatch a friendly Sandling, sell, or brew.',
+    color: '#f2c94c',
+    iconKey: 'ui_icons/amber',
+    sellValue: 34,
+  },
+  egg_salamander: {
+    id: 'egg_salamander',
+    name: 'Salamander Egg',
+    category: 'material',
+    rarity: 'rare',
+    description: 'Place on a Monster Nest to hatch a Frost Salamander, sell, or brew.',
+    color: '#6ce5ff',
+    iconKey: "icons/23 - IceGolem's crystal",
+    sellValue: 44,
+  },
+  egg_hellhound: {
+    id: 'egg_hellhound',
+    name: 'Hellhound Egg',
+    category: 'material',
+    rarity: 'epic',
+    description: 'Place on a Monster Nest to hatch a friendly Hellhound, sell, or brew.',
+    color: '#ff6f3c',
+    iconKey: 'ui_icons/fire_rod',
+    sellValue: 55,
+  },
+  monster_omelet: {
+    id: 'monster_omelet',
+    name: 'Monster Omelet',
+    category: 'food',
+    rarity: 'uncommon',
+    description: 'Hearty ranch dish! Restores +60 HP and +60 Energy.',
+    color: '#ffd95a',
+    iconKey: 'ui_icons/cooked_fish',
+    sellValue: 24,
+    healHp: 60,
+    healEnergy: 60,
   },
 };

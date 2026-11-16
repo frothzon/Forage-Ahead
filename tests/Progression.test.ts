@@ -147,4 +147,106 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     expect(state.unlockedSkills.size).toBe(0);
     expect(state.ownedIslands.size).toBe(1);
   });
+
+  it('tracks multi-step NPC quests, objectives, waypoints, and rewards', () => {
+    const state = new GameState();
+    state.reset('Beastmaster');
+
+    const first = state.getNextQuestForNpc('farmer');
+    expect(first?.id).toBe('farmer_1');
+    expect(state.acceptQuest('farmer_2')).toBe(false); // prereq not met
+    expect(state.acceptQuest('farmer_1')).toBe(true);
+    expect(state.trackedQuestId).toBe('farmer_1');
+    expect(state.getTrackedQuest()?.waypoint?.label).toBe('Meadow Homestead');
+
+    expect(state.isQuestReadyToTurnIn('farmer_1')).toBe(false);
+    state.addItem('berries', 10);
+    expect(state.isQuestReadyToTurnIn('farmer_1')).toBe(true);
+
+    const done = state.completeQuest('farmer_1');
+    expect(done?.id).toBe('farmer_1');
+    expect(state.completedQuests.has('farmer_1')).toBe(true);
+    expect(state.inventory.carrot).toBe(5);
+    expect(state.coins).toBe(90); // 25 + 65
+
+    const second = state.getNextQuestForNpc('farmer');
+    expect(second?.id).toBe('farmer_2');
+    expect(state.acceptQuest('farmer_2')).toBe(true);
+    state.recordQuestProgress('craft', 'craft_hoe', 1);
+    state.recordQuestProgress('build', 'crop_carrot', 2);
+    expect(state.isQuestReadyToTurnIn('farmer_2')).toBe(true);
+  });
+
+  it('gates blueprint recipes until unlocked', () => {
+    const state = new GameState();
+    state.reset('Gladiator');
+    const goldSmelt = RECIPES.find((r) => r.id === 'smelt_gold')!;
+    state.addItem('gold_ore', 4);
+    state.addItem('coal', 2);
+
+    expect(state.isRecipeUnlocked(goldSmelt)).toBe(false);
+    expect(state.canCraft(goldSmelt)).toBe(false);
+
+    expect(state.unlockBlueprint('smelt_gold')).toBe(true);
+    expect(state.unlockBlueprint('smelt_gold')).toBe(false); // already unlocked
+    expect(state.isRecipeUnlocked(goldSmelt)).toBe(true);
+    expect(state.canCraft(goldSmelt)).toBe(true);
+  });
+
+  it('supports 3 trinket slots, randomized gear rarity/reforging, and gadget cooldowns', () => {
+    const state = new GameState();
+    state.reset('Beastmaster');
+
+    // Equip 3 trinkets into trinket1..trinket3
+    state.addItem('trinket_regen', 1);
+    state.addItem('trinket_swift', 1);
+    state.addItem('trinket_crit', 1);
+    const i1 = state.bagSlots.findIndex((s) => s?.itemId === 'trinket_regen');
+    const i2 = state.bagSlots.findIndex((s) => s?.itemId === 'trinket_swift');
+    const i3 = state.bagSlots.findIndex((s) => s?.itemId === 'trinket_crit');
+    expect(state.equipFromBag(i1)).toBe(true);
+    expect(state.equipFromBag(i2)).toBe(true);
+    expect(state.equipFromBag(i3)).toBe(true);
+    expect(state.equipment.trinket1).toBe('trinket_regen');
+    expect(state.equipment.trinket2).toBe('trinket_swift');
+    expect(state.equipment.trinket3).toBe('trinket_crit');
+    expect(state.hasTrinketEffect('regen_out_combat')).toBe(true);
+    expect(state.hasTrinketEffect('pickup_magnet')).toBe(true);
+
+    // Reforge gear in bag
+    state.addItem('sword_iron', 1);
+    const swIdx = state.bagSlots.findIndex((s) => s?.itemId === 'sword_iron');
+    expect(swIdx).toBeGreaterThanOrEqual(0);
+    state.coins = 200;
+    state.addItem('iron_ingot', 4);
+    const refRes = state.reforgeBagSlot(swIdx);
+    expect(refRes.ok).toBe(true);
+    expect(refRes.instance?.reforgeCount).toBe(1);
+
+    // Gadget cooldown
+    expect(state.getGadgetRemainingMs('gadget_blink')).toBe(0);
+    expect(state.triggerGadgetCooldown('gadget_blink')).toBe(true);
+    expect(state.getGadgetRemainingMs('gadget_blink')).toBeGreaterThan(0);
+    expect(state.triggerGadgetCooldown('gadget_blink')).toBe(false);
+  });
+
+  it('supports monster homestead ranching, petting, and egg collection', () => {
+    const state = new GameState();
+    state.reset('Beastmaster');
+
+    const rc = state.addRanchCreature('slime', 120, 140, 28000);
+    expect(state.ranchCreatures.length).toBe(1);
+    expect(rc.happiness).toBe(65);
+
+    rc.readyEggs = 2;
+    const pet1 = state.petRanchCreature(rc.id, 10000);
+    expect(pet1.petted).toBe(true);
+    expect(pet1.happiness).toBe(85);
+    expect(pet1.eggsCollected).toBe(2);
+    expect(rc.readyEggs).toBe(0);
+
+    // Cooldown prevents spamming pet within 6s
+    const pet2 = state.petRanchCreature(rc.id, 12000);
+    expect(pet2.petted).toBe(false);
+  });
 });

@@ -1,4 +1,12 @@
-export type CraftingStation = 'hand' | 'furnace' | 'anvil' | 'bonfire' | 'build';
+export type CraftingStation =
+  | 'hand'
+  | 'furnace'
+  | 'anvil'
+  | 'bonfire'
+  | 'alchemy_lab'
+  | 'frost_kiln'
+  | 'infernal_forge'
+  | 'build';
 
 export interface Ingredient {
   itemId: string;
@@ -11,10 +19,15 @@ export type StructureType =
   | 'furnace'
   | 'anvil'
   | 'bonfire'
+  | 'alchemy_lab'
+  | 'frost_kiln'
+  | 'infernal_forge'
   | 'lighthouse'
   | 'mining_rod'
   | 'fish_trap'
   | 'chest'
+  | 'nest'
+  | 'fence'
   | 'crop_berries'
   | 'crop_carrot'
   | 'crop_sunflower';
@@ -31,6 +44,8 @@ export interface RecipeDef {
   nextTier?: number;
   structureType?: StructureType;
   requiresSkill?: string;
+  unlockMode?: 'starter' | 'skill' | 'blueprint';
+  blueprintHint?: string;
   iconKey?: string;
   craftTimeMs?: number;
 }
@@ -92,6 +107,45 @@ export const RECIPES: RecipeDef[] = [
     iconKey: 'objects/Torch',
   },
   {
+    id: 'build_alchemy_lab',
+    name: 'Alchemist Lab',
+    station: 'build',
+    description: 'Tier 2 Biome Station: brews Potions, Bombs, and early Trinkets.',
+    ingredients: [
+      { itemId: 'stone', count: 10 },
+      { itemId: 'iron_ingot', count: 4 },
+      { itemId: 'bone', count: 4 },
+    ],
+    structureType: 'alchemy_lab',
+    iconKey: 'objects/Barrel',
+  },
+  {
+    id: 'build_frost_kiln',
+    name: 'Frostcrystal Kiln',
+    station: 'build',
+    description: 'Tier 3 Biome Station: forges Frostcrystal Plate & Void Pickaxe.',
+    ingredients: [
+      { itemId: 'stone', count: 14 },
+      { itemId: 'gold_ingot', count: 4 },
+      { itemId: 'crystal', count: 6 },
+    ],
+    structureType: 'frost_kiln',
+    iconKey: 'ui_icons/furnace',
+  },
+  {
+    id: 'build_infernal_forge',
+    name: 'Infernal Forge',
+    station: 'build',
+    description: 'Tier 4 Biome Station: smites Obsidian Battlegear & Dragonheart.',
+    ingredients: [
+      { itemId: 'obsidian', count: 6 },
+      { itemId: 'gold_ingot', count: 6 },
+      { itemId: 'demon_horn', count: 4 },
+    ],
+    structureType: 'infernal_forge',
+    iconKey: 'objects/Anvil',
+  },
+  {
     id: 'build_chest',
     name: 'Treasure Chest',
     station: 'build',
@@ -102,6 +156,27 @@ export const RECIPES: RecipeDef[] = [
     ],
     structureType: 'chest',
     iconKey: 'objects/Crate',
+  },
+  {
+    id: 'build_nest',
+    name: 'Monster Nest',
+    station: 'build',
+    description: 'Place an Egg on a Nest [E] to hatch a friendly homestead creature.',
+    ingredients: [
+      { itemId: 'wood', count: 6 },
+      { itemId: 'berries', count: 2 },
+    ],
+    structureType: 'nest',
+    iconKey: 'tileset/Wooden logs',
+  },
+  {
+    id: 'build_fence',
+    name: 'Homestead Fence',
+    station: 'build',
+    description: 'Solid fence to keep wandering ranch creatures safely enclosed.',
+    ingredients: [{ itemId: 'wood', count: 2 }],
+    structureType: 'fence',
+    iconKey: 'objects/Fences (stone)',
   },
   {
     id: 'build_fish_trap',
@@ -207,7 +282,7 @@ export const RECIPES: RecipeDef[] = [
   {
     id: 'craft_bomb',
     name: 'Alchemist Bomb (x2)',
-    station: 'hand',
+    station: 'alchemy_lab',
     description: 'Explosive blast for clearing nodes or damaging monsters.',
     ingredients: [
       { itemId: 'coal', count: 2 },
@@ -217,11 +292,12 @@ export const RECIPES: RecipeDef[] = [
     outputItemId: 'bomb',
     outputCount: 2,
     requiresSkill: 'magic_alchemy',
+    craftTimeMs: 3000,
   },
   {
     id: 'craft_potion_red',
     name: 'Crimson Potion',
-    station: 'hand',
+    station: 'alchemy_lab',
     description: 'Restores +65 HP instantly.',
     ingredients: [
       { itemId: 'berries', count: 4 },
@@ -230,11 +306,12 @@ export const RECIPES: RecipeDef[] = [
     outputItemId: 'potion_red',
     outputCount: 1,
     requiresSkill: 'magic_alchemy',
+    craftTimeMs: 3000,
   },
   {
     id: 'craft_potion_blue',
     name: 'Azure Tonic',
-    station: 'hand',
+    station: 'alchemy_lab',
     description: 'Restores +80 Energy instantly.',
     ingredients: [
       { itemId: 'carrot', count: 2 },
@@ -243,6 +320,7 @@ export const RECIPES: RecipeDef[] = [
     outputItemId: 'potion_blue',
     outputCount: 1,
     requiresSkill: 'magic_alchemy',
+    craftTimeMs: 3000,
   },
 
   // FURNACE
@@ -280,6 +358,8 @@ export const RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'gold_ingot',
     outputCount: 1,
+    unlockMode: 'blueprint',
+    blueprintHint: 'Mine Gold Ore nodes or defeat Autumn/Desert monsters.',
     craftTimeMs: 4500,
   },
 
@@ -330,7 +410,7 @@ export const RECIPES: RecipeDef[] = [
   {
     id: 'craft_ring_copper',
     name: 'Scout Ring',
-    station: 'anvil',
+    station: 'alchemy_lab',
     description: '+12% Move Speed, +8% Crit, +15 Max Energy.',
     ingredients: [
       { itemId: 'iron_ingot', count: 3 },
@@ -338,6 +418,8 @@ export const RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'ring_copper',
     outputCount: 1,
+    unlockMode: 'blueprint',
+    blueprintHint: 'Drops from Autumn/Desert monsters or chests.',
     iconKey: 'ui_icons/ring_copper',
     craftTimeMs: 4500,
   },
@@ -352,13 +434,15 @@ export const RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'armor_iron',
     outputCount: 1,
+    unlockMode: 'blueprint',
+    blueprintHint: 'Mine Iron Ore or defeat Goblin Raiders.',
     iconKey: 'ui_icons/armor_iron',
     craftTimeMs: 5000,
   },
   {
     id: 'craft_charm_miner',
     name: 'Prospector Charm',
-    station: 'anvil',
+    station: 'alchemy_lab',
     description: '+14 Gather Power, +30 Max Energy, +3 Armor.',
     ingredients: [
       { itemId: 'gold_ingot', count: 4 },
@@ -366,13 +450,15 @@ export const RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'charm_miner',
     outputCount: 1,
+    unlockMode: 'blueprint',
+    blueprintHint: 'Caught while Fishing or mined from Crystal nodes.',
     iconKey: 'ui_icons/charm_miner',
     craftTimeMs: 5500,
   },
   {
     id: 'craft_armor_frost',
     name: 'Frostcrystal Plate',
-    station: 'anvil',
+    station: 'frost_kiln',
     description: '+16 Armor, +75 Max HP, +30 Max Energy, +5% Crit.',
     ingredients: [
       { itemId: 'iron_ingot', count: 6 },
@@ -380,13 +466,15 @@ export const RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'armor_frost',
     outputCount: 1,
+    unlockMode: 'blueprint',
+    blueprintHint: 'Drops from Winter monsters or Frost Cavern.',
     iconKey: 'ui_icons/armor_frost',
     craftTimeMs: 6500,
   },
   {
     id: 'craft_armor_obsidian',
     name: 'Obsidian Battlegear',
-    station: 'anvil',
+    station: 'infernal_forge',
     description: '+24 Armor, +110 Max HP, +12 Attack, +8% Crit.',
     ingredients: [
       { itemId: 'obsidian', count: 8 },
@@ -395,13 +483,15 @@ export const RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'armor_obsidian',
     outputCount: 1,
+    unlockMode: 'blueprint',
+    blueprintHint: 'Drops from Infernal monsters or Infernal Sanctum.',
     iconKey: 'ui_icons/armor_obsidian',
     craftTimeMs: 7500,
   },
   {
     id: 'craft_amulet_dragon',
     name: 'Dragonheart Amulet',
-    station: 'anvil',
+    station: 'infernal_forge',
     description: '+16 Attack, +14% Crit, +50 Max HP, +6 Armor.',
     ingredients: [
       { itemId: 'gold_ingot', count: 6 },
@@ -410,6 +500,8 @@ export const RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'amulet_dragon',
     outputCount: 1,
+    unlockMode: 'blueprint',
+    blueprintHint: 'Drops from Ignis, Crimson Wyrm or Flame Demons.',
     iconKey: 'ui_icons/amulet_dragon',
     craftTimeMs: 7500,
   },
@@ -438,13 +530,15 @@ export const RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'pickaxe_gold',
     outputCount: 1,
+    unlockMode: 'blueprint',
+    blueprintHint: 'Mine Gold Ore or clear Sunken Tomb.',
     iconKey: 'ui_icons/pickaxe_gold',
     craftTimeMs: 6000,
   },
   {
     id: 'upgrade_pick_4',
     name: 'Crystal Void Pickaxe',
-    station: 'anvil',
+    station: 'frost_kiln',
     description: '48 Gather Power, 30 Attack, +10% Crit, +5% Speed.',
     ingredients: [
       { itemId: 'gold_ingot', count: 8 },
@@ -453,6 +547,8 @@ export const RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'pickaxe_crystal',
     outputCount: 1,
+    unlockMode: 'blueprint',
+    blueprintHint: 'Mine Frost Crystals or clear Frost Cavern.',
     iconKey: 'ui_icons/pickaxe_crystal',
     craftTimeMs: 7500,
   },
@@ -482,13 +578,15 @@ export const RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'sword_sun',
     outputCount: 1,
+    unlockMode: 'blueprint',
+    blueprintHint: 'Defeat Anubis Guardians or clear Sunken Tomb.',
     iconKey: 'ui_icons/sword_gold',
     craftTimeMs: 6000,
   },
   {
     id: 'upgrade_sword_4',
     name: 'Obsidian Greatsword',
-    station: 'anvil',
+    station: 'infernal_forge',
     description: '74 Attack, +18% Crit, +20 Max HP.',
     ingredients: [
       { itemId: 'obsidian', count: 8 },
@@ -497,7 +595,123 @@ export const RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'sword_obsidian',
     outputCount: 1,
+    unlockMode: 'blueprint',
+    blueprintHint: 'Defeat Flame Demons or clear Infernal Sanctum.',
     iconKey: 'ui_icons/sword_obsidian',
     craftTimeMs: 7500,
+  },
+  {
+    id: 'craft_trinket_regen',
+    name: 'Vitality Band',
+    station: 'alchemy_lab',
+    description: 'Trinket: +25 Max HP, +2 Armor, and passive HP regen.',
+    ingredients: [
+      { itemId: 'iron_ingot', count: 3 },
+      { itemId: 'berries', count: 6 },
+      { itemId: 'slime_gel', count: 3 },
+    ],
+    outputItemId: 'trinket_regen',
+    outputCount: 1,
+    iconKey: 'ui_icons/ring_copper',
+    craftTimeMs: 4500,
+  },
+  {
+    id: 'craft_trinket_swift',
+    name: 'Windrunner Charm',
+    station: 'anvil',
+    description: 'Trinket: +15% Speed, +20 Max EN, wider pickup.',
+    ingredients: [
+      { itemId: 'gold_ingot', count: 3 },
+      { itemId: 'amber', count: 4 },
+    ],
+    outputItemId: 'trinket_swift',
+    outputCount: 1,
+    iconKey: 'ui_icons/charm_miner',
+    craftTimeMs: 5000,
+  },
+  {
+    id: 'craft_trinket_crit',
+    name: 'Ember Spark',
+    station: 'infernal_forge',
+    description: 'Trinket: +10 Attack, +12% Crit Chance.',
+    ingredients: [
+      { itemId: 'obsidian', count: 4 },
+      { itemId: 'demon_horn', count: 3 },
+    ],
+    outputItemId: 'trinket_crit',
+    outputCount: 1,
+    iconKey: 'ui_icons/amulet_dragon',
+    craftTimeMs: 6000,
+  },
+  {
+    id: 'craft_gadget_blink',
+    name: 'Blink Stone',
+    station: 'alchemy_lab',
+    description: 'Cooldown Gadget: Teleport toward cursor (6s CD).',
+    ingredients: [
+      { itemId: 'crystal', count: 3 },
+      { itemId: 'amber', count: 3 },
+      { itemId: 'iron_ingot', count: 2 },
+    ],
+    outputItemId: 'gadget_blink',
+    outputCount: 1,
+    iconKey: 'ui_icons/thunder_rod',
+    craftTimeMs: 5000,
+  },
+  {
+    id: 'craft_gadget_ward',
+    name: 'Aegis Ward',
+    station: 'frost_kiln',
+    description: 'Cooldown Gadget: Knockback pulse + 3s shield (12s CD).',
+    ingredients: [
+      { itemId: 'iron_ingot', count: 6 },
+      { itemId: 'crystal', count: 4 },
+    ],
+    outputItemId: 'gadget_ward',
+    outputCount: 1,
+    iconKey: 'ui_icons/armor_iron',
+    craftTimeMs: 5500,
+  },
+  {
+    id: 'craft_gadget_nova',
+    name: 'Frost Nova Totem',
+    station: 'frost_kiln',
+    description: 'Cooldown Gadget: 42 AoE Frost damage + knockback (10s CD).',
+    ingredients: [
+      { itemId: 'gold_ingot', count: 4 },
+      { itemId: 'crystal', count: 6 },
+    ],
+    outputItemId: 'gadget_nova',
+    outputCount: 1,
+    iconKey: 'ui_icons/ice_rod',
+    craftTimeMs: 6000,
+  },
+  {
+    id: 'cook_omelet',
+    name: 'Monster Omelet',
+    station: 'bonfire',
+    description: 'Cook a Slime Egg with Berries for +60 HP & +60 Energy.',
+    ingredients: [
+      { itemId: 'egg_slime', count: 1 },
+      { itemId: 'berries', count: 2 },
+    ],
+    outputItemId: 'monster_omelet',
+    outputCount: 1,
+    iconKey: 'ui_icons/cooked_fish',
+    craftTimeMs: 2800,
+  },
+  {
+    id: 'craft_elixir_egg',
+    name: 'Crimson Potion (Egg Brew)',
+    station: 'alchemy_lab',
+    description: 'Brew a Bat or Sandling Egg into 2 Crimson Potions.',
+    ingredients: [
+      { itemId: 'egg_bat', count: 1 },
+      { itemId: 'berries', count: 2 },
+    ],
+    outputItemId: 'potion_red',
+    outputCount: 2,
+    iconKey: 'ui_icons/potion_red',
+    craftTimeMs: 3200,
   },
 ];

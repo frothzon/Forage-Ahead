@@ -1,26 +1,37 @@
 import {
+  ALL_EQUIP_SLOTS,
   BAG_COLS,
   BAG_SIZE,
   gameState,
   type CraftQueueJob,
+  type EquipmentSlotKey,
   type InventoryFeedEvent,
 } from '../core/GameState';
 
+export type QueuedStationType =
+  | 'furnace'
+  | 'anvil'
+  | 'bonfire'
+  | 'alchemy_lab'
+  | 'frost_kiln'
+  | 'infernal_forge';
+
 export interface StationQueueView {
   id: string;
-  type: 'furnace' | 'anvil' | 'bonfire';
+  type: QueuedStationType;
   maxQueueSize: number;
   craftQueue: CraftQueueJob[];
 }
 import { SFX } from '../core/SoundFX';
-import { ITEMS, RARITY_COLOR, type EquipSlot } from '../data/items';
+import { ITEMS, RARITY_COLOR } from '../data/items';
 import { ISLANDS, WORLD_GRID_SIZE, getIslandAt } from '../data/islands';
 import { MONSTERS } from '../data/monsters';
 import { IMPLEMENTED_FEATURES, OUTSTANDING_ITEMS } from '../data/projectProgress';
+import { QUESTS, getQuestById } from '../data/quests';
 import { RECIPES, type CraftingStation } from '../data/recipes';
 import { PILLAR_META, SKILLS, type SkillPillar } from '../data/skills';
 
-export type HudModal = 'none' | 'inventory' | 'craft' | 'skills' | 'map' | 'progress';
+export type HudModal = 'none' | 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'progress';
 
 export interface WorldDebugStats {
   scene: string;
@@ -42,23 +53,26 @@ export interface MinimapSnapshot {
   buildings: Array<{ tx: number; ty: number }>;
   portals: Array<{ tx: number; ty: number }>;
   enemies: Array<{ tx: number; ty: number }>;
+  waypoint?: { tx: number; ty: number; label: string };
 }
 
 type DragPayload =
   | { source: 'bag'; bagIdx: number; itemId: string }
-  | { source: 'equip'; slot: EquipSlot; itemId: string }
+  | { source: 'equip'; slot: EquipmentSlotKey; itemId: string }
   | { source: 'hotbar'; hotbarIdx: number; itemId: string };
 
 type SelectedInspection =
   | { kind: 'bag'; bagIdx: number; itemId: string }
-  | { kind: 'equip'; slot: EquipSlot; itemId: string }
+  | { kind: 'equip'; slot: EquipmentSlotKey; itemId: string }
   | null;
 
-const EQUIP_SLOT_LABELS: Record<EquipSlot, string> = {
+const EQUIP_SLOT_LABELS: Record<EquipmentSlotKey, string> = {
   weapon: 'Main Hand',
   tool: 'Tool',
   armor: 'Armor',
-  accessory: 'Accessory',
+  trinket1: 'Trinket 1',
+  trinket2: 'Trinket 2',
+  trinket3: 'Trinket 3',
 };
 
 export class HudController {
@@ -92,7 +106,7 @@ export class HudController {
     onSelectBuild: (recipeId: string) => void;
     onUseHotbarItem: (itemId: string) => void;
     onSave: () => void;
-    getStations?: (stationType: 'furnace' | 'anvil' | 'bonfire') => StationQueueView[];
+    getStations?: (stationType: QueuedStationType) => StationQueueView[];
     onEnqueueCraft?: (stationId: string, recipeId: string) => boolean;
     onCancelCraft?: (stationId: string, queueIdx: number) => boolean;
     getWorldDebugStats?: () => WorldDebugStats;
@@ -104,7 +118,7 @@ export class HudController {
     onSelectBuild: (recipeId: string) => void;
     onUseHotbarItem: (itemId: string) => void;
     onSave: () => void;
-    getStations?: (stationType: 'furnace' | 'anvil' | 'bonfire') => StationQueueView[];
+    getStations?: (stationType: QueuedStationType) => StationQueueView[];
     onEnqueueCraft?: (stationId: string, recipeId: string) => boolean;
     onCancelCraft?: (stationId: string, queueIdx: number) => boolean;
     getWorldDebugStats?: () => WorldDebugStats;
@@ -273,6 +287,22 @@ export class HudController {
     ctx.fillRect(cx - 2, cy - 2, 5, 5);
     ctx.fillStyle = '#ffe066';
     ctx.fillRect(cx - 1, cy - 1, 3, 3);
+
+    // Tracked quest waypoint (clamped to minimap edge if off-view)
+    if (data.waypoint) {
+      const raw = toMini(data.waypoint.tx, data.waypoint.ty);
+      const wx = Math.max(5, Math.min(W - 5, raw.mx));
+      const wy = Math.max(5, Math.min(H - 5, raw.my));
+      ctx.save();
+      ctx.translate(wx, wy);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = '#ffd242';
+      ctx.fillRect(-3.5, -3.5, 7, 7);
+      ctx.strokeStyle = '#0d1522';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(-3.5, -3.5, 7, 7);
+      ctx.restore();
+    }
   }
 
   private setupLayers(): void {
@@ -561,6 +591,32 @@ export class HudController {
       spBadge.style.display = gameState.skillPoints > 0 ? 'inline-block' : 'none';
       spBadge.textContent = `+${gameState.skillPoints} SP`;
     }
+
+    const trackerEl = this.chromeLayer.querySelector<HTMLElement>('#hud-quest-tracker');
+    if (trackerEl) {
+      const tracked = gameState.getTrackedQuest();
+      if (!tracked) {
+        trackerEl.style.display = 'none';
+      } else {
+        trackerEl.style.display = 'block';
+        const ready = gameState.isQuestReadyToTurnIn(tracked.id);
+        const objHtml = tracked.objectives
+          .map((o) => {
+            const cur = gameState.getObjectiveProgress(tracked.id, o);
+            const done = cur >= o.count;
+            return `<div style="display:flex; justify-content:space-between; gap:10px; color:${done ? '#8ef5a7' : '#d2e2f2'};"><span>${done ? '✓ ' : '• '}${o.label}</span><span>${cur}/${o.count}</span></div>`;
+          })
+          .join('');
+        trackerEl.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:3px;">
+            <strong style="color:#ffd242; font-size:11px;">${tracked.title}</strong>
+            ${ready ? `<span style="font-size:9px; color:#8ef5a7; font-weight:700;">READY</span>` : ''}
+          </div>
+          <div style="font-size:10px; display:flex; flex-direction:column; gap:2px;">${objHtml}</div>
+          ${tracked.waypoint ? `<div style="margin-top:3px; font-size:9px; color:#9db6cf;">◆ ${ready ? `Return to ${tracked.npcName} at ` : ''}${tracked.waypoint.label}</div>` : ''}
+        `;
+      }
+    }
   }
 
   private renderChrome(): void {
@@ -599,12 +655,15 @@ export class HudController {
           <button class="hud-btn" data-nav="inventory">Character & Bag [I]</button>
           <button class="hud-btn" data-nav="craft">Craft & Build [Tab]</button>
           <button class="hud-btn" data-nav="skills" id="hud-skills-btn">Skills [K]</button>
+          <button class="hud-btn" data-nav="quests" id="hud-quests-btn">Quests [Q]</button>
           <button class="hud-btn" data-nav="map" id="hud-map-btn">Islands [M]</button>
           <button class="hud-btn" data-nav="progress" id="hud-progress-btn">Progress & Debug [P]</button>
           <button class="hud-btn primary" data-action="save">Save</button>
           <button class="hud-btn" data-action="music" id="hud-music-btn">Music: Off</button>
           <button class="hud-btn" data-action="mute" id="hud-mute-btn">SFX</button>
         </div>
+
+        <div id="hud-quest-tracker" class="hud-panel hud-interactive" style="position:absolute; top:54px; right:10px; width:215px; padding:7px 9px; display:none; z-index:14; cursor:pointer;" title="Click to open Quest Log [Q]"></div>
 
         <div id="hud-minimap-wrap" class="hud-panel hud-interactive" style="position:absolute; bottom:12px; right:12px; padding:5px 6px; z-index:25;">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;">
@@ -619,6 +678,9 @@ export class HudController {
 
       this.chromeLayer.querySelectorAll<HTMLElement>('[data-nav]').forEach((el) => {
         el.onclick = () => this.toggleModal(el.dataset.nav as HudModal);
+      });
+      this.chromeLayer.querySelector<HTMLElement>('#hud-quest-tracker')?.addEventListener('click', () => {
+        this.toggleModal('quests');
       });
       this.chromeLayer.querySelector<HTMLElement>('[data-action="save"]')!.onclick = () => this.callbacks.onSave();
       this.chromeLayer.querySelector<HTMLElement>('[data-action="music"]')!.onclick = () => {
@@ -708,7 +770,8 @@ export class HudController {
       const def = itemId ? ITEMS[itemId] : undefined;
       const count = itemId ? gameState.getItemCount(itemId) : 0;
       const active = gameState.selectedHotbarIndex === i;
-      const showCount = def && !def.equipSlot && count > 0;
+      const showCount = def && !def.equipSlot && def.category !== 'gadget' && count > 0;
+      const cdMs = def?.category === 'gadget' ? gameState.getGadgetRemainingMs(itemId) : 0;
       html += `
         <div class="hotbar-slot ${active ? 'active' : ''}" data-hotbar="${i}" draggable="${itemId ? 'true' : 'false'}" title="${def ? `${def.name} (Right-click to clear)` : `Slot ${i + 1}: Drag item from bag to assign`}">
           <span style="position:absolute; top:2px; left:4px; font-size:9px; color:#8ca8c4;">${i + 1}</span>
@@ -716,12 +779,13 @@ export class HudController {
             def
               ? `${
                   def.iconKey
-                    ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:22px; height:22px; pointer-events:none;" />`
+                    ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:22px; height:22px; pointer-events:none; ${cdMs > 0 ? 'opacity:0.45;' : ''}" />`
                     : ''
                 }
                  <span style="font-size:8px; margin-top:1px; max-width:42px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:${RARITY_COLOR[def.rarity]}; pointer-events:none;">${def.name.split(' ').pop()}</span>`
               : ''
           }
+          ${cdMs > 0 ? `<span style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#ffd242; text-shadow:0 1px 3px #000; pointer-events:none;">${(cdMs / 1000).toFixed(1)}s</span>` : ''}
           ${showCount ? `<span style="position:absolute; bottom:1px; right:3px; font-size:9px; color:#ffe066; font-weight:700; pointer-events:none;">${count}</span>` : ''}
         </div>
       `;
@@ -733,10 +797,6 @@ export class HudController {
       const idx = Number(el.dataset.hotbar);
       el.onclick = () => {
         gameState.selectedHotbarIndex = idx;
-        const itemId = gameState.hotbar[idx];
-        if (itemId && this.activeModal === 'none') {
-          this.callbacks.onUseHotbarItem(itemId);
-        }
         this.renderHotbar();
       };
       el.oncontextmenu = (e) => {
@@ -776,10 +836,12 @@ export class HudController {
       return;
     }
 
+    const activeCount = Object.keys(gameState.activeQuests).length;
     const tabs: Array<{ id: HudModal; label: string }> = [
       { id: 'inventory', label: 'Character & Bag [I]' },
       { id: 'craft', label: 'Craft & Build [Tab]' },
       { id: 'skills', label: `Skills [K]${gameState.skillPoints > 0 ? ` (+${gameState.skillPoints})` : ''}` },
+      { id: 'quests', label: `Quests [Q]${activeCount > 0 ? ` (${activeCount})` : ''}` },
       { id: 'map', label: `World Map [M] (${gameState.ownedIslands.size}/25)` },
       { id: 'progress', label: gameState.debugMode ? 'Progress & Debug [P]' : 'Progress [P]' },
     ];
@@ -788,6 +850,7 @@ export class HudController {
     if (this.activeModal === 'inventory') bodyHtml = this.renderDiabloInventory();
     else if (this.activeModal === 'craft') bodyHtml = this.renderCraftTab();
     else if (this.activeModal === 'skills') bodyHtml = this.renderSkillsTab();
+    else if (this.activeModal === 'quests') bodyHtml = this.renderQuestsTab();
     else if (this.activeModal === 'map') bodyHtml = this.renderMapTab();
     else if (this.activeModal === 'progress') bodyHtml = this.renderProgressTab();
 
@@ -823,19 +886,21 @@ export class HudController {
     const speed = gameState.getMoveSpeed();
 
     // Left: Equipment Paperdoll + Live Stats
-    const equipSlotsHtml = (['weapon', 'tool', 'armor', 'accessory'] as EquipSlot[])
+    const equipSlotsHtml = ALL_EQUIP_SLOTS
       .map((slot) => {
         const eqId = gameState.equipment[slot];
+        const eqInstId = gameState.equippedInstanceIds[slot];
         const def = eqId ? ITEMS[eqId] : undefined;
+        const rarity = eqId ? gameState.getGearRarity(eqId, eqInstId) : 'common';
         const selected = this.selectedInspect?.kind === 'equip' && this.selectedInspect.slot === slot;
         return `
           <div class="equip-slot ${selected ? 'selected' : ''}" data-equip-slot="${slot}" draggable="${eqId ? 'true' : 'false'}">
-            <div style="width:32px; height:32px; background:#0b121d; border:1px solid #2e415c; border-radius:4px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <div style="width:32px; height:32px; background:#0b121d; border:1px solid ${def ? RARITY_COLOR[rarity] : '#2e415c'}; border-radius:4px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
               ${def?.iconKey ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:24px; height:24px; pointer-events:none;" />` : `<span style="font-size:10px; color:#4f6885;">—</span>`}
             </div>
             <div style="min-width:0; flex:1;">
               <div style="font-size:9px; color:#8ba6c4; text-transform:uppercase;">${EQUIP_SLOT_LABELS[slot]}</div>
-              <div style="font-size:11px; font-weight:700; color:${def ? RARITY_COLOR[def.rarity] : '#637a94'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+              <div style="font-size:11px; font-weight:700; color:${def ? RARITY_COLOR[rarity] : '#637a94'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                 ${def ? def.name : 'Empty'}
               </div>
             </div>
@@ -917,11 +982,19 @@ export class HudController {
 
     const isEquip = this.selectedInspect.kind === 'equip';
     const bagIdx = this.selectedInspect.kind === 'bag' ? this.selectedInspect.bagIdx : -1;
-    const slotCount = bagIdx >= 0 ? gameState.bagSlots[bagIdx]?.count ?? 0 : 1;
+    const bagSlot = bagIdx >= 0 ? gameState.bagSlots[bagIdx] : null;
+    const instId =
+      this.selectedInspect.kind === 'equip'
+        ? gameState.equippedInstanceIds[this.selectedInspect.slot]
+        : bagSlot?.instanceId;
+    const inst = instId ? gameState.gearInstances[instId] : undefined;
+    const rarity = gameState.getGearRarity(itemId, instId);
+    const activeStats = def.stats ? gameState.getGearStats(itemId, instId) : undefined;
+    const slotCount = bagIdx >= 0 ? bagSlot?.count ?? 0 : 1;
     const sellEach = Math.round(def.sellValue * (gameState.hasSkill('economy_barter') ? 1.5 : 1));
 
-    const statsList = def.stats
-      ? Object.entries(def.stats)
+    const statsList = activeStats
+      ? Object.entries(activeStats)
           .filter(([, v]) => v !== undefined && v !== 0)
           .map(([k, v]) => {
             const labels: Record<string, string> = {
@@ -942,7 +1015,7 @@ export class HudController {
     // Diablo Stat Comparison when inspecting bag gear against equipped gear
     let compareHtml = '';
     if (!isEquip && def.equipSlot) {
-      const cmp = gameState.compareGearStats(itemId);
+      const cmp = gameState.compareGearStats(itemId, instId);
       if (cmp) {
         const eqName = cmp.equippedId ? ITEMS[cmp.equippedId]?.name ?? 'Equipped' : 'Nothing Equipped';
         compareHtml = `
@@ -960,12 +1033,7 @@ export class HudController {
       }
     }
 
-    const canAssignHotbar =
-      def.category === 'tool' ||
-      def.category === 'weapon' ||
-      def.category === 'relic' ||
-      def.category === 'food' ||
-      def.category === 'consumable';
+    const canAssignHotbar = true;
 
     const hotbarAssignHtml = canAssignHotbar
       ? `
@@ -985,12 +1053,12 @@ export class HudController {
 
     return `
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-        <div style="width:42px; height:42px; background:#152236; border:1.5px solid ${RARITY_COLOR[def.rarity]}; border-radius:5px; display:flex; align-items:center; justify-content:center;">
+        <div style="width:42px; height:42px; background:#152236; border:1.5px solid ${RARITY_COLOR[rarity]}; border-radius:5px; display:flex; align-items:center; justify-content:center;">
           ${def.iconKey ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:32px; height:32px;" />` : ''}
         </div>
         <div>
-          <div style="font-size:13px; font-weight:700; color:${RARITY_COLOR[def.rarity]};">${def.name}</div>
-          <div style="font-size:10px; color:#9db6cf; text-transform:capitalize;">${def.rarity} ${def.category}${def.equipSlot ? ` • ${EQUIP_SLOT_LABELS[def.equipSlot]}` : ''}</div>
+          <div style="font-size:13px; font-weight:700; color:${RARITY_COLOR[rarity]};">${def.name}${inst?.reforgeCount ? ` +${inst.reforgeCount}` : ''}</div>
+          <div style="font-size:10px; color:#9db6cf; text-transform:capitalize;">${rarity} ${def.category}${def.equipSlot ? ` • ${EQUIP_SLOT_LABELS[def.equipSlot === 'accessory' ? 'trinket1' : def.equipSlot]}` : ''}</div>
         </div>
       </div>
 
@@ -1014,6 +1082,7 @@ export class HudController {
             ? `<button class="hud-btn" data-inspect-act="unequip">Unequip</button>`
             : `
               ${def.equipSlot ? `<button class="hud-btn primary" data-inspect-act="equip">Equip</button>` : ''}
+              ${def.equipSlot && def.rarity !== 'relic' ? `<button class="hud-btn gold" data-inspect-act="reforge" title="Reroll & upgrade rarity (${35 + (inst?.reforgeCount ?? 0) * 20}g + 2 Iron Ingot)">Reforge (${35 + (inst?.reforgeCount ?? 0) * 20}g)</button>` : ''}
               ${def.healHp || def.healEnergy ? `<button class="hud-btn primary" data-inspect-act="use">Use</button>` : ''}
               <button class="hud-btn" data-inspect-act="move">Move Slot</button>
               ${
@@ -1036,7 +1105,10 @@ export class HudController {
     if (
       this.activeStationTab !== 'furnace' &&
       this.activeStationTab !== 'anvil' &&
-      this.activeStationTab !== 'bonfire'
+      this.activeStationTab !== 'bonfire' &&
+      this.activeStationTab !== 'alchemy_lab' &&
+      this.activeStationTab !== 'frost_kiln' &&
+      this.activeStationTab !== 'infernal_forge'
     ) {
       return null;
     }
@@ -1062,19 +1134,25 @@ export class HudController {
 
   private renderCraftTab(): string {
     const tabs: Array<{ id: CraftingStation; label: string }> = [
-      { id: 'build', label: 'Build Structures' },
-      { id: 'hand', label: 'Hand & Alchemy' },
+      { id: 'build', label: 'Build' },
+      { id: 'hand', label: 'Hand' },
       { id: 'furnace', label: 'Furnace' },
-      { id: 'anvil', label: 'Anvil Gear & Tools' },
-      { id: 'bonfire', label: 'Bonfire Cooking' },
+      { id: 'anvil', label: 'Anvil' },
+      { id: 'bonfire', label: 'Bonfire' },
+      { id: 'alchemy_lab', label: 'Alchemy Lab' },
+      { id: 'frost_kiln', label: 'Frost Kiln' },
+      { id: 'infernal_forge', label: 'Infernal Forge' },
     ];
     const isQueuedStation =
       this.activeStationTab === 'furnace' ||
       this.activeStationTab === 'anvil' ||
-      this.activeStationTab === 'bonfire';
+      this.activeStationTab === 'bonfire' ||
+      this.activeStationTab === 'alchemy_lab' ||
+      this.activeStationTab === 'frost_kiln' ||
+      this.activeStationTab === 'infernal_forge';
 
     const stations = isQueuedStation
-      ? (this.callbacks.getStations?.(this.activeStationTab as 'furnace' | 'anvil' | 'bonfire') ?? [])
+      ? (this.callbacks.getStations?.(this.activeStationTab as QueuedStationType) ?? [])
       : [];
     const selectedStation = isQueuedStation ? this.getSelectedStation() : null;
     const queueFull = selectedStation
@@ -1168,6 +1246,7 @@ export class HudController {
       <div class="grid-2">
         ${list
           .map((r) => {
+            const lockedByBlueprint = r.unlockMode === 'blueprint' && !gameState.unlockedBlueprints.has(r.id);
             const lockedBySkill = r.requiresSkill && !gameState.hasSkill(r.requiresSkill);
             const hasMats = gameState.canCraft(r);
             const canAction = isQueuedStation ? Boolean(selectedStation) && !queueFull && hasMats : hasMats;
@@ -1182,26 +1261,30 @@ export class HudController {
             const skillReqLabel = lockedBySkill
               ? `<div style="font-size:10px; color:#d09cff;">Requires Skill: ${SKILLS.find((s) => s.id === r.requiresSkill)?.name}</div>`
               : '';
+            const bpReqLabel = lockedByBlueprint
+              ? `<div style="font-size:10px; color:#ffd242;">🔒 Blueprint Locked — ${r.blueprintHint ?? 'Explore & defeat monsters to discover.'}</div>`
+              : '';
             const timeSec = isQueuedStation ? (gameState.getCraftDurationMs(r) / 1000).toFixed(1) : null;
             const iconKey = r.iconKey ?? (r.outputItemId ? ITEMS[r.outputItemId]?.iconKey : undefined);
-            const btnLabel = isBuild
-              ? 'Place Structure'
-              : isQueuedStation
-                ? queueFull
-                  ? 'Queue Full (5/5)'
-                  : `Queue (${timeSec}s)`
-                : 'Craft';
+            const btnLabel = lockedByBlueprint
+              ? 'Blueprint Locked'
+              : isBuild
+                ? 'Place Structure'
+                : isQueuedStation
+                  ? queueFull
+                    ? 'Queue Full (5/5)'
+                    : `Queue (${timeSec}s)`
+                  : 'Craft';
             return `
-              <div class="hud-panel" style="padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px;">
+              <div class="hud-panel" style="padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px; opacity:${lockedByBlueprint ? '0.68' : '1'}; border-color:${lockedByBlueprint ? '#4a3d28' : '#354c6b'};">
                 <div>
                   <div style="display:flex; align-items:center; gap:8px;">
-                    ${iconKey ? `<img src="assets/${iconKey}.png" class="px-icon" style="width:24px; height:24px;" />` : ''}
-                    <div style="font-weight:700; font-size:13px; flex:1;">${r.name}</div>
+                    ${iconKey ? `<img src="assets/${iconKey}.png" class="px-icon" style="width:24px; height:24px; ${lockedByBlueprint ? 'filter:grayscale(0.8);' : ''}" />` : ''}
+                    <div style="font-weight:700; font-size:13px; flex:1; color:${lockedByBlueprint ? '#b8a888' : '#eef5ff'};">${r.name}</div>
                     ${timeSec ? `<span style="font-size:10px; color:#ffe596;">⏱ ${timeSec}s</span>` : ''}
                   </div>
                   <div style="font-size:11px; color:#b8cde0; margin:4px 0;">${r.description}</div>
-                  <div style="font-size:11px;">${ings}</div>
-                  ${skillReqLabel}
+                  ${lockedByBlueprint ? bpReqLabel : `<div style="font-size:11px;">${ings}</div>${skillReqLabel}`}
                 </div>
                 <button class="hud-btn ${canAction ? 'primary' : ''}" ${canAction ? '' : 'disabled'} data-craft="${r.id}">
                   ${btnLabel}
@@ -1289,6 +1372,77 @@ export class HudController {
     return `
       <div style="font-size:12px; color:#ffe596; margin-bottom:8px;">Owned Islands: ${gameState.ownedIslands.size}/${ISLANDS.length} • Coins: ${gameState.coins}g</div>
       ${gridHtml}
+    `;
+  }
+
+  private renderQuestsTab(): string {
+    const activeIds = Object.keys(gameState.activeQuests);
+    const activeHtml = activeIds.length
+      ? activeIds
+          .map((qId) => {
+            const q = getQuestById(qId);
+            if (!q) return '';
+            const tracked = gameState.trackedQuestId === q.id;
+            const ready = gameState.isQuestReadyToTurnIn(q.id);
+            const objsHtml = q.objectives
+              .map((o) => {
+                const cur = gameState.getObjectiveProgress(q.id, o);
+                const done = cur >= o.count;
+                return `<div style="display:flex; justify-content:space-between; font-size:11px; color:${done ? '#8ef5a7' : '#d2e2f2'};"><span>${done ? '✓ ' : '• '}${o.label}</span><strong>${cur}/${o.count}</strong></div>`;
+              })
+              .join('');
+            const rewardsText = [
+              `${q.rewards.coins}g`,
+              `${q.rewards.xp} XP`,
+              ...(q.rewards.items ?? []).map((it) => `${it.count}x ${ITEMS[it.itemId]?.name ?? it.itemId}`),
+            ].join(' • ');
+            return `
+              <div class="hud-panel" style="padding:10px; background:${tracked ? '#162840' : '#101a2a'}; border-color:${ready ? '#8ef5a7' : tracked ? '#ffd242' : '#354c6b'};">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;">
+                  <div>
+                    <strong style="font-size:13px; color:#ffe596;">${q.title}</strong>
+                    <span style="font-size:10px; color:#9db6cf; margin-left:6px;">(${q.npcName} • Step ${q.step})</span>
+                  </div>
+                  <button class="hud-btn ${tracked ? 'gold' : ''}" data-track-quest="${tracked ? '' : q.id}" style="padding:2px 8px; font-size:10px;">
+                    ${tracked ? 'Tracking ✓' : 'Track'}
+                  </button>
+                </div>
+                <div style="font-size:11px; color:#b8cbe0; margin-bottom:6px;">${q.description}</div>
+                <div style="display:flex; flex-direction:column; gap:3px; margin-bottom:6px;">${objsHtml}</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:#9db6cf; border-top:1px solid #263954; padding-top:5px;">
+                  <span>Rewards: <strong style="color:#ffd95a;">${rewardsText}</strong></span>
+                  ${q.waypoint ? `<span>◆ ${ready ? `Return to ${q.npcName} (${q.waypoint.label})` : q.waypoint.label}</span>` : ''}
+                </div>
+              </div>
+            `;
+          })
+          .join('')
+      : `<div style="font-size:12px; color:#8ca8c4; padding:8px 0;">No active quests. Talk to Townsfolk NPCs (Farmer Bram, Old Barnaby, Smith Garrick, Alchemist Vesper) on nearby islands to begin!</div>`;
+
+    const completedList = [...gameState.completedQuests]
+      .map((id) => getQuestById(id))
+      .filter((q): q is NonNullable<typeof q> => Boolean(q));
+
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div style="font-size:13px; font-weight:700; color:#ffe596;">Active Quests (${activeIds.length})</div>
+        <div style="font-size:11px; color:#8ef5a7;">Completed: ${gameState.completedQuests.size}/${QUESTS.length}</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">${activeHtml}</div>
+      ${
+        completedList.length
+          ? `<div style="font-size:12px; font-weight:700; color:#8ef5a7; margin-bottom:6px;">Completed Quests</div>
+             <div class="grid-2">${completedList
+               .map(
+                 (q) =>
+                   `<div class="hud-panel" style="padding:7px 9px; background:#0d1926; border-color:#2b4a3e; font-size:11px;">
+                     <strong style="color:#8ef5a7;">✓ ${q.title}</strong>
+                     <div style="font-size:10px; color:#8ca8c4;">${q.npcName} (Step ${q.step})</div>
+                   </div>`,
+               )
+               .join('')}</div>`
+          : ''
+      }
     `;
   }
 
@@ -1401,7 +1555,7 @@ export class HudController {
           <div><span style="color:#8ca8c4;">Bag / Relics:</span> <strong>${bagUsed}/${BAG_SIZE} • ${relicsUnlocked}/4 Relics</strong></div>
           <div><span style="color:#8ca8c4;">Islands:</span> <strong>${gameState.ownedIslands.size}/${ISLANDS.length}</strong></div>
           <div><span style="color:#8ca8c4;">Skills:</span> <strong>${gameState.unlockedSkills.size}/${SKILLS.length}</strong></div>
-          <div><span style="color:#8ca8c4;">Dungeons / Quests:</span> <strong>${gameState.clearedDungeons.size}/4 • ${gameState.completedQuests.size}/4</strong></div>
+          <div><span style="color:#8ca8c4;">Dungeons / Quests:</span> <strong>${gameState.clearedDungeons.size}/4 • ${gameState.completedQuests.size}/${QUESTS.length}</strong></div>
           <div><span style="color:#8ca8c4;">Saved Cache:</span> <strong style="color:${worldStats?.hasSavedData ? '#8ef5a7' : '#9db6cf'};">${worldStats?.hasSavedData ? 'Saved in LocalStorage' : 'Clean / None'}</strong></div>
           ${
             worldStats
@@ -1538,7 +1692,7 @@ export class HudController {
 
     // Equipment Slot Clicks & Drag/Drop
     this.modalLayer.querySelectorAll<HTMLElement>('[data-equip-slot]').forEach((el) => {
-      const eqSlot = el.dataset.equipSlot as EquipSlot;
+      const eqSlot = el.dataset.equipSlot as EquipmentSlotKey;
       el.onclick = () => {
         const id = gameState.equipment[eqSlot];
         this.selectedInspect = id ? { kind: 'equip', slot: eqSlot, itemId: id } : null;
@@ -1607,7 +1761,23 @@ export class HudController {
             if (gameState.equipFromBag(idx)) {
               SFX.playCraft();
               const eqSlot = ITEMS[slot.itemId]?.equipSlot;
-              if (eqSlot) this.selectedInspect = { kind: 'equip', slot: eqSlot, itemId: slot.itemId };
+              if (eqSlot) {
+                const resolved: EquipmentSlotKey =
+                  eqSlot === 'accessory'
+                    ? (['trinket1', 'trinket2', 'trinket3'] as EquipmentSlotKey[]).find(
+                        (s) => gameState.equipment[s] === slot.itemId,
+                      ) ?? 'trinket1'
+                    : eqSlot;
+                this.selectedInspect = { kind: 'equip', slot: resolved, itemId: slot.itemId };
+              }
+            }
+          } else if (act === 'reforge') {
+            const res = gameState.reforgeBagSlot(idx);
+            if (res.ok && res.instance) {
+              SFX.playLevelUp();
+              this.showToast(`Reforged ${ITEMS[slot.itemId]?.name} (${res.instance.rarity.toUpperCase()} +${res.instance.reforgeCount})!`);
+            } else {
+              this.showToast(res.reason ?? 'Cannot reforge.');
             }
           } else if (act === 'use') {
             this.callbacks.onUseHotbarItem(slot.itemId);
@@ -1624,6 +1794,14 @@ export class HudController {
           }
         }
         this.render();
+      };
+    });
+
+    this.modalLayer.querySelectorAll<HTMLElement>('[data-track-quest]').forEach((el) => {
+      el.onclick = () => {
+        const qId = el.dataset.trackQuest || null;
+        gameState.setTrackedQuest(qId);
+        this.renderModal();
       };
     });
 

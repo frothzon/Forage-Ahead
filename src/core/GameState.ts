@@ -1,17 +1,31 @@
-import { ITEMS, type EquipSlot, type GearStats } from '../data/items';
+import { ITEMS, type EquipSlot, type GearStats, type ItemRarity } from '../data/items';
 import { ISLANDS, type DungeonId } from '../data/islands';
+import { getQuestById, getQuestsForNpc, type QuestDef, type QuestObjective } from '../data/quests';
 import { RECIPES, type RecipeDef, type StructureType } from '../data/recipes';
 import { SKILLS } from '../data/skills';
 
 export type HeroClassId = 'Beastmaster' | 'Gladiator' | 'Sorcerer' | 'Swashbuckler';
+export type EquipmentSlotKey = 'weapon' | 'tool' | 'armor' | 'trinket1' | 'trinket2' | 'trinket3';
+
+export const ALL_EQUIP_SLOTS: EquipmentSlotKey[] = ['weapon', 'tool', 'armor', 'trinket1', 'trinket2', 'trinket3'];
+export const TRINKET_SLOTS: EquipmentSlotKey[] = ['trinket1', 'trinket2', 'trinket3'];
 
 export const BAG_COLS = 6;
 export const BAG_ROWS = 5;
 export const BAG_SIZE = BAG_COLS * BAG_ROWS; // 30 slots
 
+export interface GearInstance {
+  id: string;
+  itemId: string;
+  rarity: ItemRarity;
+  stats: GearStats;
+  reforgeCount: number;
+}
+
 export interface BagSlot {
   itemId: string;
   count: number;
+  instanceId?: string;
 }
 
 export interface InventoryFeedEvent {
@@ -56,6 +70,17 @@ export interface SavedDropData {
   isCoin: boolean;
 }
 
+export interface RanchCreatureSave {
+  id: string;
+  speciesId: string;
+  x: number;
+  y: number;
+  happiness: number; // 0..100
+  layTimerMs: number;
+  readyEggs: number;
+  lastPetAt: number;
+}
+
 export interface SaveData {
   version: number;
   heroClass: HeroClassId;
@@ -66,18 +91,24 @@ export interface SaveData {
   skillPoints: number;
   coins: number;
   unlockedSkills: string[];
+  unlockedBlueprints?: string[];
   ownedIslands: string[];
   clearedDungeons: DungeonId[];
   completedQuests: string[];
+  activeQuests?: Record<string, Record<string, number>>;
+  trackedQuestId?: string | null;
   bagSlots?: Array<BagSlot | null>;
   inventory?: Record<string, number>;
-  equipment?: Record<EquipSlot, string | null>;
+  equipment?: Partial<Record<EquipmentSlotKey | 'accessory', string | null>>;
+  gearInstances?: Record<string, GearInstance>;
+  equippedInstanceIds?: Partial<Record<EquipmentSlotKey, string>>;
   hotbar: string[];
   selectedHotbarIndex: number;
   buildings: PlacedBuildingSave[];
   overlays: Array<{ tx: number; ty: number; type: 'dirt' | 'road' | 'bridge' }>;
   savedNodes?: SavedNodeData[];
   savedDrops?: SavedDropData[];
+  ranchCreatures?: RanchCreatureSave[];
   playerPos?: { x: number; y: number };
 }
 
@@ -104,16 +135,24 @@ export class GameState {
   private _coins = 25;
 
   public unlockedSkills = new Set<string>();
+  public unlockedBlueprints = new Set<string>();
   public ownedIslands = new Set<string>(['2,2']);
   public clearedDungeons = new Set<DungeonId>();
   public completedQuests = new Set<string>();
+  public activeQuests: Record<string, Record<string, number>> = {};
+  public trackedQuestId: string | null = null;
 
   public bagSlots: Array<BagSlot | null> = Array.from({ length: BAG_SIZE }, () => null);
-  public equipment: Record<EquipSlot, string | null> = {
+  public gearInstances: Record<string, GearInstance> = {};
+  public equippedInstanceIds: Partial<Record<EquipmentSlotKey, string>> = {};
+  public gadgetCooldowns: Record<string, number> = {};
+  public equipment: Record<EquipmentSlotKey, string | null> = {
     weapon: 'sword',
     tool: 'pickaxe',
     armor: null,
-    accessory: null,
+    trinket1: null,
+    trinket2: null,
+    trinket3: null,
   };
   public hotbar: string[] = [
     'pickaxe',
@@ -133,6 +172,7 @@ export class GameState {
   public overlays: Array<{ tx: number; ty: number; type: 'dirt' | 'road' | 'bridge' }> = [];
   public savedNodes?: SavedNodeData[];
   public savedDrops?: SavedDropData[];
+  public ranchCreatures: RanchCreatureSave[] = [];
   public playerPos?: { x: number; y: number };
 
   private listeners: Array<() => void> = [];
@@ -229,16 +269,24 @@ export class GameState {
     this.skillPoints = 0;
     this._coins = 25;
     this.unlockedSkills = new Set();
+    this.unlockedBlueprints = new Set();
     this.ownedIslands = new Set(['2,2']);
     this.clearedDungeons = new Set();
     this.completedQuests = new Set();
+    this.activeQuests = {};
+    this.trackedQuestId = null;
 
     this.equipment = {
       weapon: 'sword',
       tool: 'pickaxe',
       armor: null,
-      accessory: null,
+      trinket1: null,
+      trinket2: null,
+      trinket3: null,
     };
+    this.gearInstances = {};
+    this.equippedInstanceIds = {};
+    this.gadgetCooldowns = {};
 
     this.bagSlots = Array.from({ length: BAG_SIZE }, () => null);
     this.bagSlots[0] = { itemId: 'shovel', count: 1 };
@@ -254,6 +302,7 @@ export class GameState {
     this.overlays = [];
     this.savedNodes = undefined;
     this.savedDrops = undefined;
+    this.ranchCreatures = [];
     this.playerPos = undefined;
     this.hp = this.getMaxHp();
     this.energy = this.getMaxEnergy();
@@ -262,6 +311,112 @@ export class GameState {
 
   public hasSkill(id: string): boolean {
     return this.unlockedSkills.has(id);
+  }
+
+  public getGearStats(itemId: string, instanceId?: string): GearStats {
+    if (instanceId && this.gearInstances[instanceId]) {
+      return this.gearInstances[instanceId].stats;
+    }
+    return ITEMS[itemId]?.stats ?? {};
+  }
+
+  public getGearRarity(itemId: string, instanceId?: string): ItemRarity {
+    if (instanceId && this.gearInstances[instanceId]) {
+      return this.gearInstances[instanceId].rarity;
+    }
+    return ITEMS[itemId]?.rarity ?? 'common';
+  }
+
+  public hasTrinketEffect(effect: NonNullable<typeof ITEMS[string]['trinketEffect']>): boolean {
+    return TRINKET_SLOTS.some((slot) => {
+      const id = this.equipment[slot];
+      return id ? ITEMS[id]?.trinketEffect === effect : false;
+    });
+  }
+
+  public getGadgetRemainingMs(itemId: string): number {
+    const until = this.gadgetCooldowns[itemId] ?? 0;
+    return Math.max(0, until - Date.now());
+  }
+
+  public triggerGadgetCooldown(itemId: string): boolean {
+    const def = ITEMS[itemId];
+    if (!def || def.category !== 'gadget') return false;
+    if (this.getGadgetRemainingMs(itemId) > 0) return false;
+    this.gadgetCooldowns[itemId] = Date.now() + (def.cooldownMs ?? 8000);
+    return true;
+  }
+
+  public rollGearInstance(itemId: string, minRarity?: ItemRarity): GearInstance | null {
+    const def = ITEMS[itemId];
+    if (!def?.equipSlot || !def.stats) return null;
+    const order: ItemRarity[] = ['common', 'uncommon', 'rare', 'epic'];
+    let rarity: ItemRarity = def.rarity === 'relic' ? 'relic' : 'common';
+    if (rarity !== 'relic') {
+      const r = Math.random();
+      if (r < 0.05) rarity = 'epic';
+      else if (r < 0.2) rarity = 'rare';
+      else if (r < 0.5) rarity = 'uncommon';
+      else rarity = 'common';
+      if (minRarity && minRarity !== 'relic') {
+        const minIdx = order.indexOf(minRarity);
+        const curIdx = order.indexOf(rarity);
+        if (curIdx < minIdx) rarity = minRarity;
+      }
+    }
+    const multMap: Record<ItemRarity, number> = {
+      common: 1,
+      uncommon: 1.15,
+      rare: 1.32,
+      epic: 1.55,
+      relic: 1,
+    };
+    const mult = multMap[rarity];
+    const scaled: GearStats = {};
+    for (const [k, v] of Object.entries(def.stats) as Array<[keyof GearStats, number | undefined]>) {
+      if (v !== undefined && v !== 0) {
+        scaled[k] = Math.max(1, Math.round(v * mult));
+      }
+    }
+    // Bonus affix on rare/epic
+    if (rarity === 'rare' || rarity === 'epic') {
+      const bonusVal = rarity === 'epic' ? 5 : 3;
+      const affixes: Array<keyof GearStats> = ['critPct', 'speedPct', 'maxHp', 'attack'];
+      const pick = affixes[Math.floor(Math.random() * affixes.length)];
+      scaled[pick] = (scaled[pick] ?? 0) + (pick === 'maxHp' ? bonusVal * 4 : bonusVal);
+    }
+    const id = `gear_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const inst: GearInstance = { id, itemId, rarity, stats: scaled, reforgeCount: 0 };
+    this.gearInstances[id] = inst;
+    return inst;
+  }
+
+  public reforgeBagSlot(bagIdx: number): { ok: boolean; reason?: string; instance?: GearInstance } {
+    const slot = this.bagSlots[bagIdx];
+    if (!slot) return { ok: false, reason: 'Empty slot.' };
+    const def = ITEMS[slot.itemId];
+    if (!def?.equipSlot || def.rarity === 'relic') {
+      return { ok: false, reason: 'Only craftable gear can be reforged.' };
+    }
+    const existing = slot.instanceId ? this.gearInstances[slot.instanceId] : undefined;
+    const refCount = existing?.reforgeCount ?? 0;
+    const coinCost = 35 + refCount * 20;
+    if (this._coins < coinCost) return { ok: false, reason: `Need ${coinCost}g to reforge.` };
+    if ((this.inventory.iron_ingot ?? 0) < 2) return { ok: false, reason: 'Need 2 Iron Ingots.' };
+
+    this.coins = this._coins - coinCost;
+    this.removeItem('iron_ingot', 2);
+
+    const order: ItemRarity[] = ['common', 'uncommon', 'rare', 'epic'];
+    const curRarity = existing?.rarity ?? def.rarity;
+    const nextIdx = Math.min(order.length - 1, Math.max(1, order.indexOf(curRarity) + 1));
+    const rolled = this.rollGearInstance(slot.itemId, order[nextIdx]);
+    if (!rolled) return { ok: false, reason: 'Reforge failed.' };
+    rolled.reforgeCount = refCount + 1;
+    slot.instanceId = rolled.id;
+    this.addXp(12);
+    this.emit();
+    return { ok: true, instance: rolled };
   }
 
   public getEquippedStats(): Required<GearStats> {
@@ -274,11 +429,10 @@ export class GameState {
       maxHp: 0,
       maxEnergy: 0,
     };
-    for (const slot of ['weapon', 'tool', 'armor', 'accessory'] as EquipSlot[]) {
+    for (const slot of ALL_EQUIP_SLOTS) {
       const id = this.equipment[slot];
       if (!id) continue;
-      const st = ITEMS[id]?.stats;
-      if (!st) continue;
+      const st = this.getGearStats(id, this.equippedInstanceIds[slot]);
       totals.attack += st.attack ?? 0;
       totals.gather += st.gather ?? 0;
       totals.armor += st.armor ?? 0;
@@ -290,17 +444,24 @@ export class GameState {
     return totals;
   }
 
-  public compareGearStats(candidateItemId: string): {
-    slot: EquipSlot;
+  public compareGearStats(
+    candidateItemId: string,
+    candidateInstanceId?: string,
+    targetTrinketSlot?: EquipmentSlotKey,
+  ): {
+    slot: EquipmentSlotKey;
     equippedId: string | null;
     rows: StatComparisonRow[];
   } | null {
     const def = ITEMS[candidateItemId];
     if (!def?.equipSlot) return null;
-    const slot = def.equipSlot;
+    const slot: EquipmentSlotKey =
+      def.equipSlot === 'accessory'
+        ? targetTrinketSlot ?? TRINKET_SLOTS.find((s) => !this.equipment[s]) ?? 'trinket1'
+        : def.equipSlot;
     const equippedId = this.equipment[slot];
-    const cand = def.stats ?? {};
-    const eq = equippedId ? ITEMS[equippedId]?.stats ?? {} : {};
+    const cand = this.getGearStats(candidateItemId, candidateInstanceId);
+    const eq = equippedId ? this.getGearStats(equippedId, this.equippedInstanceIds[slot]) : {};
 
     const keys: Array<{ key: keyof GearStats; label: string; suffix: string }> = [
       { key: 'attack', label: 'Attack', suffix: '' },
@@ -366,7 +527,7 @@ export class GameState {
     for (const s of this.bagSlots) {
       if (s && s.itemId === itemId) total += s.count;
     }
-    for (const slot of ['weapon', 'tool', 'armor', 'accessory'] as EquipSlot[]) {
+    for (const slot of ALL_EQUIP_SLOTS) {
       if (this.equipment[slot] === itemId) total += 1;
     }
     return total;
@@ -392,7 +553,7 @@ export class GameState {
           this.bagSlots[emptyIdx] = { itemId, count };
         }
       }
-      if ((def.category === 'food' || def.category === 'consumable') && !this.hotbar.includes(itemId)) {
+      if ((def.category === 'food' || def.category === 'consumable' || def.category === 'gadget') && !this.hotbar.includes(itemId)) {
         const emptyHb = this.hotbar.indexOf('');
         if (emptyHb !== -1) this.hotbar[emptyHb] = itemId;
       }
@@ -400,7 +561,8 @@ export class GameState {
       for (let i = 0; i < count; i++) {
         const emptyIdx = this.bagSlots.findIndex((s) => s === null);
         if (emptyIdx !== -1) {
-          this.bagSlots[emptyIdx] = { itemId, count: 1 };
+          const inst = def.rarity !== 'relic' ? this.rollGearInstance(itemId) : null;
+          this.bagSlots[emptyIdx] = inst ? { itemId, count: 1, instanceId: inst.id } : { itemId, count: 1 };
         }
       }
       if ((def.equipSlot === 'weapon' || def.equipSlot === 'tool') && !this.hotbar.includes(itemId)) {
@@ -450,17 +612,39 @@ export class GameState {
     this.emit();
   }
 
-  public equipFromBag(bagIdx: number, targetSlot?: EquipSlot): boolean {
+  public equipFromBag(bagIdx: number, targetSlot?: EquipSlot | EquipmentSlotKey): boolean {
     const slotItem = this.bagSlots[bagIdx];
     if (!slotItem) return false;
     const def = ITEMS[slotItem.itemId];
     if (!def?.equipSlot) return false;
-    if (targetSlot && def.equipSlot !== targetSlot) return false;
 
-    const eqSlot = def.equipSlot;
+    let eqSlot: EquipmentSlotKey;
+    if (def.equipSlot === 'accessory') {
+      if (targetSlot && TRINKET_SLOTS.includes(targetSlot as EquipmentSlotKey)) {
+        eqSlot = targetSlot as EquipmentSlotKey;
+      } else if (!targetSlot || targetSlot === 'accessory') {
+        eqSlot = TRINKET_SLOTS.find((s) => !this.equipment[s]) ?? 'trinket1';
+      } else {
+        return false;
+      }
+    } else {
+      if (targetSlot && def.equipSlot !== targetSlot) return false;
+      eqSlot = def.equipSlot;
+    }
+
     const prevEquipped = this.equipment[eqSlot];
+    const prevInstId = this.equippedInstanceIds[eqSlot];
     this.equipment[eqSlot] = slotItem.itemId;
-    this.bagSlots[bagIdx] = prevEquipped ? { itemId: prevEquipped, count: 1 } : null;
+    if (slotItem.instanceId) {
+      this.equippedInstanceIds[eqSlot] = slotItem.instanceId;
+    } else {
+      delete this.equippedInstanceIds[eqSlot];
+    }
+    this.bagSlots[bagIdx] = prevEquipped
+      ? prevInstId
+        ? { itemId: prevEquipped, count: 1, instanceId: prevInstId }
+        : { itemId: prevEquipped, count: 1 }
+      : null;
 
     // Auto-update hotbar slot if previous weapon/tool was on hotbar
     if (eqSlot === 'weapon' || eqSlot === 'tool') {
@@ -479,7 +663,7 @@ export class GameState {
     return true;
   }
 
-  public unequipToBag(eqSlot: EquipSlot, toBagIdx?: number): boolean {
+  public unequipToBag(eqSlot: EquipmentSlotKey, toBagIdx?: number): boolean {
     const itemId = this.equipment[eqSlot];
     if (!itemId) return false;
     const dest =
@@ -487,8 +671,10 @@ export class GameState {
         ? toBagIdx
         : this.bagSlots.findIndex((s) => s === null);
     if (dest === -1) return false;
-    this.bagSlots[dest] = { itemId, count: 1 };
+    const instId = this.equippedInstanceIds[eqSlot];
+    this.bagSlots[dest] = instId ? { itemId, count: 1, instanceId: instId } : { itemId, count: 1 };
     this.equipment[eqSlot] = null;
+    delete this.equippedInstanceIds[eqSlot];
     this.hp = Math.min(this.hp, this.getMaxHp());
     this.energy = Math.min(this.energy, this.getMaxEnergy());
     this.emit();
@@ -519,8 +705,28 @@ export class GameState {
     return rawCount;
   }
 
+  public isRecipeUnlocked(recipe: RecipeDef): boolean {
+    if (recipe.unlockMode === 'blueprint' && !this.unlockedBlueprints.has(recipe.id)) {
+      return false;
+    }
+    if (recipe.requiresSkill && !this.hasSkill(recipe.requiresSkill)) {
+      return false;
+    }
+    return true;
+  }
+
+  public unlockBlueprint(recipeId: string): boolean {
+    if (this.unlockedBlueprints.has(recipeId)) return false;
+    const rec = RECIPES.find((r) => r.id === recipeId);
+    if (!rec || rec.unlockMode !== 'blueprint') return false;
+    this.unlockedBlueprints.add(recipeId);
+    this.emitFeed('blueprint', `Blueprint: ${rec.name}`, rec.iconKey ?? 'ui_icons/scroll', 1, this.unlockedBlueprints.size);
+    this.emit();
+    return true;
+  }
+
   public canCraft(recipe: RecipeDef): boolean {
-    if (recipe.requiresSkill && !this.hasSkill(recipe.requiresSkill)) return false;
+    if (!this.isRecipeUnlocked(recipe)) return false;
     const isBuild = recipe.station === 'build';
     return recipe.ingredients.every(
       (ing) => (this.inventory[ing.itemId] ?? 0) >= this.getStructureCostCount(ing.itemId, ing.count, isBuild),
@@ -534,6 +740,7 @@ export class GameState {
     if (recipe.outputItemId) {
       this.addItem(recipe.outputItemId, recipe.outputCount ?? 1);
     }
+    this.recordQuestProgress('craft', recipeId, 1);
     this.addXp(8);
     this.emit();
     return true;
@@ -636,9 +843,8 @@ export class GameState {
   public getGatherDamage(activeToolId?: string): number {
     const eq = this.getEquippedStats();
     const activeDef = activeToolId ? ITEMS[activeToolId] : undefined;
-    // Use equipped tool + accessory/armor gather bonus, or active hotbar tool if higher
+    // Use equipped tool + trinket/armor gather bonus, or active hotbar tool if higher
     let base = Math.max(eq.gather, activeDef?.stats?.gather ?? 0);
-    if (this.equipment.accessory) base += ITEMS[this.equipment.accessory]?.stats?.gather ?? 0;
     if (base <= 0) base = 10;
     if (this.heroClass === 'Beastmaster') base *= 1.15;
     if (this.hasSkill('foraging_gather')) base *= 1.25;
@@ -648,10 +854,14 @@ export class GameState {
   public getWeaponDamage(weaponId: string): number {
     const def = ITEMS[weaponId];
     const eq = this.getEquippedStats();
-    let dmg = def?.stats?.attack ?? 12;
-    // Add passive attack from armor & accessory
-    if (this.equipment.armor) dmg += ITEMS[this.equipment.armor]?.stats?.attack ?? 0;
-    if (this.equipment.accessory) dmg += ITEMS[this.equipment.accessory]?.stats?.attack ?? 0;
+    const weaponInstId = this.equipment.weapon === weaponId ? this.equippedInstanceIds.weapon : undefined;
+    let dmg = this.getGearStats(weaponId, weaponInstId).attack ?? 12;
+    // Add passive attack from armor & trinkets
+    if (this.equipment.armor) dmg += this.getGearStats(this.equipment.armor, this.equippedInstanceIds.armor).attack ?? 0;
+    for (const ts of TRINKET_SLOTS) {
+      const tid = this.equipment[ts];
+      if (tid) dmg += this.getGearStats(tid, this.equippedInstanceIds[ts]).attack ?? 0;
+    }
     if (def?.category === 'weapon' && def.id.startsWith('sword') && this.heroClass === 'Gladiator') {
       dmg *= 1.15;
     } else if (weaponId === 'bow' && this.heroClass === 'Swashbuckler') {
@@ -695,13 +905,145 @@ export class GameState {
   }
 
   public getPickupRadius(): number {
-    return this.hasSkill('foraging_magnet') ? 76 : 38;
+    let r = this.hasSkill('foraging_magnet') ? 76 : 38;
+    if (this.hasTrinketEffect('pickup_magnet')) r += 26;
+    return r;
+  }
+
+  // --- Quest System ---
+
+  public getNextQuestForNpc(npcId: string): QuestDef | undefined {
+    const chain = getQuestsForNpc(npcId);
+    for (const q of chain) {
+      if (this.completedQuests.has(q.id)) continue;
+      if (q.prereqQuestId && !this.completedQuests.has(q.prereqQuestId)) continue;
+      return q;
+    }
+    return undefined;
+  }
+
+  public isQuestActive(questId: string): boolean {
+    return Object.prototype.hasOwnProperty.call(this.activeQuests, questId);
+  }
+
+  public acceptQuest(questId: string): boolean {
+    const def = getQuestById(questId);
+    if (!def || this.completedQuests.has(questId) || this.isQuestActive(questId)) return false;
+    if (def.prereqQuestId && !this.completedQuests.has(def.prereqQuestId)) return false;
+    this.activeQuests[questId] = {};
+    if (!this.trackedQuestId) {
+      this.trackedQuestId = questId;
+    }
+    this.emit();
+    return true;
+  }
+
+  public setTrackedQuest(questId: string | null): void {
+    if (questId && !this.isQuestActive(questId)) return;
+    this.trackedQuestId = questId;
+    this.emit();
+  }
+
+  public getTrackedQuest(): QuestDef | undefined {
+    if (!this.trackedQuestId || !this.isQuestActive(this.trackedQuestId)) return undefined;
+    return getQuestById(this.trackedQuestId);
+  }
+
+  public getObjectiveProgress(questId: string, obj: QuestObjective): number {
+    if (obj.type === 'collect') {
+      return Math.min(obj.count, this.inventory[obj.targetId] ?? 0);
+    }
+    if (obj.type === 'clear_dungeon') {
+      return this.clearedDungeons.has(obj.targetId as DungeonId) ? 1 : 0;
+    }
+    return Math.min(obj.count, this.activeQuests[questId]?.[obj.id] ?? 0);
+  }
+
+  public isQuestReadyToTurnIn(questId: string): boolean {
+    const def = getQuestById(questId);
+    if (!def || !this.isQuestActive(questId)) return false;
+    return def.objectives.every((obj) => this.getObjectiveProgress(questId, obj) >= obj.count);
+  }
+
+  public recordQuestProgress(type: 'kill' | 'craft' | 'build', targetId: string, amount = 1): void {
+    let changed = false;
+    for (const questId of Object.keys(this.activeQuests)) {
+      const def = getQuestById(questId);
+      if (!def) continue;
+      for (const obj of def.objectives) {
+        if (obj.type === type && obj.targetId === targetId) {
+          const prev = this.activeQuests[questId][obj.id] ?? 0;
+          const next = Math.min(obj.count, prev + amount);
+          if (next !== prev) {
+            this.activeQuests[questId][obj.id] = next;
+            changed = true;
+          }
+        }
+      }
+    }
+    if (changed) this.emit();
+  }
+
+  public completeQuest(questId: string): QuestDef | null {
+    const def = getQuestById(questId);
+    if (!def || !this.isQuestReadyToTurnIn(questId)) return null;
+    for (const obj of def.objectives) {
+      if (obj.type === 'collect') {
+        this.removeItem(obj.targetId, obj.count);
+      }
+    }
+    delete this.activeQuests[questId];
+    this.completedQuests.add(questId);
+    this.coins += def.rewards.coins;
+    if (def.rewards.items) {
+      for (const it of def.rewards.items) {
+        this.addItem(it.itemId, it.count);
+      }
+    }
+    this.addXp(def.rewards.xp);
+    if (this.trackedQuestId === questId) {
+      const nextActive = Object.keys(this.activeQuests)[0] ?? null;
+      this.trackedQuestId = nextActive;
+    }
+    this.emit();
+    return def;
+  }
+
+  public addRanchCreature(speciesId: string, x: number, y: number, layIntervalMs: number): RanchCreatureSave {
+    const rec: RanchCreatureSave = {
+      id: `ranch_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+      speciesId,
+      x,
+      y,
+      happiness: 65,
+      layTimerMs: layIntervalMs,
+      readyEggs: 0,
+      lastPetAt: 0,
+    };
+    this.ranchCreatures.push(rec);
+    this.emit();
+    return rec;
+  }
+
+  public petRanchCreature(id: string, nowMs = Date.now()): { petted: boolean; happiness: number; eggsCollected: number } {
+    const c = this.ranchCreatures.find((r) => r.id === id);
+    if (!c) return { petted: false, happiness: 0, eggsCollected: 0 };
+    const eggsCollected = c.readyEggs;
+    c.readyEggs = 0;
+    let petted = false;
+    if (nowMs - c.lastPetAt >= 6000) {
+      c.happiness = Math.min(100, c.happiness + 20);
+      c.lastPetAt = nowMs;
+      petted = true;
+    }
+    this.emit();
+    return { petted, happiness: c.happiness, eggsCollected };
   }
 
   public save(): void {
     if (typeof localStorage === 'undefined') return;
     const data: SaveData = {
-      version: 2,
+      version: 3,
       heroClass: this.heroClass,
       hp: this.hp,
       energy: this.energy,
@@ -710,17 +1052,23 @@ export class GameState {
       skillPoints: this.skillPoints,
       coins: this._coins,
       unlockedSkills: [...this.unlockedSkills],
+      unlockedBlueprints: [...this.unlockedBlueprints],
       ownedIslands: [...this.ownedIslands],
       clearedDungeons: [...this.clearedDungeons],
       completedQuests: [...this.completedQuests],
+      activeQuests: this.activeQuests,
+      trackedQuestId: this.trackedQuestId,
       bagSlots: this.bagSlots,
       equipment: this.equipment,
+      gearInstances: this.gearInstances,
+      equippedInstanceIds: this.equippedInstanceIds,
       hotbar: [...this.hotbar],
       selectedHotbarIndex: this.selectedHotbarIndex,
       buildings: this.buildings,
       overlays: this.overlays,
       savedNodes: this.savedNodes,
       savedDrops: this.savedDrops,
+      ranchCreatures: this.ranchCreatures,
       playerPos: this.playerPos,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -745,26 +1093,43 @@ export class GameState {
       this.skillPoints = data.skillPoints;
       this._coins = data.coins ?? 25;
       this.unlockedSkills = new Set(data.unlockedSkills);
+      this.unlockedBlueprints = new Set(data.unlockedBlueprints ?? []);
       this.ownedIslands = new Set(data.ownedIslands);
       this.clearedDungeons = new Set(data.clearedDungeons);
-      this.completedQuests = new Set(data.completedQuests);
+      const legacyMap: Record<string, string> = {
+        farmer: 'farmer_1',
+        fisherman: 'fisherman_1',
+        blacksmith: 'blacksmith_1',
+        alchemist: 'alchemist_1',
+      };
+      this.completedQuests = new Set(
+        (data.completedQuests ?? []).map((id) => legacyMap[id] ?? id),
+      );
+      this.activeQuests = data.activeQuests ?? {};
+      this.trackedQuestId = data.trackedQuestId ?? null;
       if (Array.isArray(data.bagSlots) && data.bagSlots.length === BAG_SIZE) {
         this.bagSlots = data.bagSlots;
       } else if (data.inventory) {
         this.inventory = data.inventory;
       }
-      this.equipment = data.equipment ?? {
-        weapon: 'sword',
-        tool: 'pickaxe',
-        armor: null,
-        accessory: null,
+      const loadedEq = data.equipment ?? {};
+      this.equipment = {
+        weapon: loadedEq.weapon ?? 'sword',
+        tool: loadedEq.tool ?? 'pickaxe',
+        armor: loadedEq.armor ?? null,
+        trinket1: loadedEq.trinket1 ?? loadedEq.accessory ?? null,
+        trinket2: loadedEq.trinket2 ?? null,
+        trinket3: loadedEq.trinket3 ?? null,
       };
+      this.gearInstances = data.gearInstances ?? {};
+      this.equippedInstanceIds = data.equippedInstanceIds ?? {};
       this.hotbar = data.hotbar ?? ['pickaxe', 'sword', 'shovel', 'fishing_rod', 'berries', '', '', '', ''];
       this.selectedHotbarIndex = data.selectedHotbarIndex ?? 0;
       this.buildings = data.buildings ?? [];
       this.overlays = data.overlays ?? [];
       this.savedNodes = data.savedNodes;
       this.savedDrops = data.savedDrops;
+      this.ranchCreatures = data.ranchCreatures ?? [];
       this.playerPos = data.playerPos;
       this.emit();
       return true;

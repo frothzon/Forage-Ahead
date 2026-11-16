@@ -34,7 +34,10 @@ export const MONSTERS: Record<string, MonsterDef> = {
     ai: 'hopper',
     attackRange: 22,
     aggroRange: 96,
-    drops: [{ itemId: 'slime_gel', chance: 0.75, count: 1 }],
+    drops: [
+      { itemId: 'slime_gel', chance: 0.75, count: 1 },
+      { itemId: 'egg_slime', chance: 0.08, count: 1 },
+    ],
   },
   Goblin: {
     id: 'Goblin',
@@ -79,7 +82,10 @@ export const MONSTERS: Record<string, MonsterDef> = {
     ai: 'chase',
     attackRange: 24,
     aggroRange: 102,
-    drops: [{ itemId: 'amber', chance: 0.6, count: 1 }],
+    drops: [
+      { itemId: 'amber', chance: 0.6, count: 1 },
+      { itemId: 'egg_mummy', chance: 0.08, count: 1 },
+    ],
   },
   'Anubis Warrior': {
     id: 'Anubis Warrior',
@@ -138,7 +144,10 @@ export const MONSTERS: Record<string, MonsterDef> = {
     ai: 'chase',
     attackRange: 22,
     aggroRange: 108,
-    drops: [{ itemId: 'bone', chance: 0.4, count: 1 }],
+    drops: [
+      { itemId: 'bone', chance: 0.4, count: 1 },
+      { itemId: 'egg_bat', chance: 0.08, count: 1 },
+    ],
   },
   Vampire: {
     id: 'Vampire',
@@ -224,7 +233,10 @@ export const MONSTERS: Record<string, MonsterDef> = {
     ai: 'chase',
     attackRange: 24,
     aggroRange: 108,
-    drops: [{ itemId: 'crystal', chance: 0.5, count: 1 }],
+    drops: [
+      { itemId: 'crystal', chance: 0.5, count: 1 },
+      { itemId: 'egg_salamander', chance: 0.08, count: 1 },
+    ],
   },
   'Bheur Hag': {
     id: 'Bheur Hag',
@@ -294,7 +306,10 @@ export const MONSTERS: Record<string, MonsterDef> = {
     ai: 'chase',
     attackRange: 26,
     aggroRange: HALF_ISLAND_AGGRO_PX,
-    drops: [{ itemId: 'demon_horn', chance: 0.55, count: 1 }],
+    drops: [
+      { itemId: 'demon_horn', chance: 0.55, count: 1 },
+      { itemId: 'egg_hellhound', chance: 0.08, count: 1 },
+    ],
   },
   Demon: {
     id: 'Demon',
