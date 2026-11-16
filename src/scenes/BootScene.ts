@@ -86,6 +86,14 @@ export class BootScene extends Phaser.Scene {
       { key: 'animals/Hen_idle (16x16)', fw: 16, fh: 16 },
       { key: 'animals/Rabbit_Idle (16x16)', fw: 16, fh: 16 },
       { key: 'projectiles/Bomb_impact', fw: 8, fh: 8 },
+      { key: 'sprout/farming_plants', fw: 16, fh: 16 },
+      { key: 'sprout/farming_items', fw: 16, fh: 16 },
+      { key: 'sprout/house_walls', fw: 16, fh: 16 },
+      { key: 'sprout/house_roof', fw: 16, fh: 16 },
+      { key: 'sprout/house_door', fw: 16, fh: 16 },
+      { key: 'sprout/furniture', fw: 16, fh: 16 },
+      { key: 'sprout/fences', fw: 16, fh: 16 },
+      { key: 'sprout/fence_gates', fw: 16, fh: 16 },
     ];
     for (const s of sheetLoads) {
       const img = images[s.key];

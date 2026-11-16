@@ -4294,6 +4294,186 @@
       "path": "assets/ui_icons/sunflower.png",
       "width": 16,
       "height": 16
+    },
+    "sprout/farming_plants": {
+      "path": "assets/sprout/farming_plants.png",
+      "width": 80,
+      "height": 240
+    },
+    "sprout/farming_items": {
+      "path": "assets/sprout/farming_items.png",
+      "width": 32,
+      "height": 240
+    },
+    "sprout/tree_apple": {
+      "path": "assets/sprout/tree_apple.png",
+      "width": 576,
+      "height": 240
+    },
+    "sprout/tree_orange": {
+      "path": "assets/sprout/tree_orange.png",
+      "width": 576,
+      "height": 240
+    },
+    "sprout/tree_peach": {
+      "path": "assets/sprout/tree_peach.png",
+      "width": 576,
+      "height": 240
+    },
+    "sprout/tree_pear": {
+      "path": "assets/sprout/tree_pear.png",
+      "width": 576,
+      "height": 240
+    },
+    "sprout/water_well": {
+      "path": "assets/sprout/water_well.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout/furniture": {
+      "path": "assets/sprout/furniture.png",
+      "width": 144,
+      "height": 96
+    },
+    "sprout/house_door": {
+      "path": "assets/sprout/house_door.png",
+      "width": 288,
+      "height": 32
+    },
+    "sprout/fence_gates": {
+      "path": "assets/sprout/fence_gates.png",
+      "width": 160,
+      "height": 48
+    },
+    "sprout/fences": {
+      "path": "assets/sprout/fences.png",
+      "width": 128,
+      "height": 64
+    },
+    "sprout/mailbox": {
+      "path": "assets/sprout/mailbox.png",
+      "width": 176,
+      "height": 336
+    },
+    "sprout/house_roof": {
+      "path": "assets/sprout/house_roof.png",
+      "width": 112,
+      "height": 80
+    },
+    "sprout/house_walls": {
+      "path": "assets/sprout/house_walls.png",
+      "width": 80,
+      "height": 48
+    },
+    "sprout_icons/corn": {
+      "path": "assets/sprout_icons/corn.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/carrot_sl": {
+      "path": "assets/sprout_icons/carrot_sl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/cauliflower": {
+      "path": "assets/sprout_icons/cauliflower.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/tomato": {
+      "path": "assets/sprout_icons/tomato.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/eggplant": {
+      "path": "assets/sprout_icons/eggplant.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/blue_tulip": {
+      "path": "assets/sprout_icons/blue_tulip.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/cabbage": {
+      "path": "assets/sprout_icons/cabbage.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/wheat": {
+      "path": "assets/sprout_icons/wheat.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/pumpkin": {
+      "path": "assets/sprout_icons/pumpkin.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/radish": {
+      "path": "assets/sprout_icons/radish.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/pink_rose": {
+      "path": "assets/sprout_icons/pink_rose.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/beet": {
+      "path": "assets/sprout_icons/beet.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/starfruit": {
+      "path": "assets/sprout_icons/starfruit.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/cucumber": {
+      "path": "assets/sprout_icons/cucumber.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/house_wall": {
+      "path": "assets/sprout_icons/house_wall.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/house_floor": {
+      "path": "assets/sprout_icons/house_floor.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/house_door": {
+      "path": "assets/sprout_icons/house_door.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/bed": {
+      "path": "assets/sprout_icons/bed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/lamp": {
+      "path": "assets/sprout_icons/lamp.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/table": {
+      "path": "assets/sprout_icons/table.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/rug": {
+      "path": "assets/sprout_icons/rug.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_icons/fence_gate": {
+      "path": "assets/sprout_icons/fence_gate.png",
+      "width": 16,
+      "height": 16
     }
   },
   "heroes": {

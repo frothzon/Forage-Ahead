@@ -1,3 +1,5 @@
+import { SPROUT_CROPS } from './sproutCrops';
+
 export type ItemCategory =
   | 'material'
   | 'food'
@@ -760,4 +762,57 @@ export const ITEMS: Record<string, ItemDef> = {
     healHp: 60,
     healEnergy: 60,
   },
+  pumpkin_soup: {
+    id: 'pumpkin_soup',
+    name: 'Pumpkin Soup',
+    category: 'food',
+    rarity: 'uncommon',
+    description: 'Warm autumn bowl. Restores +75 HP and +65 Energy.',
+    color: '#f09b4a',
+    iconKey: 'sprout_icons/pumpkin',
+    sellValue: 38,
+    healHp: 75,
+    healEnergy: 65,
+  },
+  veggie_medley: {
+    id: 'veggie_medley',
+    name: 'Homestead Medley',
+    category: 'food',
+    rarity: 'rare',
+    description: 'Roasted Tomato, Corn & Cauliflower. Restores +85 HP and +80 Energy.',
+    color: '#8ef5a7',
+    iconKey: 'sprout_icons/cauliflower',
+    sellValue: 46,
+    healHp: 85,
+    healEnergy: 80,
+  },
+  starfruit_tart: {
+    id: 'starfruit_tart',
+    name: 'Starfruit Tart',
+    category: 'food',
+    rarity: 'epic',
+    description: 'Celestial pastry! Restores +120 HP and +120 Energy.',
+    color: '#6ce5ff',
+    iconKey: 'sprout_icons/starfruit',
+    sellValue: 72,
+    healHp: 120,
+    healEnergy: 120,
+  },
+  ...Object.fromEntries(
+    SPROUT_CROPS.map((c) => [
+      c.id,
+      {
+        id: c.id,
+        name: c.name,
+        category: 'food' as const,
+        rarity: (c.id === 'starfruit' ? 'rare' : c.sellValue >= 16 ? 'uncommon' : 'common') as ItemRarity,
+        description: c.description,
+        color: '#8ef5a7',
+        iconKey: c.iconKey,
+        sellValue: c.sellValue,
+        healHp: c.healHp,
+        healEnergy: c.healEnergy,
+      },
+    ]),
+  ),
 };

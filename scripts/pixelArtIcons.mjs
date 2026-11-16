@@ -31,7 +31,7 @@ function pngChunk(type, data) {
   return Buffer.concat([len, typeBuf, data, crcBuf]);
 }
 
-function encodePng(width, height, rgba) {
+export function encodePng(width, height, rgba) {
   const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);

@@ -124,6 +124,8 @@ export class OverworldScene extends Phaser.Scene {
   private ranchEntities: RanchEntity[] = [];
   private dungeonPortals: DungeonPortalEntity[] = [];
   private bridgeSprites = new Map<string, Phaser.GameObjects.Image>();
+  private houseRoofSprites = new Map<string, Phaser.GameObjects.Image>();
+  private houseTileSet = new Set<string>();
   private buildCursor!: Phaser.GameObjects.Rectangle;
 
   private respawnTimerMs = 0;
@@ -167,6 +169,8 @@ export class OverworldScene extends Phaser.Scene {
     this.ranchEntities = [];
     this.dungeonPortals = [];
     this.bridgeSprites.clear();
+    this.houseRoofSprites.clear();
+    this.houseTileSet.clear();
     this.bridgeSet.clear();
 
     this.initGrids();
@@ -385,6 +389,47 @@ export class OverworldScene extends Phaser.Scene {
     }
     for (const rc of gameState.ranchCreatures) {
       this.spawnRanchSprite(rc);
+    }
+    this.rebuildHouseRoofs();
+  }
+
+  private isHousePart(st: string): boolean {
+    return (
+      st === 'house_floor' ||
+      st === 'house_wall' ||
+      st === 'house_door' ||
+      st.startsWith('furniture_')
+    );
+  }
+
+  private rebuildHouseRoofs(): void {
+    this.houseTileSet.clear();
+    for (const b of this.buildings) {
+      if (b.active && this.isHousePart(b.structureType)) {
+        this.houseTileSet.add(`${b.tx},${b.ty}`);
+      }
+    }
+    for (const [k, spr] of this.houseRoofSprites) {
+      if (!this.houseTileSet.has(k)) {
+        spr.destroy();
+        this.houseRoofSprites.delete(k);
+      }
+    }
+    for (const k of this.houseTileSet) {
+      const [tx, ty] = k.split(',').map(Number);
+      const hasN = this.houseTileSet.has(`${tx},${ty - 1}`);
+      const hasS = this.houseTileSet.has(`${tx},${ty + 1}`);
+      // Pick shingle frame from 7x5 sprout/house_roof (row 3 col 2 = 23 interior, row 2 col 2 = 16 north ridge, row 4 col 2 = 30 south eave)
+      const frame = !hasN ? 16 : !hasS ? 30 : 23;
+      let spr = this.houseRoofSprites.get(k);
+      if (!spr) {
+        spr = this.add
+          .image(tx * TILE_PX + 8, ty * TILE_PX + 8, 'sprout/house_roof', frame)
+          .setDepth(8500);
+        this.houseRoofSprites.set(k, spr);
+      } else {
+        spr.setFrame(frame);
+      }
     }
   }
 
@@ -910,7 +955,11 @@ export class OverworldScene extends Phaser.Scene {
       return { ok: false, reason: `${rec.name} must be placed on land!`, rec };
     }
 
-    if (this.hasBuildingAt(tx, ty) || this.hasNodeAt(tx, ty)) {
+    const existingBld = this.buildings.find((b) => b.active && b.tx === tx && b.ty === ty);
+    const canPlaceOnFloor =
+      existingBld?.structureType === 'house_floor' &&
+      (st.startsWith('furniture_') || st === 'house_wall' || st === 'house_door');
+    if ((existingBld && !canPlaceOnFloor) || this.hasNodeAt(tx, ty)) {
       return { ok: false, reason: 'Tile is already occupied!', rec };
     }
 
@@ -918,6 +967,10 @@ export class OverworldScene extends Phaser.Scene {
       st !== 'bridge' &&
       st !== 'road_stone' &&
       st !== 'fish_trap' &&
+      st !== 'house_floor' &&
+      st !== 'furniture_lamp' &&
+      st !== 'furniture_rug' &&
+      !st.startsWith('crop_');
       st !== 'crop_berries' &&
       st !== 'crop_carrot' &&
       st !== 'crop_sunflower';
@@ -973,11 +1026,18 @@ export class OverworldScene extends Phaser.Scene {
       const id = `bld_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       this.buildings.push(new BuildingEntity(this, id, st, tx, ty));
       gameState.buildings.push({ id, type: st, tx, ty });
+      if (this.isHousePart(st)) this.rebuildHouseRoofs();
     }
     gameState.recordQuestProgress('build', st, 1);
 
-    // Keep placing bridges/roads smoothly while materials last!
-    if ((st !== 'bridge' && st !== 'road_stone') || !gameState.canCraft(rec)) {
+    // Keep placing bridges/roads/floors/walls/fences smoothly while materials last!
+    const multiPlace =
+      st === 'bridge' ||
+      st === 'road_stone' ||
+      st === 'house_floor' ||
+      st === 'house_wall' ||
+      st === 'fence';
+    if (!multiPlace || !gameState.canCraft(rec)) {
       gameState.pendingBuildRecipeId = null;
     }
     this.hud.render();
@@ -1461,9 +1521,37 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    // 4. Check nearby Crafting Station or Chest
+    // 4. Check nearby Doors, Gates, Bed, Water Well, Crafting Station or Chest
     for (const b of this.buildings) {
-      if (b.active && b.interactStation && Math.hypot(b.x - this.player.x, b.y - this.player.y) <= 28) {
+      if (!b.active || Math.hypot(b.x - this.player.x, b.y - this.player.y) > 28) continue;
+      if (b.structureType === 'house_door' || b.structureType === 'fence_gate') {
+        const opened = b.toggleDoor();
+        SFX.playChop();
+        this.hud.showToast(opened ? 'Opened' : 'Closed');
+        return;
+      }
+      if (b.structureType === 'furniture_bed') {
+        gameState.hp = gameState.getMaxHp();
+        gameState.energy = gameState.getMaxEnergy();
+        gameState.emitVitals();
+        SFX.playLevelUp();
+        spawnFloatingText(this, this.player.x, this.player.y - 16, 'Rested! Full HP & EN', '#8ef5a7');
+        return;
+      }
+      if (b.structureType === 'water_well') {
+        gameState.energy = Math.min(gameState.getMaxEnergy(), gameState.energy + 30);
+        gameState.emitVitals();
+        let watered = 0;
+        for (const crop of this.buildings) {
+          if (crop.active && crop.isCrop() && Math.hypot(crop.x - b.x, crop.y - b.y) <= 80 && crop.waterCrop()) {
+            watered += 1;
+          }
+        }
+        SFX.playPickup();
+        this.hud.showToast(`Water Well: +30 EN${watered > 0 ? ` • Watered ${watered} crops!` : ''}`);
+        return;
+      }
+      if (b.interactStation) {
         if (b.interactStation === 'chest') {
           this.hud.toggleModal('inventory');
         } else {
@@ -1809,6 +1897,18 @@ export class OverworldScene extends Phaser.Scene {
     this.ocean.update(dt, this.weather.wind, nightFactor);
     this.weather.update(dt);
     this.updateLighting(dt);
+
+    // Blocked-out House Roof Fade: fade roofs when player steps inside a house
+    if (this.houseRoofSprites.size > 0) {
+      const ptx = Math.floor(this.player.x / TILE_PX);
+      const pty = Math.floor(this.player.y / TILE_PX);
+      const insideHouse = this.houseTileSet.has(`${ptx},${pty}`);
+      const targetAlpha = insideHouse ? 0.12 : 1.0;
+      const step = Math.min(1, dt / 160);
+      for (const spr of this.houseRoofSprites.values()) {
+        spr.setAlpha(Phaser.Math.Linear(spr.alpha, targetAlpha, step));
+      }
+    }
 
     // Desert Sandstorm periodic wind-blown coin / amber finds
     if (this.weather.weather === 'sandstorm' && this.weather.currentBiome === 'autumn') {

@@ -1,3 +1,5 @@
+import { SPROUT_CROPS, type SproutCropDef } from './sproutCrops';
+
 export type CraftingStation =
   | 'hand'
   | 'furnace'
@@ -28,9 +30,19 @@ export type StructureType =
   | 'chest'
   | 'nest'
   | 'fence'
+  | 'fence_gate'
+  | 'house_floor'
+  | 'house_wall'
+  | 'house_door'
+  | 'furniture_bed'
+  | 'furniture_lamp'
+  | 'furniture_table'
+  | 'furniture_rug'
+  | 'water_well'
   | 'crop_berries'
   | 'crop_carrot'
-  | 'crop_sunflower';
+  | 'crop_sunflower'
+  | SproutCropDef['structureType'];
 
 export interface RecipeDef {
   id: string;
@@ -177,6 +189,99 @@ export const RECIPES: RecipeDef[] = [
     ingredients: [{ itemId: 'wood', count: 2 }],
     structureType: 'fence',
     iconKey: 'objects/Fences (stone)',
+  },
+  {
+    id: 'build_fence_gate',
+    name: 'Fence Gate',
+    station: 'build',
+    description: 'Toggleable gate [E] so you can walk in & out of ranch pens.',
+    ingredients: [{ itemId: 'wood', count: 3 }],
+    structureType: 'fence_gate',
+    iconKey: 'sprout_icons/fence_gate',
+  },
+  {
+    id: 'build_house_floor',
+    name: 'House Floor',
+    station: 'build',
+    description: 'Walkable wood plank floor. Automatically forms a fadeable roof!',
+    ingredients: [{ itemId: 'wood', count: 2 }],
+    structureType: 'house_floor',
+    iconKey: 'sprout_icons/house_floor',
+  },
+  {
+    id: 'build_house_wall',
+    name: 'House Wall',
+    station: 'build',
+    description: 'Blocked-out wooden house wall. Enclose floors to build a home!',
+    ingredients: [{ itemId: 'wood', count: 3 }],
+    structureType: 'house_wall',
+    iconKey: 'sprout_icons/house_wall',
+  },
+  {
+    id: 'build_house_door',
+    name: 'House Door',
+    station: 'build',
+    description: 'Swinging door [E] for entering your blocked-out overworld house.',
+    ingredients: [{ itemId: 'wood', count: 4 }],
+    structureType: 'house_door',
+    iconKey: 'sprout_icons/house_door',
+  },
+  {
+    id: 'build_furniture_bed',
+    name: 'Cozy Bed',
+    station: 'build',
+    description: 'Place inside your house & press [E] to rest (full HP & Energy).',
+    ingredients: [
+      { itemId: 'wood', count: 6 },
+      { itemId: 'berries', count: 2 },
+    ],
+    structureType: 'furniture_bed',
+    iconKey: 'sprout_icons/bed',
+  },
+  {
+    id: 'build_furniture_lamp',
+    name: 'Warm Lamp',
+    station: 'build',
+    description: 'Glowing interior lamp that lights up your house at night.',
+    ingredients: [
+      { itemId: 'wood', count: 2 },
+      { itemId: 'coal', count: 1 },
+    ],
+    structureType: 'furniture_lamp',
+    iconKey: 'sprout_icons/lamp',
+  },
+  {
+    id: 'build_furniture_table',
+    name: 'Wooden Table',
+    station: 'build',
+    description: 'Sturdy homestead table for furnishing your house.',
+    ingredients: [{ itemId: 'wood', count: 4 }],
+    structureType: 'furniture_table',
+    iconKey: 'sprout_icons/table',
+  },
+  {
+    id: 'build_furniture_rug',
+    name: 'Woven Rug',
+    station: 'build',
+    description: 'Walkable decorative rug for house interiors.',
+    ingredients: [
+      { itemId: 'wood', count: 2 },
+      { itemId: 'berries', count: 1 },
+    ],
+    structureType: 'furniture_rug',
+    iconKey: 'sprout_icons/rug',
+  },
+  {
+    id: 'build_water_well',
+    name: 'Water Well',
+    station: 'build',
+    description: 'Interact [E] to restore +30 EN and water nearby crops!',
+    ingredients: [
+      { itemId: 'stone', count: 8 },
+      { itemId: 'wood', count: 4 },
+    ],
+    structureType: 'water_well',
+    iconKey: 'sprout/water_well',
   },
   {
     id: 'build_fish_trap',
@@ -714,4 +819,59 @@ export const RECIPES: RecipeDef[] = [
     iconKey: 'ui_icons/potion_red',
     craftTimeMs: 3200,
   },
+  {
+    id: 'cook_pumpkin_soup',
+    name: 'Pumpkin Soup',
+    station: 'bonfire',
+    description: 'Hearty soup restoring +75 HP and +65 Energy.',
+    ingredients: [
+      { itemId: 'pumpkin', count: 1 },
+      { itemId: 'wood', count: 1 },
+    ],
+    outputItemId: 'pumpkin_soup',
+    outputCount: 1,
+    iconKey: 'sprout_icons/pumpkin',
+    craftTimeMs: 3000,
+  },
+  {
+    id: 'cook_veggie_medley',
+    name: 'Homestead Medley',
+    station: 'bonfire',
+    description: 'Cook Corn, Tomato & Cauliflower for +85 HP & +80 Energy.',
+    ingredients: [
+      { itemId: 'corn', count: 1 },
+      { itemId: 'tomato', count: 1 },
+      { itemId: 'cauliflower', count: 1 },
+    ],
+    outputItemId: 'veggie_medley',
+    outputCount: 1,
+    iconKey: 'sprout_icons/cauliflower',
+    craftTimeMs: 3500,
+  },
+  {
+    id: 'cook_starfruit_tart',
+    name: 'Starfruit Tart',
+    station: 'bonfire',
+    description: 'Bake Starfruit & Wheat for +120 HP & +120 Energy.',
+    ingredients: [
+      { itemId: 'starfruit', count: 1 },
+      { itemId: 'wheat', count: 2 },
+    ],
+    outputItemId: 'starfruit_tart',
+    outputCount: 1,
+    iconKey: 'sprout_icons/starfruit',
+    craftTimeMs: 4000,
+  },
+  ...SPROUT_CROPS.map((c) => ({
+    id: `build_${c.structureType}`,
+    name: `Plant ${c.name}`,
+    station: 'build' as const,
+    description: `${c.description} Grows on land (2x faster on Tilled Dirt).`,
+    ingredients: [
+      { itemId: 'wood', count: 1 },
+      { itemId: 'berries', count: 1 },
+    ],
+    structureType: c.structureType,
+    iconKey: c.iconKey,
+  })),
 ];

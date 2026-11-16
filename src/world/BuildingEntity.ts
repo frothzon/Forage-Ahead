@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { gameState, type CraftQueueJob } from '../core/GameState';
 import { ITEMS } from '../data/items';
 import { RECIPES, type StructureType } from '../data/recipes';
+import { SPROUT_CROP_BY_STRUCTURE, type SproutCropDef } from '../data/sproutCrops';
 import { applyWindShader } from './WindShader';
 
 export class BuildingEntity extends Phaser.GameObjects.Container {
@@ -9,7 +10,8 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
   public readonly structureType: StructureType;
   public readonly tx: number;
   public readonly ty: number;
-  public readonly solid: boolean;
+  public solid: boolean;
+  public isOpen = false;
   public readonly interactStation?:
     | 'furnace'
     | 'anvil'
@@ -57,11 +59,12 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     this.craftQueue = initialQueue;
     this.cropStage = initialCropStage;
     this.solid =
-      type !== 'crop_berries' &&
-      type !== 'crop_carrot' &&
-      type !== 'crop_sunflower' &&
+      !type.startsWith('crop_') &&
       type !== 'fish_trap' &&
-      type !== 'nest';
+      type !== 'nest' &&
+      type !== 'house_floor' &&
+      type !== 'furniture_lamp' &&
+      type !== 'furniture_rug';
 
     switch (type) {
       case 'furnace': {
@@ -117,7 +120,55 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         break;
       }
       case 'fence': {
-        this.mainSprite = scene.add.image(0, 2, 'objects/Fences (stone)', 0).setOrigin(0.5, 0.75);
+        this.mainSprite = scene.add.image(0, 2, 'sprout/fences', 0).setOrigin(0.5, 0.75);
+        this.add(this.mainSprite);
+        break;
+      }
+      case 'fence_gate': {
+        this.mainSprite = scene.add.image(0, 2, 'sprout/fence_gates', 0).setOrigin(0.5, 0.75);
+        this.add(this.mainSprite);
+        break;
+      }
+      case 'house_floor': {
+        this.mainSprite = scene.add.image(0, 0, 'sprout/house_walls', 11).setOrigin(0.5, 0.5);
+        this.add(this.mainSprite);
+        this.setDepth(2);
+        break;
+      }
+      case 'house_wall': {
+        this.mainSprite = scene.add.image(0, 2, 'sprout/house_walls', 1).setOrigin(0.5, 0.75);
+        this.add(this.mainSprite);
+        break;
+      }
+      case 'house_door': {
+        this.mainSprite = scene.add.image(0, 2, 'sprout/house_door', 0).setOrigin(0.5, 0.75);
+        this.add(this.mainSprite);
+        break;
+      }
+      case 'furniture_bed': {
+        this.mainSprite = scene.add.image(0, 2, 'sprout/furniture', 18).setOrigin(0.5, 0.75);
+        this.add(this.mainSprite);
+        break;
+      }
+      case 'furniture_lamp': {
+        this.auraCircle = scene.add.circle(0, -2, 26, 0xffe08a, 0.12);
+        this.mainSprite = scene.add.image(0, 2, 'sprout/furniture', 12).setOrigin(0.5, 0.75);
+        this.add([this.auraCircle, this.mainSprite]);
+        break;
+      }
+      case 'furniture_table': {
+        this.mainSprite = scene.add.image(0, 2, 'sprout/furniture', 30).setOrigin(0.5, 0.75);
+        this.add(this.mainSprite);
+        break;
+      }
+      case 'furniture_rug': {
+        this.mainSprite = scene.add.image(0, 0, 'sprout/furniture', 45).setOrigin(0.5, 0.5);
+        this.add(this.mainSprite);
+        this.setDepth(3);
+        break;
+      }
+      case 'water_well': {
+        this.mainSprite = scene.add.image(0, 2, 'sprout/water_well').setOrigin(0.5, 0.8).setScale(0.8);
         this.add(this.mainSprite);
         break;
       }
@@ -160,8 +211,16 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         break;
       }
       default: {
-        this.mainSprite = scene.add.image(0, 0, 'objects/Barrel').setOrigin(0.5, 0.7);
-        this.add(this.mainSprite);
+        const sproutCrop = SPROUT_CROP_BY_STRUCTURE[type as SproutCropDef['structureType']];
+        if (sproutCrop) {
+          const frame = sproutCrop.plantRow * 5 + Math.min(sproutCrop.maxStage, this.cropStage);
+          this.mainSprite = scene.add.image(0, 4, 'sprout/farming_plants', frame).setOrigin(0.5, 0.85);
+          applyWindShader(this.mainSprite, 3.0, tx * 1.9 + ty * 2.7);
+          this.add(this.mainSprite);
+        } else {
+          this.mainSprite = scene.add.image(0, 0, 'objects/Barrel').setOrigin(0.5, 0.7);
+          this.add(this.mainSprite);
+        }
         break;
       }
     }
@@ -193,7 +252,9 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       : 0;
     this.collisionRadius = type === 'lighthouse' ? 6.8 : 6;
 
-    this.setDepth(this.solid ? py + this.collisionOffsetY : 6);
+    this.setDepth(
+      type === 'house_floor' ? 2 : type === 'furniture_rug' ? 3 : this.solid ? py + this.collisionOffsetY : 6,
+    );
     scene.add.existing(this);
     this.syncCraftVisual();
   }
@@ -273,28 +334,42 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     return (
       this.structureType === 'crop_berries' ||
       this.structureType === 'crop_carrot' ||
-      this.structureType === 'crop_sunflower'
+      this.structureType === 'crop_sunflower' ||
+      Boolean(SPROUT_CROP_BY_STRUCTURE[this.structureType as SproutCropDef['structureType']])
     );
   }
 
+  private getMaxCropStage(): number {
+    const sc = SPROUT_CROP_BY_STRUCTURE[this.structureType as SproutCropDef['structureType']];
+    return sc ? sc.maxStage : 2;
+  }
+
+  private syncCropFrame(): void {
+    const sc = SPROUT_CROP_BY_STRUCTURE[this.structureType as SproutCropDef['structureType']];
+    const frame = sc ? sc.plantRow * 5 + Math.min(sc.maxStage, this.cropStage) : this.cropStage;
+    (this.mainSprite as Phaser.GameObjects.Image).setFrame(frame);
+  }
+
   public isCropRipe(): boolean {
-    return this.isCrop() && this.cropStage >= 2;
+    return this.isCrop() && this.cropStage >= this.getMaxCropStage();
   }
 
   public waterCrop(): boolean {
-    if (!this.isCrop() || this.cropStage >= 2) return false;
+    if (!this.isCrop() || this.cropStage >= this.getMaxCropStage()) return false;
     this.cropStage += 1;
-    (this.mainSprite as Phaser.GameObjects.Image).setFrame(this.cropStage);
+    this.syncCropFrame();
     return true;
   }
 
   public harvestCrop(): { itemId: string; count: number } | null {
     if (!this.isCropRipe()) return null;
     this.cropStage = 1;
-    (this.mainSprite as Phaser.GameObjects.Image).setFrame(1);
+    this.syncCropFrame();
     const baseCount = gameState.hasSkill('foraging_farming') ? 4 : 2;
-    const itemId =
-      this.structureType === 'crop_berries'
+    const sc = SPROUT_CROP_BY_STRUCTURE[this.structureType as SproutCropDef['structureType']];
+    const itemId = sc
+      ? sc.id
+      : this.structureType === 'crop_berries'
         ? 'berries'
         : this.structureType === 'crop_carrot'
           ? 'carrot'
@@ -303,6 +378,14 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       itemId,
       count: baseCount,
     };
+  }
+
+  public toggleDoor(): boolean {
+    if (this.structureType !== 'house_door' && this.structureType !== 'fence_gate') return false;
+    this.isOpen = !this.isOpen;
+    this.solid = !this.isOpen;
+    (this.mainSprite as Phaser.GameObjects.Image).setFrame(this.isOpen ? 4 : 0);
+    return this.isOpen;
   }
 
   public placeEggOnNest(speciesId: string, hatchMs: number): boolean {
@@ -379,7 +462,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         callbacks.onFishTrapCatch(this.x, this.y);
       }
     } else if (this.isCrop()) {
-      if (this.cropStage < 2) {
+      if (this.cropStage < this.getMaxCropStage()) {
         let growStepMs = gameState.hasSkill('foraging_farming') ? 6000 : 12000;
         if (callbacks.isFertileSoil?.(this.tx, this.ty)) {
           growStepMs = Math.round(growStepMs * 0.65);
@@ -390,7 +473,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         if (this.actionTimerMs >= growStepMs) {
           this.actionTimerMs = 0;
           this.cropStage += 1;
-          (this.mainSprite as Phaser.GameObjects.Image).setFrame(this.cropStage);
+          this.syncCropFrame();
         }
       }
     }

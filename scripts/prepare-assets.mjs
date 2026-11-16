@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import AdmZip from 'adm-zip';
-import { generatePixelArtIcons } from './pixelArtIcons.mjs';
+import { encodePng, generatePixelArtIcons } from './pixelArtIcons.mjs';
 
 function computeFrameFeetOffset(buf, fw, fh) {
   if (buf.length < 33 || buf.toString('ascii', 1, 4) !== 'PNG') return Math.round(fh * 0.2);
@@ -335,11 +335,168 @@ function main() {
   }
 
   generatePixelArtIcons(path.join(OUT_DIR, 'ui_icons'), manifest);
+  extractSproutLands(manifest);
 
   fs.writeFileSync(MANIFEST_OUT, JSON.stringify(manifest, null, 2));
   console.log(
     `Extracted ${Object.keys(manifest.images).length} PNGs, ${Object.keys(manifest.heroes).length} heroes, ${Object.keys(manifest.monsters).length} monsters.`,
   );
+}
+
+function decodePngRgba(buf) {
+  let pos = 8;
+  let width = 0;
+  let height = 0;
+  let colorType = 6;
+  const idat = [];
+  while (pos + 8 <= buf.length) {
+    const len = buf.readUInt32BE(pos);
+    const type = buf.toString('ascii', pos + 4, pos + 8);
+    const dataStart = pos + 8;
+    if (type === 'IHDR') {
+      width = buf.readUInt32BE(dataStart);
+      height = buf.readUInt32BE(dataStart + 4);
+      colorType = buf[dataStart + 9];
+    } else if (type === 'IDAT') {
+      idat.push(buf.subarray(dataStart, dataStart + len));
+    } else if (type === 'IEND') {
+      break;
+    }
+    pos += 12 + len;
+  }
+  if (colorType !== 6 && colorType !== 2) return null;
+  const bpp = colorType === 6 ? 4 : 3;
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const stride = width * bpp;
+  const prev = Buffer.alloc(stride);
+  const curr = Buffer.alloc(stride);
+  const rgba = Buffer.alloc(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    const rowStart = y * (stride + 1);
+    const filter = raw[rowStart];
+    for (let i = 0; i < stride; i++) {
+      const x = raw[rowStart + 1 + i];
+      const a = i >= bpp ? curr[i - bpp] : 0;
+      const b = prev[i];
+      const c = i >= bpp ? prev[i - bpp] : 0;
+      let val = x;
+      if (filter === 1) val = (x + a) & 0xff;
+      else if (filter === 2) val = (x + b) & 0xff;
+      else if (filter === 3) val = (x + ((a + b) >> 1)) & 0xff;
+      else if (filter === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a);
+        const pb = Math.abs(p - b);
+        const pc = Math.abs(p - c);
+        const pr = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+        val = (x + pr) & 0xff;
+      }
+      curr[i] = val;
+    }
+    curr.copy(prev);
+    for (let x = 0; x < width; x++) {
+      const dst = (y * width + x) * 4;
+      const src = x * bpp;
+      rgba[dst] = curr[src];
+      rgba[dst + 1] = curr[src + 1];
+      rgba[dst + 2] = curr[src + 2];
+      rgba[dst + 3] = bpp === 4 ? curr[src + 3] : 255;
+    }
+  }
+  return { width, height, rgba };
+}
+
+function sliceAndSaveIcon(decoded, sx, sy, w, h, relOut, manifest) {
+  if (!decoded) return;
+  const out = Buffer.alloc(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const srcIdx = ((sy + y) * decoded.width + (sx + x)) * 4;
+      const dstIdx = (y * w + x) * 4;
+      out[dstIdx] = decoded.rgba[srcIdx];
+      out[dstIdx + 1] = decoded.rgba[srcIdx + 1];
+      out[dstIdx + 2] = decoded.rgba[srcIdx + 2];
+      out[dstIdx + 3] = decoded.rgba[srcIdx + 3];
+    }
+  }
+  const dest = path.join(OUT_DIR, relOut);
+  ensureDir(path.dirname(dest));
+  fs.writeFileSync(dest, encodePng(w, h, out));
+  const key = relOut.replace(/\.png$/i, '');
+  manifest.images[key] = { path: `assets/${relOut}`, width: w, height: h };
+}
+
+function extractSproutLands(manifest) {
+  const zipPath = path.join(ROOT, 'Sprout Lands - Sprites - premium pack.zip');
+  if (!fs.existsSync(zipPath)) return;
+
+  const mapFiles = {
+    'Sprout Lands - Sprites - premium pack/Objects/Farming Plants.png': 'sprout/farming_plants.png',
+    'Sprout Lands - Sprites - premium pack/Objects/Items/Farming Plants items.png': 'sprout/farming_items.png',
+    'Sprout Lands - Sprites - premium pack/Tilesets/Building parts/Wooden_House_Walls_Tilset.png': 'sprout/house_walls.png',
+    'Sprout Lands - Sprites - premium pack/Tilesets/Building parts/Wooden_House_Roof_Tilset.png': 'sprout/house_roof.png',
+    'Sprout Lands - Sprites - premium pack/Tilesets/Building parts/door animation sprites.png': 'sprout/house_door.png',
+    'Sprout Lands - Sprites - premium pack/Tilesets/Building parts/Basic_Furniture.png': 'sprout/furniture.png',
+    'Sprout Lands - Sprites - premium pack/Tilesets/Building parts/Fences.png': 'sprout/fences.png',
+    'Sprout Lands - Sprites - premium pack/Tilesets/Building parts/Fence gates animation sprites .png': 'sprout/fence_gates.png',
+    'Sprout Lands - Sprites - premium pack/Objects/Water well.png': 'sprout/water_well.png',
+    'Sprout Lands - Sprites - premium pack/Tilesets/Building parts/Mailbox Animation Frames.png': 'sprout/mailbox.png',
+    'Sprout Lands - Sprites - premium pack/Objects/Tree animations/tree apple sprites.png': 'sprout/tree_apple.png',
+    'Sprout Lands - Sprites - premium pack/Objects/Tree animations/tree orange sprites.png': 'sprout/tree_orange.png',
+    'Sprout Lands - Sprites - premium pack/Objects/Tree animations/tree peach sprites.png': 'sprout/tree_peach.png',
+    'Sprout Lands - Sprites - premium pack/Objects/Tree animations/tree pear sprites.png': 'sprout/tree_pear.png',
+  };
+
+  extractMatching(
+    'Sprout Lands - Sprites - premium pack.zip',
+    [
+      {
+        match: (n) => Boolean(mapFiles[n]),
+        map: (n) => mapFiles[n],
+      },
+    ],
+    manifest,
+  );
+
+  // Slice 14 crop icons from sprout/farming_items.png (col 1, rows 1..14)
+  const itemsBuf = fs.readFileSync(path.join(OUT_DIR, 'sprout/farming_items.png'));
+  const itemsDec = decodePngRgba(itemsBuf);
+  const cropIconNames = [
+    'corn',
+    'carrot_sl',
+    'cauliflower',
+    'tomato',
+    'eggplant',
+    'blue_tulip',
+    'cabbage',
+    'wheat',
+    'pumpkin',
+    'radish',
+    'pink_rose',
+    'beet',
+    'starfruit',
+    'cucumber',
+  ];
+  cropIconNames.forEach((name, i) => {
+    sliceAndSaveIcon(itemsDec, 16, (i + 1) * 16, 16, 16, `sprout_icons/${name}.png`, manifest);
+  });
+
+  // Slice house & furniture icons
+  const wallsDec = decodePngRgba(fs.readFileSync(path.join(OUT_DIR, 'sprout/house_walls.png')));
+  sliceAndSaveIcon(wallsDec, 16, 0, 16, 16, 'sprout_icons/house_wall.png', manifest);
+  sliceAndSaveIcon(wallsDec, 16, 32, 16, 16, 'sprout_icons/house_floor.png', manifest);
+
+  const doorDec = decodePngRgba(fs.readFileSync(path.join(OUT_DIR, 'sprout/house_door.png')));
+  sliceAndSaveIcon(doorDec, 0, 0, 16, 16, 'sprout_icons/house_door.png', manifest);
+
+  const furnDec = decodePngRgba(fs.readFileSync(path.join(OUT_DIR, 'sprout/furniture.png')));
+  sliceAndSaveIcon(furnDec, 0, 32, 16, 16, 'sprout_icons/bed.png', manifest);
+  sliceAndSaveIcon(furnDec, 48, 16, 16, 16, 'sprout_icons/lamp.png', manifest);
+  sliceAndSaveIcon(furnDec, 48, 48, 16, 16, 'sprout_icons/table.png', manifest);
+  sliceAndSaveIcon(furnDec, 0, 80, 16, 16, 'sprout_icons/rug.png', manifest);
+
+  const gateDec = decodePngRgba(fs.readFileSync(path.join(OUT_DIR, 'sprout/fence_gates.png')));
+  sliceAndSaveIcon(gateDec, 0, 0, 16, 16, 'sprout_icons/fence_gate.png', manifest);
 }
 
 main();
