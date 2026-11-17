@@ -8,6 +8,7 @@ export type CraftingStation =
   | 'alchemy_lab'
   | 'frost_kiln'
   | 'infernal_forge'
+  | 'void_altar'
   | 'build';
 
 export interface Ingredient {
@@ -24,6 +25,7 @@ export type StructureType =
   | 'alchemy_lab'
   | 'frost_kiln'
   | 'infernal_forge'
+  | 'void_altar'
   | 'lighthouse'
   | 'mining_rod'
   | 'fish_trap'
@@ -156,6 +158,19 @@ export const RECIPES: RecipeDef[] = [
     ],
     structureType: 'infernal_forge',
     iconKey: 'objects/Anvil',
+  },
+  {
+    id: 'build_void_altar',
+    name: 'Void Altar',
+    station: 'build',
+    description: 'Tier 5 Endgame Station: fuses Void Spire drops & Monster Eggs into Lv.60 gear!',
+    ingredients: [
+      { itemId: 'obsidian', count: 8 },
+      { itemId: 'crystal', count: 8 },
+      { itemId: 'void_shard', count: 2 },
+    ],
+    structureType: 'void_altar',
+    iconKey: 'ui_icons/necro_rod',
   },
   {
     id: 'build_chest',
@@ -874,4 +889,113 @@ export const RECIPES: RecipeDef[] = [
     structureType: c.structureType,
     iconKey: c.iconKey,
   })),
+
+  // VOID ALTAR (Tier 5 Endgame: Rare Endless Drops + Monster Eggs)
+  {
+    id: 'craft_sword_astral',
+    name: 'Astral Reaver (Lv.35)',
+    station: 'void_altar',
+    description: '175 ATK, +20% Crit, +10% Speed. Fuses Void Shards & Owlbear Egg.',
+    ingredients: [
+      { itemId: 'void_shard', count: 4 },
+      { itemId: 'astral_essence', count: 2 },
+      { itemId: 'egg_owlbear', count: 1 },
+    ],
+    outputItemId: 'sword_astral',
+    outputCount: 1,
+    iconKey: 'ui_icons/sword_gold',
+    craftTimeMs: 7000,
+  },
+  {
+    id: 'craft_pickaxe_celestial',
+    name: 'Celestial Pickaxe (Lv.52)',
+    station: 'void_altar',
+    description: '140 Gather, 95 ATK. Fuses Astral Essence, Abyssal Core & Salamander Egg.',
+    ingredients: [
+      { itemId: 'astral_essence', count: 4 },
+      { itemId: 'abyssal_core', count: 2 },
+      { itemId: 'egg_salamander', count: 1 },
+    ],
+    outputItemId: 'pickaxe_celestial',
+    outputCount: 1,
+    iconKey: 'ui_icons/pickaxe_crystal',
+    craftTimeMs: 7500,
+  },
+  {
+    id: 'craft_sword_wyrmheart',
+    name: 'Wyrmheart Greatsword (Lv.60)',
+    station: 'void_altar',
+    description: '380 ATK, +26% Crit, +150 HP. Fuses Celestial Scales & Wyrmling/Hellhound Eggs!',
+    ingredients: [
+      { itemId: 'celestial_scale', count: 3 },
+      { itemId: 'abyssal_core', count: 3 },
+      { itemId: 'egg_wyrmling', count: 1 },
+      { itemId: 'egg_hellhound', count: 1 },
+    ],
+    outputItemId: 'sword_wyrmheart',
+    outputCount: 1,
+    iconKey: 'ui_icons/sword_obsidian',
+    craftTimeMs: 9000,
+  },
+  {
+    id: 'craft_armor_voidwalker',
+    name: 'Voidwalker Battlegear (Lv.60)',
+    station: 'void_altar',
+    description: '+65 Armor, +420 HP, +45 ATK. Fuses Abyssal Cores & Oni/Griffin Eggs!',
+    ingredients: [
+      { itemId: 'abyssal_core', count: 3 },
+      { itemId: 'celestial_scale', count: 2 },
+      { itemId: 'egg_oni', count: 1 },
+      { itemId: 'egg_griffin', count: 1 },
+    ],
+    outputItemId: 'armor_voidwalker',
+    outputCount: 1,
+    iconKey: 'ui_icons/armor_obsidian',
+    craftTimeMs: 9000,
+  },
+  {
+    id: 'craft_trinket_chrono',
+    name: 'Chrono Band (Lv.45)',
+    station: 'void_altar',
+    description: 'Trinket: +22% Speed, +15% Crit, +60 Max EN.',
+    ingredients: [
+      { itemId: 'void_shard', count: 5 },
+      { itemId: 'astral_essence', count: 3 },
+      { itemId: 'egg_bat', count: 1 },
+    ],
+    outputItemId: 'trinket_chrono',
+    outputCount: 1,
+    iconKey: 'ui_icons/ring_copper',
+    craftTimeMs: 6500,
+  },
+  {
+    id: 'craft_trinket_abyssal',
+    name: 'Abyssal Heart (Lv.58)',
+    station: 'void_altar',
+    description: 'Trinket: +55 ATK, +180 HP, +18 Armor, +18% Crit.',
+    ingredients: [
+      { itemId: 'abyssal_core', count: 3 },
+      { itemId: 'celestial_scale', count: 2 },
+      { itemId: 'egg_mummy', count: 1 },
+    ],
+    outputItemId: 'trinket_abyssal',
+    outputCount: 1,
+    iconKey: 'ui_icons/amulet_dragon',
+    craftTimeMs: 8000,
+  },
+  {
+    id: 'craft_gadget_meteor',
+    name: 'Meteor Totem',
+    station: 'void_altar',
+    description: 'Cooldown Gadget: 220 AoE Meteor blast (9s CD).',
+    ingredients: [
+      { itemId: 'astral_essence', count: 3 },
+      { itemId: 'void_shard', count: 4 },
+      { itemId: 'egg_hellhound', count: 1 },
+    ],
+    outputItemId: 'gadget_meteor',
+    outputCount: 1,
+    iconKey: 'ui_icons/fire_rod',
+    craftTimeMs: 7000,
+  },
 ];

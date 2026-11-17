@@ -19,6 +19,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     | 'alchemy_lab'
     | 'frost_kiln'
     | 'infernal_forge'
+    | 'void_altar'
     | 'chest';
   public readonly collisionOffsetY: number;
   public readonly collisionRadius: number;
@@ -105,6 +106,13 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         this.interactStation = 'infernal_forge';
         this.auraCircle = scene.add.circle(0, 0, 24, 0xff6b4a, 0.12).setStrokeStyle(1, 0xff6b4a, 0.4);
         this.mainSprite = scene.add.image(0, 2, 'objects/Anvil').setOrigin(0.5, 0.75).setTint(0xff8066).setScale(1.15);
+        this.add([this.auraCircle, this.mainSprite]);
+        break;
+      }
+      case 'void_altar': {
+        this.interactStation = 'void_altar';
+        this.auraCircle = scene.add.circle(0, 0, 26, 0xa864ff, 0.14).setStrokeStyle(1, 0xd8a8ff, 0.5);
+        this.mainSprite = scene.add.image(0, 2, 'objects/Anvil').setOrigin(0.5, 0.75).setTint(0xc77dff).setScale(1.2);
         this.add([this.auraCircle, this.mainSprite]);
         break;
       }

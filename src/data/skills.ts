@@ -4,7 +4,7 @@ export interface SkillDef {
   id: string;
   name: string;
   pillar: SkillPillar;
-  tier: 1 | 2 | 3 | 4 | 5;
+  tier: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   description: string;
   requires?: string;
 }
@@ -57,6 +57,30 @@ export const SKILLS: SkillDef[] = [
     requires: 'foraging_fishing',
     description: 'Doubles item pickup radius and increases max Energy by +40.',
   },
+  {
+    id: 'foraging_egg_whisperer',
+    name: 'Egg Whisperer',
+    pillar: 'foraging',
+    tier: 6,
+    requires: 'foraging_magnet',
+    description: 'Ranch creatures lay eggs 35% faster and wild egg drops are boosted.',
+  },
+  {
+    id: 'foraging_apex_harvest',
+    name: 'Apex Harvester',
+    pillar: 'foraging',
+    tier: 7,
+    requires: 'foraging_egg_whisperer',
+    description: '+40% gather damage to all nodes and +30 Max Energy.',
+  },
+  {
+    id: 'foraging_sovereign',
+    name: "Nature's Sovereign",
+    pillar: 'foraging',
+    tier: 8,
+    requires: 'foraging_apex_harvest',
+    description: '+50% chance for double crop & node harvests.',
+  },
 
   // INDUSTRY
   {
@@ -97,6 +121,30 @@ export const SKILLS: SkillDef[] = [
     tier: 5,
     requires: 'industry_prospecting',
     description: 'Mining Rods & Fish Traps operate 2x faster.',
+  },
+  {
+    id: 'industry_void_smith',
+    name: 'Void Smithing',
+    pillar: 'industry',
+    tier: 6,
+    requires: 'industry_overclock',
+    description: 'Void Altar & Infernal Forge craft 35% faster.',
+  },
+  {
+    id: 'industry_astral_yield',
+    name: 'Astral Refining',
+    pillar: 'industry',
+    tier: 7,
+    requires: 'industry_void_smith',
+    description: '+25% bonus rare material drops in the Void Spire.',
+  },
+  {
+    id: 'industry_apex_auto',
+    name: 'Apex Automation',
+    pillar: 'industry',
+    tier: 8,
+    requires: 'industry_astral_yield',
+    description: 'Reforging grants +15% extra stat scaling.',
   },
 
   // ECONOMY
@@ -139,6 +187,30 @@ export const SKILLS: SkillDef[] = [
     requires: 'economy_land_baron',
     description: 'Every harvested node has a 25% chance to drop Gold Coins.',
   },
+  {
+    id: 'economy_void_fortune',
+    name: 'Abyssal Fortune',
+    pillar: 'economy',
+    tier: 6,
+    requires: 'economy_golden_touch',
+    description: 'Void Spire chests & bosses drop +50% more Gold Coins.',
+  },
+  {
+    id: 'economy_imperial',
+    name: 'Imperial Merchant',
+    pillar: 'economy',
+    tier: 7,
+    requires: 'economy_void_fortune',
+    description: 'Selling eggs and rare relics grants +35% bonus Gold.',
+  },
+  {
+    id: 'economy_midas',
+    name: 'Midas Crown',
+    pillar: 'economy',
+    tier: 8,
+    requires: 'economy_imperial',
+    description: 'All coin drops are increased by +25%.',
+  },
 
   // MAGIC & COMBAT
   {
@@ -179,5 +251,29 @@ export const SKILLS: SkillDef[] = [
     tier: 5,
     requires: 'magic_vitality',
     description: 'Bow & Dungeon Relic Rods fire 30% faster and deal +35% damage.',
+  },
+  {
+    id: 'magic_astral_surge',
+    name: 'Astral Surge',
+    pillar: 'magic',
+    tier: 6,
+    requires: 'magic_archmage',
+    description: '+15% Crit Chance and +25% Weapon & Relic damage.',
+  },
+  {
+    id: 'magic_void_resilience',
+    name: 'Void Resilience',
+    pillar: 'magic',
+    tier: 7,
+    requires: 'magic_astral_surge',
+    description: '+120 Max HP and +15 Armor.',
+  },
+  {
+    id: 'magic_godslayer',
+    name: 'Godslayer Mastery',
+    pillar: 'magic',
+    tier: 8,
+    requires: 'magic_void_resilience',
+    description: '+35% damage vs. Bosses and Lv.30+ Void Spire enemies.',
   },
 ];

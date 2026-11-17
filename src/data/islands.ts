@@ -2,7 +2,7 @@ import type { TerrainType } from '../world/AutoTiler';
 
 export type BiomeKind = Exclude<TerrainType, 'water'>;
 
-export type DungeonId = 'skull_crypt' | 'sunken_tomb' | 'frost_cavern' | 'infernal_sanctum';
+export type DungeonId = 'skull_crypt' | 'sunken_tomb' | 'frost_cavern' | 'infernal_sanctum' | 'void_spire';
 
 export interface IslandNpcSpec {
   id: string;
@@ -210,3 +210,85 @@ export const ISLANDS: IslandSpec[] = [
 export function getIslandAt(gx: number, gy: number): IslandSpec | undefined {
   return ISLANDS.find((i) => i.gx === gx && i.gy === gy);
 }
+
+export function getBiomeChapter(biome: BiomeKind): 1 | 2 | 3 | 4 {
+  if (biome === 'grass') return 1;
+  if (biome === 'autumn' || biome === 'graveyard') return 2;
+  if (biome === 'winter') return 3;
+  return 4;
+}
+
+export function getIslandRecommendedLevel(spec: IslandSpec): number {
+  if (spec.biome === 'grass') return spec.starterOwned ? 1 : spec.baseCost >= 75 ? 3 : 2;
+  if (spec.biome === 'autumn') return spec.dungeonId ? 10 : spec.baseCost >= 135 ? 8 : 5;
+  if (spec.biome === 'graveyard') return spec.dungeonId ? 9 : spec.baseCost >= 145 ? 8 : 5;
+  if (spec.biome === 'winter') return spec.dungeonId ? 15 : spec.baseCost >= 190 ? 13 : 11;
+  return spec.dungeonId ? 20 : spec.baseCost >= 250 ? 18 : 15;
+}
+
+export interface StoryChapterMeta {
+  chapter: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+  title: string;
+  subtitle: string;
+  summary: string;
+  unlockHint: string;
+}
+
+export const STORY_CHAPTERS: StoryChapterMeta[] = [
+  {
+    chapter: 1,
+    title: 'Chapter 1: Castaway of Emerald Origin',
+    subtitle: 'Grasslands • Recommended Power Lv. 1–4',
+    summary: 'Shipwrecked with only a Rusty Shortsword, gather supplies, aid Farmer Bram & Old Barnaby, and reach Power Lv. 3.',
+    unlockHint: 'Complete "Harvest Time" & "Catch of the Day" (or reach Power Lv. 3) to lift the Misty Barrier to Autumn & Graveyard.',
+  },
+  {
+    chapter: 2,
+    title: 'Chapter 2: Ashes & Tombs',
+    subtitle: 'Autumn & Graveyard • Recommended Power Lv. 5–10',
+    summary: 'Build the Alchemist Lab, aid Smith Garrick & Alchemist Vesper, and conquer Skull Crypt & Sunken Tomb.',
+    unlockHint: 'Clear both Skull Crypt & Sunken Tomb to forge the Frostfire Compass and unlock Winter.',
+  },
+  {
+    chapter: 3,
+    title: 'Chapter 3: The Frozen Frontier',
+    subtitle: 'Winter • Recommended Power Lv. 11–15',
+    summary: 'Construct a Frostcrystal Kiln, forge glacial gear, and topple the Jotun Frost King in Frost Cavern.',
+    unlockHint: 'Clear Frost Cavern to claim the Ember Seal and unlock Infernal islands.',
+  },
+  {
+    chapter: 4,
+    title: 'Chapter 4: Heart of the Inferno',
+    subtitle: 'Infernal • Recommended Power Lv. 16–20',
+    summary: 'Ignite the Infernal Forge, temper Obsidian Battlegear, and defeat Ignis, Crimson Wyrm in Infernal Sanctum.',
+    unlockHint: 'Clear Infernal Sanctum to shatter the Void Seal and open the Endless Void Spire!',
+  },
+  {
+    chapter: 5,
+    title: 'Chapter 5: The Void Rift Opens',
+    subtitle: 'Void Spire Floors 1–5 • Power Lv. 21–30',
+    summary: 'Enter the Endless Void Spire on Emerald Origin. Battle Feywild & Yokai foes, gather Void Shards, and build a Void Altar.',
+    unlockHint: 'Defeat Oni Shogun on Void Spire Floor 5 to unlock Floor 6+.',
+  },
+  {
+    chapter: 6,
+    title: 'Chapter 6: Wyrmling Awakening',
+    subtitle: 'Void Spire Floors 6–10 • Power Lv. 31–40',
+    summary: 'Hunt Astral Essences and hatch Owlbear & Wyrmling Eggs to forge Tier 5 Astral weapons.',
+    unlockHint: 'Defeat the Emerald Wyrm on Void Spire Floor 10.',
+  },
+  {
+    chapter: 7,
+    title: 'Chapter 7: Fallen Celestials',
+    subtitle: 'Void Spire Floors 11–15 • Power Lv. 41–50',
+    summary: 'Face Oathbreaker Paladins, Beholders, and Storm Griffins to claim Abyssal Cores.',
+    unlockHint: 'Defeat Arch-Seraph Solarius on Void Spire Floor 15.',
+  },
+  {
+    chapter: 8,
+    title: 'Chapter 8: The Ancient Black Dragon',
+    subtitle: 'Void Spire Floors 16–20 • Power Lv. 51–60',
+    summary: 'Fuse Celestial Scales & Monster Eggs into Lv.60 Mythic Gear, then slay Obsidian Sovereign Vaelkor on Floor 20!',
+    unlockHint: 'Defeat the Ancient Black Dragon on Floor 20 and own all 25 islands for GRAND VICTORY!',
+  },
+];

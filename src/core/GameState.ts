@@ -1,5 +1,5 @@
 import { ITEMS, type EquipSlot, type GearStats, type ItemRarity } from '../data/items';
-import { ISLANDS, type DungeonId } from '../data/islands';
+import { ISLANDS, STORY_CHAPTERS, getBiomeChapter, type DungeonId } from '../data/islands';
 import { getQuestById, getQuestsForNpc, type QuestDef, type QuestObjective } from '../data/quests';
 import { RECIPES, type RecipeDef, type StructureType } from '../data/recipes';
 import { SKILLS } from '../data/skills';
@@ -109,6 +109,8 @@ export interface SaveData {
   savedNodes?: SavedNodeData[];
   savedDrops?: SavedDropData[];
   ranchCreatures?: RanchCreatureSave[];
+  voidSpireHighestFloor?: number;
+  finalBossDefeated?: boolean;
   playerPos?: { x: number; y: number };
 }
 
@@ -173,6 +175,8 @@ export class GameState {
   public savedNodes?: SavedNodeData[];
   public savedDrops?: SavedDropData[];
   public ranchCreatures: RanchCreatureSave[] = [];
+  public voidSpireHighestFloor = 0;
+  public finalBossDefeated = false;
   public playerPos?: { x: number; y: number };
 
   private listeners: Array<() => void> = [];
@@ -303,6 +307,8 @@ export class GameState {
     this.savedNodes = undefined;
     this.savedDrops = undefined;
     this.ranchCreatures = [];
+    this.voidSpireHighestFloor = 0;
+    this.finalBossDefeated = false;
     this.playerPos = undefined;
     this.hp = this.getMaxHp();
     this.energy = this.getMaxEnergy();
@@ -491,16 +497,70 @@ export class GameState {
   }
 
   public getMaxHp(): number {
-    let base = 100 + (this.level - 1) * 10 + this.getEquippedStats().maxHp;
+    let base = 60 + (this.level - 1) * 12 + this.getEquippedStats().maxHp;
     if (this.heroClass === 'Gladiator') base += 20;
     if (this.hasSkill('magic_vitality')) base += 40;
+    if (this.hasSkill('magic_void_resilience')) base += 120;
     return base;
   }
 
   public getMaxEnergy(): number {
-    let base = 100 + (this.level - 1) * 5 + this.getEquippedStats().maxEnergy;
+    let base = 60 + (this.level - 1) * 6 + this.getEquippedStats().maxEnergy;
     if (this.hasSkill('foraging_magnet')) base += 40;
+    if (this.hasSkill('foraging_apex_harvest')) base += 30;
     return base;
+  }
+
+  public getGearLevel(itemId: string, instanceId?: string): number {
+    const baseLv = ITEMS[itemId]?.gearLevel ?? 1;
+    const refBonus = instanceId ? this.gearInstances[instanceId]?.reforgeCount ?? 0 : 0;
+    return baseLv + refBonus;
+  }
+
+  public getPowerLevel(): number {
+    const equippedLevels: number[] = [];
+    for (const slot of ALL_EQUIP_SLOTS) {
+      const id = this.equipment[slot];
+      if (id) equippedLevels.push(this.getGearLevel(id, this.equippedInstanceIds[slot]));
+    }
+    const avgGear =
+      equippedLevels.length > 0
+        ? equippedLevels.reduce((a, b) => a + b, 0) / equippedLevels.length
+        : 1;
+    return Math.max(1, Math.round((this.level + avgGear) / 2));
+  }
+
+  public getDamageScaleVsEnemy(enemyLevel: number): { dealMult: number; takeMult: number } {
+    const diff = enemyLevel - this.getPowerLevel();
+    if (diff < 3) return { dealMult: 1, takeMult: 1 };
+    const extra = diff - 2;
+    return {
+      dealMult: Math.max(0.35, 1 - extra * 0.12),
+      takeMult: 1 + Math.min(0.8, extra * 0.15),
+    };
+  }
+
+  public getStoryChapter(): 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 {
+    if (this.voidSpireHighestFloor >= 15) return 8;
+    if (this.voidSpireHighestFloor >= 10) return 7;
+    if (this.voidSpireHighestFloor >= 5) return 6;
+    if (this.clearedDungeons.has('infernal_sanctum')) return 5;
+    if (this.clearedDungeons.has('frost_cavern')) return 4;
+    if (this.clearedDungeons.has('skull_crypt') && this.clearedDungeons.has('sunken_tomb')) return 3;
+    if ((this.completedQuests.has('farmer_1') && this.completedQuests.has('fisherman_1')) || this.getPowerLevel() >= 3) {
+      return 2;
+    }
+    return 1;
+  }
+
+  public getIslandStoryLockReason(gx: number, gy: number): string | null {
+    const spec = ISLANDS.find((i) => i.gx === gx && i.gy === gy);
+    if (!spec) return 'Unknown island.';
+    const reqChapter = getBiomeChapter(spec.biome);
+    const curChapter = this.getStoryChapter();
+    if (reqChapter <= curChapter) return null;
+    const prevMeta = STORY_CHAPTERS.find((c) => c.chapter === reqChapter - 1);
+    return prevMeta?.unlockHint ?? `Advance to Story Chapter ${reqChapter} to unlock.`;
   }
 
   public getXpForNextLevel(): number {
@@ -813,6 +873,7 @@ export class GameState {
     const key = `${gx},${gy}`;
     if (this.ownedIslands.has(key)) return false;
     if (!this.isIslandAdjacentToOwned(gx, gy)) return false;
+    if (this.getIslandStoryLockReason(gx, gy)) return false;
     const cost = this.getIslandCost(gx, gy);
     if (this._coins < cost) return false;
     this.coins = this._coins - cost;
@@ -837,7 +898,9 @@ export class GameState {
   }
 
   public getArmorDefense(): number {
-    return this.getEquippedStats().armor;
+    let armor = this.getEquippedStats().armor;
+    if (this.hasSkill('magic_void_resilience')) armor += 15;
+    return armor;
   }
 
   public getGatherDamage(activeToolId?: string): number {
@@ -848,6 +911,7 @@ export class GameState {
     if (base <= 0) base = 10;
     if (this.heroClass === 'Beastmaster') base *= 1.15;
     if (this.hasSkill('foraging_gather')) base *= 1.25;
+    if (this.hasSkill('foraging_apex_harvest')) base *= 1.4;
     return Math.round(base);
   }
 
@@ -871,6 +935,7 @@ export class GameState {
       if (this.hasSkill('magic_archmage')) dmg *= 1.35;
     }
     if (this.hasSkill('magic_critical')) dmg *= 1.25;
+    if (this.hasSkill('magic_astral_surge')) dmg *= 1.25;
     // Also factor equipped weapon bonus if player swings with a relic/sword equipped
     if (!def?.equipSlot && eq.attack > 0) dmg += Math.round(eq.attack * 0.25);
     return Math.round(dmg);
@@ -889,11 +954,12 @@ export class GameState {
   public getCritChance(extraPct = 0): number {
     let chance = (this.heroClass === 'Swashbuckler' ? 12 : 5) + this.getEquippedStats().critPct + extraPct;
     if (this.hasSkill('magic_critical')) chance += 20;
+    if (this.hasSkill('magic_astral_surge')) chance += 15;
     return Math.min(0.85, chance / 100);
   }
 
   public getMoveSpeed(): number {
-    let spd = this.heroClass === 'Swashbuckler' ? 102 : 92;
+    let spd = this.heroClass === 'Swashbuckler' ? 84 : 76;
     const eqSpd = this.getEquippedStats().speedPct;
     spd *= 1 + eqSpd / 100;
     if (this.hasSkill('magic_swift')) spd *= 1.15;
@@ -1069,6 +1135,8 @@ export class GameState {
       savedNodes: this.savedNodes,
       savedDrops: this.savedDrops,
       ranchCreatures: this.ranchCreatures,
+      voidSpireHighestFloor: this.voidSpireHighestFloor,
+      finalBossDefeated: this.finalBossDefeated,
       playerPos: this.playerPos,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -1130,6 +1198,8 @@ export class GameState {
       this.savedNodes = data.savedNodes;
       this.savedDrops = data.savedDrops;
       this.ranchCreatures = data.ranchCreatures ?? [];
+      this.voidSpireHighestFloor = data.voidSpireHighestFloor ?? 0;
+      this.finalBossDefeated = data.finalBossDefeated ?? false;
       this.playerPos = data.playerPos;
       this.emit();
       return true;

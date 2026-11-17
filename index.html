@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Forage Ahead — 2D Fantasy Action RPG</title>
     <style>
       * {
@@ -17,6 +17,8 @@
         height: 100%;
         overflow: hidden;
         background: #0d1624;
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
         font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
         color: #f6eedc;
       }
@@ -38,6 +40,7 @@
       #hud-root {
         position: absolute;
         inset: 0;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         pointer-events: none;
         z-index: 10;
       }

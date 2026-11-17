@@ -14,7 +14,8 @@ export type QueuedStationType =
   | 'bonfire'
   | 'alchemy_lab'
   | 'frost_kiln'
-  | 'infernal_forge';
+  | 'infernal_forge'
+  | 'void_altar';
 
 export interface StationQueueView {
   id: string;
@@ -24,7 +25,7 @@ export interface StationQueueView {
 }
 import { SFX } from '../core/SoundFX';
 import { ITEMS, RARITY_COLOR } from '../data/items';
-import { ISLANDS, WORLD_GRID_SIZE, getIslandAt } from '../data/islands';
+import { ISLANDS, STORY_CHAPTERS, WORLD_GRID_SIZE, getIslandAt, getIslandRecommendedLevel } from '../data/islands';
 import { MONSTERS } from '../data/monsters';
 import { IMPLEMENTED_FEATURES, OUTSTANDING_ITEMS } from '../data/projectProgress';
 import { QUESTS, getQuestById } from '../data/quests';
@@ -100,12 +101,21 @@ export class HudController {
   private toastMsg = '';
   private timeLabelText = 'Day 1 • Sunny';
   private bossInfo: { name: string; hp: number; maxHp: number; portrait?: string } | null = null;
+  private touchMoveVec = { x: 0, y: 0 };
+  private touchEnabled =
+    typeof window !== 'undefined' &&
+    ('ontouchstart' in window || navigator.maxTouchPoints > 0) &&
+    window.innerWidth <= 1150;
 
   private callbacks: {
     onBuyIsland: (gx: number, gy: number) => void;
     onSelectBuild: (recipeId: string) => void;
     onUseHotbarItem: (itemId: string) => void;
     onSave: () => void;
+    onTouchAction?: () => void;
+    onTouchInteract?: () => void;
+    onTouchDash?: () => void;
+    onTouchPlaceBuilding?: () => void;
     getStations?: (stationType: QueuedStationType) => StationQueueView[];
     onEnqueueCraft?: (stationId: string, recipeId: string) => boolean;
     onCancelCraft?: (stationId: string, queueIdx: number) => boolean;
@@ -118,6 +128,10 @@ export class HudController {
     onSelectBuild: (recipeId: string) => void;
     onUseHotbarItem: (itemId: string) => void;
     onSave: () => void;
+    onTouchAction?: () => void;
+    onTouchInteract?: () => void;
+    onTouchDash?: () => void;
+    onTouchPlaceBuilding?: () => void;
     getStations?: (stationType: QueuedStationType) => StationQueueView[];
     onEnqueueCraft?: (stationId: string, recipeId: string) => boolean;
     onCancelCraft?: (stationId: string, queueIdx: number) => boolean;
@@ -133,12 +147,109 @@ export class HudController {
 
     this.unsubChange = gameState.onChange(() => this.render());
     this.unsubVitals = gameState.onVitalsChange(() => this.updateVitalsInPlace());
-    this.unsubFeed = gameState.onInventoryFeed((ev) => this.pushInventoryFeed(ev));
+    this.unsubFeed = gameState.onInventoryFeed((ev) => {
+      this.updateVitalsInPlace();
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => this.updateVitalsInPlace());
+    }
+      this.pushInventoryFeed(ev);
+    });
     this.render();
   }
 
   public isBlockingInput(): boolean {
     return this.activeModal !== 'none';
+  }
+
+  private bindTouchControls(): void {
+    const joy = this.chromeLayer.querySelector<HTMLElement>('#hud-touch-joy');
+    const knob = this.chromeLayer.querySelector<HTMLElement>('#hud-touch-knob');
+    const touchRoot = this.chromeLayer.querySelector<HTMLElement>('#hud-touch-controls');
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener(
+        'touchstart',
+        () => {
+          if (!this.touchEnabled) {
+            this.touchEnabled = true;
+            if (touchRoot) {
+              touchRoot.style.display = this.activeModal === 'none' ? 'block' : 'none';
+            }
+          }
+        },
+        { once: true, passive: true },
+      );
+    }
+
+    if (joy && knob) {
+      let activeTouchId: number | null = null;
+      const updateStick = (clientX: number, clientY: number) => {
+        const rect = joy.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const maxR = 36;
+        const dx = clientX - cx;
+        const dy = clientY - cy;
+        const dist = Math.hypot(dx, dy);
+        const clamped = Math.min(maxR, dist);
+        const ang = Math.atan2(dy, dx);
+        const kx = Math.cos(ang) * clamped;
+        const ky = Math.sin(ang) * clamped;
+        knob.style.transform = `translate(${kx}px, ${ky}px)`;
+        if (dist > 6) {
+          this.touchMoveVec = { x: kx / maxR, y: ky / maxR };
+        } else {
+          this.touchMoveVec = { x: 0, y: 0 };
+        }
+      };
+      const resetStick = () => {
+        activeTouchId = null;
+        this.touchMoveVec = { x: 0, y: 0 };
+        knob.style.transform = 'translate(0px, 0px)';
+      };
+
+      joy.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (activeTouchId === null && e.changedTouches.length > 0) {
+          const t = e.changedTouches[0];
+          activeTouchId = t.identifier;
+          updateStick(t.clientX, t.clientY);
+        }
+      });
+      joy.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.identifier === activeTouchId) {
+            updateStick(t.clientX, t.clientY);
+          }
+        }
+      });
+      const onEnd = (e: TouchEvent) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activeTouchId) {
+            resetStick();
+          }
+        }
+      };
+      joy.addEventListener('touchend', onEnd);
+      joy.addEventListener('touchcancel', onEnd);
+    }
+
+    const bindBtn = (id: string, fn?: () => void) => {
+      const btn = this.chromeLayer.querySelector<HTMLElement>(id);
+      if (!btn || !fn) return;
+      btn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        fn();
+      });
+    };
+    bindBtn('#hud-touch-act', this.callbacks.onTouchAction);
+    bindBtn('#hud-touch-use', this.callbacks.onTouchInteract);
+    bindBtn('#hud-touch-dash', this.callbacks.onTouchDash);
   }
 
   public destroy(): void {
@@ -549,8 +660,92 @@ export class HudController {
         transform: translateY(-8px);
         transition: opacity 340ms ease, transform 340ms ease;
       }
+
+      /* Mobile / Touch Controls (hidden on desktop) */
+      .touch-joy-base {
+        position: absolute;
+        left: 22px;
+        bottom: 84px;
+        width: 108px;
+        height: 108px;
+        border-radius: 50%;
+        background: rgba(15, 25, 40, 0.52);
+        border: 2px solid rgba(110, 155, 200, 0.55);
+        touch-action: none;
+        z-index: 26;
+      }
+      .touch-joy-knob {
+        position: absolute;
+        left: 34px;
+        top: 34px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: rgba(255, 224, 102, 0.72);
+        border: 2px solid #fff3c4;
+        pointer-events: none;
+      }
+      .touch-actions-wrap {
+        position: absolute;
+        right: 132px;
+        bottom: 84px;
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+        z-index: 26;
+      }
+      .touch-act-btn {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: rgba(17, 29, 46, 0.72);
+        border: 2px solid #6389b0;
+        color: #f6eedc;
+        font-size: 11px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        touch-action: none;
+      }
+      .touch-act-btn.primary {
+        width: 64px;
+        height: 64px;
+        background: rgba(45, 92, 62, 0.8);
+        border-color: #7ae398;
+      }
+      .touch-act-btn:active {
+        transform: scale(0.93);
+      }
+
+      .nav-short { display: none; }
+      @media (max-width: 1120px) {
+        .nav-full, .nav-key { display: none; }
+        .nav-short { display: inline; }
+        #hud-vitals-panel { padding: 4px 6px !important; gap: 6px !important; max-width: 245px; }
+        #hud-vitals-panel img.px-icon[style*="42px"] { width: 28px !important; height: 28px !important; }
+        #hud-vitals-panel .bar-track { width: 84px; height: 7px; }
+        #hud-time-badge { font-size: 9px !important; padding: 0px 4px !important; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #hud-top-nav { max-width: calc(100vw - 265px) !important; gap: 4px !important; }
+        #hud-top-nav .hud-btn { padding: 4px 7px; font-size: 10px; }
+        #hud-minimap-canvas { width: 80px !important; height: 80px !important; }
+        .touch-actions-wrap { right: 118px; bottom: 68px; gap: 7px; }
+        .touch-act-btn { width: 46px; height: 46px; font-size: 10px; }
+        .touch-act-btn.primary { width: 54px; height: 54px; }
+        .touch-joy-base { left: 16px; bottom: 68px; width: 92px; height: 92px; }
+        .touch-joy-knob { left: 28px; top: 28px; width: 36px; height: 36px; }
+        .hotbar-dock { padding: 4px; gap: 3px; }
+        .hotbar-slot { width: 38px; height: 38px; }
+        .ledger-window { width: 98vw; height: 92vh; }
+        .ledger-body { -webkit-overflow-scrolling: touch; padding: 10px; }
+        .diablo-grid { grid-template-columns: 185px 1fr !important; }
+      }
     `;
     document.head.appendChild(style);
+  }
+
+  public getTouchMoveVector(): { x: number; y: number } {
+    return this.touchMoveVec;
   }
 
   public render(): void {
@@ -558,6 +753,10 @@ export class HudController {
     this.renderBanners();
     this.renderModal();
     this.renderHotbar();
+    const touchEl = this.chromeLayer?.querySelector<HTMLElement>('#hud-touch-controls');
+    if (touchEl) {
+      touchEl.style.display = this.touchEnabled && this.activeModal === 'none' ? 'block' : 'none';
+    }
   }
 
   private updateVitalsInPlace(): void {
@@ -593,12 +792,18 @@ export class HudController {
     }
 
     const trackerEl = this.chromeLayer.querySelector<HTMLElement>('#hud-quest-tracker');
+    const topNavEl = this.chromeLayer.querySelector<HTMLElement>('#hud-top-nav');
+    const navBottom = topNavEl ? topNavEl.getBoundingClientRect().bottom : 44;
     if (trackerEl) {
       const tracked = gameState.getTrackedQuest();
       if (!tracked) {
         trackerEl.style.display = 'none';
+        this.feedLayer.style.top = `${Math.max(54, navBottom + 8)}px`;
       } else {
         trackerEl.style.display = 'block';
+        trackerEl.style.top = `${Math.max(52, navBottom + 6)}px`;
+        const trackerRect = trackerEl.getBoundingClientRect();
+        this.feedLayer.style.top = `${Math.max(56, trackerRect.bottom + 8)}px`;
         const ready = gameState.isQuestReadyToTurnIn(tracked.id);
         const objHtml = tracked.objectives
           .map((o) => {
@@ -624,7 +829,7 @@ export class HudController {
 
     if (!this.chromeBuilt) {
       this.chromeLayer.innerHTML = `
-        <div class="hud-panel hud-interactive" style="position:absolute; top:10px; left:10px; padding:7px 10px; display:flex; gap:10px; align-items:center;">
+        <div id="hud-vitals-panel" class="hud-panel hud-interactive" style="position:absolute; top:10px; left:10px; padding:7px 10px; display:flex; gap:10px; align-items:center;">
           <img src="${portrait}" class="px-icon" style="width:42px; height:42px;" />
           <div style="display:flex; flex-direction:column; gap:3px;">
             <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700;">
@@ -651,13 +856,13 @@ export class HudController {
           </div>
         </div>
 
-        <div class="hud-interactive" style="position:absolute; top:10px; right:10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
-          <button class="hud-btn" data-nav="inventory">Character & Bag [I]</button>
-          <button class="hud-btn" data-nav="craft">Craft & Build [Tab]</button>
-          <button class="hud-btn" data-nav="skills" id="hud-skills-btn">Skills [K]</button>
-          <button class="hud-btn" data-nav="quests" id="hud-quests-btn">Quests [Q]</button>
-          <button class="hud-btn" data-nav="map" id="hud-map-btn">Islands [M]</button>
-          <button class="hud-btn" data-nav="progress" id="hud-progress-btn">Progress & Debug [P]</button>
+        <div id="hud-top-nav" class="hud-interactive" style="position:absolute; top:10px; right:10px; max-width:calc(100vw - 440px); display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end;">
+          <button class="hud-btn" data-nav="inventory"><span class="nav-full">Character & Bag</span><span class="nav-short">Bag</span><span class="nav-key"> [I]</span></button>
+          <button class="hud-btn" data-nav="craft"><span class="nav-full">Craft & Build</span><span class="nav-short">Craft</span><span class="nav-key"> [Tab]</span></button>
+          <button class="hud-btn" data-nav="skills" id="hud-skills-btn">Skills<span class="nav-key"> [K]</span></button>
+          <button class="hud-btn" data-nav="quests" id="hud-quests-btn">Quests<span class="nav-key"> [Q]</span></button>
+          <button class="hud-btn" data-nav="map" id="hud-map-btn"><span class="nav-full">Islands</span><span class="nav-short">Map</span><span class="nav-key"> [M]</span></button>
+          <button class="hud-btn" data-nav="progress" id="hud-progress-btn"><span class="nav-full">Progress & Debug</span><span class="nav-short">Debug</span><span class="nav-key"> [P]</span></button>
           <button class="hud-btn primary" data-action="save">Save</button>
           <button class="hud-btn" data-action="music" id="hud-music-btn">Music: Off</button>
           <button class="hud-btn" data-action="mute" id="hud-mute-btn">SFX</button>
@@ -672,6 +877,17 @@ export class HudController {
           </div>
           <div id="hud-minimap-body" style="display:block;">
             <canvas id="hud-minimap-canvas" width="108" height="108" style="display:block; border:1px solid #3c506b; border-radius:3px; image-rendering:pixelated;"></canvas>
+          </div>
+        </div>
+
+        <div id="hud-touch-controls" style="display:${this.touchEnabled ? 'block' : 'none'};">
+          <div id="hud-touch-joy" class="touch-joy-base hud-interactive">
+            <div id="hud-touch-knob" class="touch-joy-knob"></div>
+          </div>
+          <div class="touch-actions-wrap hud-interactive">
+            <button id="hud-touch-dash" class="touch-act-btn">DASH</button>
+            <button id="hud-touch-use" class="touch-act-btn">USE</button>
+            <button id="hud-touch-act" class="touch-act-btn primary">ACT</button>
           </div>
         </div>
       `;
@@ -695,10 +911,14 @@ export class HudController {
       this.chromeLayer.querySelector('#hud-minimap-toggle')?.addEventListener('click', () => {
         this.toggleMinimap();
       });
+      this.bindTouchControls();
       this.chromeBuilt = true;
     }
 
     this.updateVitalsInPlace();
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(() => this.updateVitalsInPlace());
+    }
 
     this.chromeLayer.querySelectorAll<HTMLElement>('[data-nav]').forEach((el) => {
       const nav = el.dataset.nav as HudModal;
@@ -739,8 +959,10 @@ export class HudController {
     if (gameState.pendingBuildRecipeId) {
       const rec = RECIPES.find((r) => r.id === gameState.pendingBuildRecipeId);
       html += `
-        <div class="hud-panel hud-interactive" style="position:absolute; bottom:78px; left:50%; transform:translateX(-50%); padding:6px 14px; font-size:12px; border-color:#ffe066; z-index:25;">
-          Placing: <strong>${rec?.name ?? ''}</strong> — Left-click valid tile • Right-click or <button class="hud-btn" data-action="cancel-build" style="padding:2px 6px; margin-left:4px;">Cancel [Esc]</button>
+        <div class="hud-panel hud-interactive" style="position:absolute; bottom:78px; left:50%; transform:translateX(-50%); padding:6px 14px; font-size:12px; border-color:#ffe066; z-index:25; display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center;">
+          <span>Placing: <strong>${rec?.name ?? ''}</strong>${this.touchEnabled ? '' : ' — Left-click valid tile • Right-click or'}</span>
+          ${this.touchEnabled ? `<button class="hud-btn primary" data-action="place-ahead" style="padding:3px 8px;">Place Ahead</button>` : ''}
+          <button class="hud-btn" data-action="cancel-build" style="padding:2px 6px;">Cancel${this.touchEnabled ? '' : ' [Esc]'}</button>
         </div>
       `;
     }
@@ -759,6 +981,12 @@ export class HudController {
       cancelBtn.onclick = () => {
         gameState.pendingBuildRecipeId = null;
         this.renderBanners();
+      };
+    }
+    const placeBtn = this.bannerLayer.querySelector<HTMLElement>('[data-action="place-ahead"]');
+    if (placeBtn) {
+      placeBtn.onclick = () => {
+        this.callbacks.onTouchPlaceBuilding?.();
       };
     }
   }
@@ -892,6 +1120,7 @@ export class HudController {
         const eqInstId = gameState.equippedInstanceIds[slot];
         const def = eqId ? ITEMS[eqId] : undefined;
         const rarity = eqId ? gameState.getGearRarity(eqId, eqInstId) : 'common';
+        const gearLv = eqId ? gameState.getGearLevel(eqId, eqInstId) : 0;
         const selected = this.selectedInspect?.kind === 'equip' && this.selectedInspect.slot === slot;
         return `
           <div class="equip-slot ${selected ? 'selected' : ''}" data-equip-slot="${slot}" draggable="${eqId ? 'true' : 'false'}">
@@ -899,7 +1128,7 @@ export class HudController {
               ${def?.iconKey ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:24px; height:24px; pointer-events:none;" />` : `<span style="font-size:10px; color:#4f6885;">—</span>`}
             </div>
             <div style="min-width:0; flex:1;">
-              <div style="font-size:9px; color:#8ba6c4; text-transform:uppercase;">${EQUIP_SLOT_LABELS[slot]}</div>
+              <div style="font-size:9px; color:#8ba6c4; text-transform:uppercase;">${EQUIP_SLOT_LABELS[slot]}${gearLv > 0 ? ` • Lv.${gearLv}` : ''}</div>
               <div style="font-size:11px; font-weight:700; color:${def ? RARITY_COLOR[rarity] : '#637a94'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                 ${def ? def.name : 'Empty'}
               </div>
@@ -940,6 +1169,7 @@ export class HudController {
           ${equipSlotsHtml}
           <div class="hud-panel" style="padding:8px; background:#0d1522; font-size:11px; display:flex; flex-direction:column; gap:3px;">
             <div style="font-weight:700; color:#9ec6eb; margin-bottom:2px;">Character Stats</div>
+            <div style="display:flex; justify-content:space-between;"><span>Power Level</span><strong style="color:#ffd242;">Lv.${gameState.getPowerLevel()}</strong></div>
             <div style="display:flex; justify-content:space-between;"><span>Attack Power</span><strong style="color:#ff9b85;">${atkTotal}</strong></div>
             <div style="display:flex; justify-content:space-between;"><span>Gather Power</span><strong style="color:#8ef5a7;">${gatherTotal}</strong></div>
             <div style="display:flex; justify-content:space-between;"><span>Armor Defense</span><strong style="color:#8cc8ff;">${eqStats.armor}</strong></div>
@@ -1108,7 +1338,8 @@ export class HudController {
       this.activeStationTab !== 'bonfire' &&
       this.activeStationTab !== 'alchemy_lab' &&
       this.activeStationTab !== 'frost_kiln' &&
-      this.activeStationTab !== 'infernal_forge'
+      this.activeStationTab !== 'infernal_forge' &&
+      this.activeStationTab !== 'void_altar'
     ) {
       return null;
     }
@@ -1142,6 +1373,7 @@ export class HudController {
       { id: 'alchemy_lab', label: 'Alchemy Lab' },
       { id: 'frost_kiln', label: 'Frost Kiln' },
       { id: 'infernal_forge', label: 'Infernal Forge' },
+      { id: 'void_altar', label: 'Void Altar' },
     ];
     const isQueuedStation =
       this.activeStationTab === 'furnace' ||
@@ -1149,7 +1381,8 @@ export class HudController {
       this.activeStationTab === 'bonfire' ||
       this.activeStationTab === 'alchemy_lab' ||
       this.activeStationTab === 'frost_kiln' ||
-      this.activeStationTab === 'infernal_forge';
+      this.activeStationTab === 'infernal_forge' ||
+      this.activeStationTab === 'void_altar';
 
     const stations = isQueuedStation
       ? (this.callbacks.getStations?.(this.activeStationTab as QueuedStationType) ?? [])
@@ -1350,19 +1583,27 @@ export class HudController {
         const owned = gameState.ownedIslands.has(`${gx},${gy}`);
         const adj = gameState.isIslandAdjacentToOwned(gx, gy);
         const cost = gameState.getIslandCost(gx, gy);
-        const canBuy = adj && gameState.coins >= cost;
+        const recLv = getIslandRecommendedLevel(spec);
+        const storyLock = gameState.getIslandStoryLockReason(gx, gy);
+        const canBuy = adj && !storyLock && gameState.coins >= cost;
+        const lvColor = recLv - gameState.getPowerLevel() >= 3 ? '#ff7d87' : '#9db6cf';
         gridHtml += `
-          <div class="hud-panel" style="padding:8px; background:${owned ? biomeColors[spec.biome] : 'rgba(15,24,38,0.85)'}; border-color:${owned ? '#a3f7b5' : adj ? '#ffe066' : '#2d4057'}; display:flex; flex-direction:column; justify-content:space-between; min-height:78px;">
+          <div class="hud-panel" style="padding:8px; background:${owned ? biomeColors[spec.biome] : 'rgba(15,24,38,0.85)'}; border-color:${owned ? '#a3f7b5' : storyLock ? '#5c3842' : adj ? '#ffe066' : '#2d4057'}; display:flex; flex-direction:column; justify-content:space-between; min-height:82px;" title="${storyLock ?? ''}">
             <div>
-              <div style="font-size:11px; font-weight:700;">${spec.name}</div>
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
+                <span style="font-size:11px; font-weight:700;">${spec.name}</span>
+                <span style="font-size:9px; color:${owned ? '#e6ffea' : lvColor}; font-weight:700;">Lv.${recLv}</span>
+              </div>
               <div style="font-size:10px; opacity:0.88; text-transform:capitalize;">${spec.biome}${spec.dungeonId ? ' • Dungeon' : ''}${spec.npc ? ' • NPC' : ''}</div>
             </div>
             ${
               owned
                 ? `<span style="font-size:10px; font-weight:700; color:#e6ffea;">OWNED</span>`
-                : adj
-                  ? `<button class="hud-btn ${canBuy ? 'gold' : ''}" ${canBuy ? '' : 'disabled'} data-buy-island="${gx},${gy}" style="padding:3px 6px; font-size:11px;">Buy ${cost}g</button>`
-                  : `<span style="font-size:10px; color:#7792ad;">Locked (${cost}g)</span>`
+                : storyLock
+                  ? `<span style="font-size:9px; color:#ff9ba3;">🔒 Story Ch.${spec.biome === 'autumn' || spec.biome === 'graveyard' ? 2 : spec.biome === 'winter' ? 3 : 4} (${cost}g)</span>`
+                  : adj
+                    ? `<button class="hud-btn ${canBuy ? 'gold' : ''}" ${canBuy ? '' : 'disabled'} data-buy-island="${gx},${gy}" style="padding:3px 6px; font-size:11px;">Buy ${cost}g</button>`
+                    : `<span style="font-size:10px; color:#7792ad;">Locked (${cost}g)</span>`
             }
           </div>
         `;
@@ -1423,7 +1664,21 @@ export class HudController {
       .map((id) => getQuestById(id))
       .filter((q): q is NonNullable<typeof q> => Boolean(q));
 
+    const curChapter = gameState.getStoryChapter();
+    const chMeta = STORY_CHAPTERS.find((c) => c.chapter === curChapter) ?? STORY_CHAPTERS[0];
+    const storyBannerHtml = `
+      <div class="hud-panel" style="padding:10px 12px; margin-bottom:12px; background:linear-gradient(135deg, #162742, #101b2e); border-color:#ffd242;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+          <strong style="font-size:13px; color:#ffd242;">${chMeta.title}</strong>
+          <span style="font-size:10px; color:#8ef5a7; font-weight:700;">Your Power Lv.${gameState.getPowerLevel()} • ${chMeta.subtitle}</span>
+        </div>
+        <div style="font-size:11px; color:#d2e2f2; margin:4px 0;">${chMeta.summary}</div>
+        <div style="font-size:10px; color:#ffe596;">Next Milestone: ${chMeta.unlockHint}</div>
+      </div>
+    `;
+
     return `
+      ${storyBannerHtml}
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <div style="font-size:13px; font-weight:700; color:#ffe596;">Active Quests (${activeIds.length})</div>
         <div style="font-size:11px; color:#8ef5a7;">Completed: ${gameState.completedQuests.size}/${QUESTS.length}</div>
@@ -1525,13 +1780,15 @@ export class HudController {
       `;
 
     const isGrandVictory =
-      gameState.clearedDungeons.size >= 4 && gameState.ownedIslands.size >= ISLANDS.length;
+      gameState.finalBossDefeated &&
+      gameState.clearedDungeons.size >= 4 &&
+      gameState.ownedIslands.size >= ISLANDS.length;
 
     const victoryBannerHtml = isGrandVictory
       ? `
         <div class="hud-panel" style="padding:10px 14px; margin-bottom:12px; background:linear-gradient(90deg, #2b4a2f, #4c3b14); border-color:#ffe066; text-align:center;">
-          <strong style="color:#ffe596; font-size:14px;">GRAND VICTORY — ALL 25 ISLANDS & 4 BOSS DUNGEONS CONQUERED!</strong>
-          <div style="font-size:11px; color:#e6ffea; margin-top:2px;">You have mastered Forage Ahead and claimed all 4 Elemental Relic Rods.</div>
+          <strong style="color:#ffe596; font-size:14px;">GRAND VICTORY — ALL 25 ISLANDS, 4 DUNGEONS &amp; VOID SPIRE FINAL BOSS CONQUERED!</strong>
+          <div style="font-size:11px; color:#e6ffea; margin-top:2px;">You have defeated the Ancient Black Dragon on Floor 20 of the Void Spire and mastered Forage Ahead!</div>
         </div>
       `
       : '';
@@ -1556,6 +1813,7 @@ export class HudController {
           <div><span style="color:#8ca8c4;">Islands:</span> <strong>${gameState.ownedIslands.size}/${ISLANDS.length}</strong></div>
           <div><span style="color:#8ca8c4;">Skills:</span> <strong>${gameState.unlockedSkills.size}/${SKILLS.length}</strong></div>
           <div><span style="color:#8ca8c4;">Dungeons / Quests:</span> <strong>${gameState.clearedDungeons.size}/4 • ${gameState.completedQuests.size}/${QUESTS.length}</strong></div>
+          <div><span style="color:#8ca8c4;">Void Spire:</span> <strong style="color:#c77dff;">Floor ${gameState.voidSpireHighestFloor}</strong> • ${gameState.finalBossDefeated ? 'Final Boss Defeated' : 'Final Boss Alive'}</div>
           <div><span style="color:#8ca8c4;">Saved Cache:</span> <strong style="color:${worldStats?.hasSavedData ? '#8ef5a7' : '#9db6cf'};">${worldStats?.hasSavedData ? 'Saved in LocalStorage' : 'Clean / None'}</strong></div>
           ${
             worldStats

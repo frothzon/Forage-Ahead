@@ -532,6 +532,40 @@ export class OverworldScene extends Phaser.Scene {
       });
     }
 
+    // 1b. Void Spire Endless Dungeon Portal on Emerald Origin (2,2)
+    if (spec.gx === 2 && spec.gy === 2) {
+      const vTile = this.findNearestLandTileOnIsland(gx, gy, Math.floor(ISLAND_CELL_TILES * 0.72), Math.floor(ISLAND_CELL_TILES * 0.28));
+      const spr = this.add
+        .image(vTile.tx * TILE_PX + 8, vTile.ty * TILE_PX + 8, 'tileset/Cave entrance_2', 1)
+        .setTint(0xc77dff)
+        .setDepth(vTile.ty * TILE_PX + 8);
+      const unlocked = gameState.clearedDungeons.has('infernal_sanctum');
+      const checkpointFloor = Math.max(1, Math.floor(gameState.voidSpireHighestFloor / 5) * 5 + 1);
+      const prompt = this.add
+        .text(
+          spr.x,
+          spr.y - 16,
+          unlocked
+            ? `[E] Void Spire (Fl.${checkpointFloor})`
+            : 'Void Spire (Clear Infernal Sanctum)',
+          {
+            fontSize: '7px',
+            color: unlocked ? '#d896ff' : '#9988aa',
+            stroke: '#000',
+            strokeThickness: 2,
+          },
+        )
+        .setOrigin(0.5)
+        .setDepth(8000);
+      this.dungeonPortals.push({
+        dungeonId: 'void_spire',
+        x: spr.x,
+        y: spr.y,
+        sprite: spr,
+        prompt,
+      });
+    }
+
     // 2. Quest NPC (with grounded shadow overlapping feet)
     if (spec.npc) {
       const nTile = this.findNearestLandTileOnIsland(gx, gy, Math.floor(ISLAND_CELL_TILES * 0.36), half);
@@ -718,6 +752,11 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private attemptBuyIsland(gx: number, gy: number): void {
+    const lockReason = gameState.getIslandStoryLockReason(gx, gy);
+    if (lockReason) {
+      this.hud.showToast(lockReason);
+      return;
+    }
     if (!gameState.buyIsland(gx, gy)) {
       this.hud.showToast('Not enough Coins or island not adjacent!');
       return;
@@ -761,6 +800,28 @@ export class OverworldScene extends Phaser.Scene {
         gameState.save();
         SFX.playCraft();
         this.hud.showToast('Adventure Saved!');
+      },
+      onTouchAction: () => {
+        if (this.hud.isBlockingInput()) return;
+        const f = this.player.facing;
+        const dx = f === 'left' ? -28 : f === 'right' ? 28 : 0;
+        const dy = f === 'up' ? -28 : f === 'down' ? 28 : 0;
+        this.handlePrimaryAction(this.player.x + dx, this.player.y + dy);
+      },
+      onTouchInteract: () => {
+        if (!this.hud.isBlockingInput()) this.handleInteractKey();
+      },
+      onTouchDash: () => {
+        if (this.hud.isBlockingInput()) return;
+        const tv = this.hud.getTouchMoveVector();
+        this.player.tryDash(new Phaser.Math.Vector2(tv.x, tv.y));
+      },
+      onTouchPlaceBuilding: () => {
+        if (!gameState.pendingBuildRecipeId) return;
+        const f = this.player.facing;
+        const dx = f === 'left' ? -18 : f === 'right' ? 18 : 0;
+        const dy = f === 'up' ? -18 : f === 'down' ? 18 : 0;
+        this.tryPlaceBuilding(this.player.x + dx, this.player.y + dy);
       },
       getStations: (stationType) =>
         this.buildings
@@ -1364,7 +1425,9 @@ export class OverworldScene extends Phaser.Scene {
   private damageEnemy(enemy: Enemy, baseDmg: number, dirX: number, dirY: number): void {
     const bonusCrit = this.player.dodgeMomentumMs > 0 ? 15 : 0;
     const crit = Math.random() < gameState.getCritChance(bonusCrit);
-    const dmg = crit ? Math.round(baseDmg * 2) : baseDmg;
+    const scale = gameState.getDamageScaleVsEnemy(enemy.def.level);
+    const rawDmg = crit ? Math.round(baseDmg * 2) : baseDmg;
+    const dmg = Math.max(1, Math.round(rawDmg * scale.dealMult));
     SFX.playHit();
     spawnFloatingText(this, enemy.x, enemy.y - 16, crit ? `${dmg}!` : `${dmg}`, crit ? '#ffe066' : '#ffffff');
     spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, 5);
@@ -1433,11 +1496,20 @@ export class OverworldScene extends Phaser.Scene {
     // 1. Check nearby Dungeon Portal
     for (const dp of this.dungeonPortals) {
       if (Math.hypot(dp.x - this.player.x, dp.y - this.player.y) <= 28) {
+        if (dp.dungeonId === 'void_spire' && !gameState.clearedDungeons.has('infernal_sanctum')) {
+          this.hud.showToast('Clear the Infernal Sanctum (4th Dungeon) first to unlock the Void Spire!');
+          return;
+        }
         gameState.playerPos = { x: this.player.x, y: this.player.y + 16 };
         this.syncBuildingQueuesToSave();
         gameState.save();
         this.hud.destroy();
-        this.scene.start('DungeonScene', { dungeonId: dp.dungeonId });
+        if (dp.dungeonId === 'void_spire') {
+          const checkpointFloor = Math.max(1, Math.floor(gameState.voidSpireHighestFloor / 5) * 5 + 1);
+          this.scene.start('DungeonScene', { dungeonId: 'void_spire', floor: checkpointFloor });
+        } else {
+          this.scene.start('DungeonScene', { dungeonId: dp.dungeonId });
+        }
         return;
       }
     }
@@ -1629,11 +1701,14 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     if (!this.hud.isBlockingInput() && !this.fishingMinigame.isActive()) {
+      const tv = this.hud.getTouchMoveVector();
       const dir = new Phaser.Math.Vector2(
         (this.keys.D.isDown || this.keys.RIGHT.isDown ? 1 : 0) -
-          (this.keys.A.isDown || this.keys.LEFT.isDown ? 1 : 0),
+          (this.keys.A.isDown || this.keys.LEFT.isDown ? 1 : 0) +
+          tv.x,
         (this.keys.S.isDown || this.keys.DOWN.isDown ? 1 : 0) -
-          (this.keys.W.isDown || this.keys.UP.isDown ? 1 : 0),
+          (this.keys.W.isDown || this.keys.UP.isDown ? 1 : 0) +
+          tv.y,
       );
       if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
         if (this.player.tryDash(dir)) {
@@ -1793,7 +1868,8 @@ export class OverworldScene extends Phaser.Scene {
         }
       }
       if (rc.save.happiness >= 40 && rc.save.readyEggs < 3) {
-        rc.save.layTimerMs -= dt;
+        const eggSpeedMult = gameState.hasSkill('foraging_egg_whisperer') ? 1.35 : 1;
+        rc.save.layTimerMs -= dt * eggSpeedMult;
         if (rc.save.layTimerMs <= 0) {
           rc.save.layTimerMs = sp.layIntervalMs;
           rc.save.readyEggs += 1;
@@ -1833,8 +1909,9 @@ export class OverworldScene extends Phaser.Scene {
         this.isWalkable,
         {
           onMeleeHitPlayer: (dmg, dx, dy) => {
-            if (this.player.takeDamage(dmg, dx, dy, this.isWalkable)) {
-              spawnFloatingText(this, this.player.x, this.player.y - 14, `-${dmg}`, '#ff5e6c');
+            const scaled = Math.max(1, Math.round(dmg * gameState.getDamageScaleVsEnemy(e.def.level).takeMult));
+            if (this.player.takeDamage(scaled, dx, dy, this.isWalkable)) {
+              spawnFloatingText(this, this.player.x, this.player.y - 14, `-${scaled}`, '#ff5e6c');
               this.checkPlayerDeath();
             }
           },

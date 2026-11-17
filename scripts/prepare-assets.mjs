@@ -195,49 +195,16 @@ function main() {
     manifest,
   );
 
-  // 3. Fantasy RPG ultimate monster pack (by Franuka).zip
-  const selectedMonsters = new Set([
-    'Bog Dwellers/Slime',
-    'Bog Dwellers/Lizardfolk',
-    'Bog Dwellers/Medusa',
-    'Bog Dwellers/Beholder',
-    'Desertic/Mummy',
-    'Desertic/Anubis Warrior',
-    'Desertic/Djinn',
-    'Desertic/Purple Worm',
-    'Undead/Skeleton',
-    'Undead/Bat',
-    'Undead/Vampire',
-    'Undead/Death Knight',
-    'Undead/Lich',
-    'Frostlands/Ice Golem',
-    'Frostlands/Frost Salamander',
-    'Frostlands/Bheur Hag',
-    'Frostlands/Redcap',
-    'Frostlands/Frost Giant',
-    'Infernal/Imp',
-    'Infernal/Gog',
-    'Infernal/Hellhound',
-    'Infernal/Demon',
-    'Infernal/Efreet',
-    'Dragons/Adult Red Dragon',
-    'Wildlings/Goblin',
-    'Wildlings/Orc',
-  ]);
-
+  // 3. Fantasy RPG ultimate monster pack (by Franuka).zip — extract all 55 monsters
   extractMatching(
     'Fantasy RPG ultimate monster pack (by Franuka).zip',
     [
       {
         match: (n) => {
-          if (!n.startsWith('1x/') || !n.endsWith('.png')) return false;
+          if (!n.startsWith('1x/') || n.startsWith('1x/EXTRAS/') || !n.endsWith('.png')) return false;
           if (n.includes('hitbox.png')) return false;
-          if (/_attack\.png$/.test(n) || /_special\.png$/.test(n)) {
-            // prefer _NOhitbox if it exists, handled cleanly by allowing both or filtering
-          }
           const parts = n.slice(3).split('/');
-          if (parts.length < 3) return false;
-          return selectedMonsters.has(`${parts[0]}/${parts[1]}`);
+          return parts.length >= 3;
         },
         map: (n) => {
           const parts = n.slice(3).split('/');

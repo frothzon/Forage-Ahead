@@ -2845,6 +2845,36 @@
       "width": 256,
       "height": 256
     },
+    "monsters/Serpent Fly/SerpentFly_attack": {
+      "path": "assets/monsters/Serpent Fly/SerpentFly_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Serpent Fly/SerpentFly_die": {
+      "path": "assets/monsters/Serpent Fly/SerpentFly_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Serpent Fly/SerpentFly_fly": {
+      "path": "assets/monsters/Serpent Fly/SerpentFly_fly.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Serpent Fly/SerpentFly_hit": {
+      "path": "assets/monsters/Serpent Fly/SerpentFly_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Serpent Fly/SerpentFly_idle": {
+      "path": "assets/monsters/Serpent Fly/SerpentFly_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Serpent Fly/SerpentFly_special": {
+      "path": "assets/monsters/Serpent Fly/SerpentFly_special.png",
+      "width": 336,
+      "height": 192
+    },
     "monsters/Slime/Slime_attack": {
       "path": "assets/monsters/Slime/Slime_attack.png",
       "width": 240,
@@ -2909,6 +2939,36 @@
       "path": "assets/monsters/Anubis Warrior/AnubisWarrior_walk.png",
       "width": 192,
       "height": 224
+    },
+    "monsters/Bulette/Bulette_attack": {
+      "path": "assets/monsters/Bulette/Bulette_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Bulette/Bulette_die": {
+      "path": "assets/monsters/Bulette/Bulette_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Bulette/Bulette_hit": {
+      "path": "assets/monsters/Bulette/Bulette_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Bulette/Bulette_idle": {
+      "path": "assets/monsters/Bulette/Bulette_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Bulette/Bulette_special": {
+      "path": "assets/monsters/Bulette/Bulette_special.png",
+      "width": 432,
+      "height": 192
+    },
+    "monsters/Bulette/Bulette_walk": {
+      "path": "assets/monsters/Bulette/Bulette_walk.png",
+      "width": 192,
+      "height": 192
     },
     "monsters/Djinn/Djinn_attack": {
       "path": "assets/monsters/Djinn/Djinn_attack.png",
@@ -3043,6 +3103,126 @@
     "monsters/Adult Red Dragon/AdultRedDragon_special": {
       "path": "assets/monsters/Adult Red Dragon/AdultRedDragon_special.png",
       "width": 672,
+      "height": 384
+    },
+    "monsters/Ancient Black Dragon/AncientBlackDragon_attack": {
+      "path": "assets/monsters/Ancient Black Dragon/AncientBlackDragon_attack.png",
+      "width": 864,
+      "height": 576
+    },
+    "monsters/Ancient Black Dragon/AncientBlackDragon_death": {
+      "path": "assets/monsters/Ancient Black Dragon/AncientBlackDragon_death.png",
+      "width": 1296,
+      "height": 576
+    },
+    "monsters/Ancient Black Dragon/AncientBlackDragon_fly": {
+      "path": "assets/monsters/Ancient Black Dragon/AncientBlackDragon_fly.png",
+      "width": 576,
+      "height": 576
+    },
+    "monsters/Ancient Black Dragon/AncientBlackDragon_hit": {
+      "path": "assets/monsters/Ancient Black Dragon/AncientBlackDragon_hit.png",
+      "width": 288,
+      "height": 576
+    },
+    "monsters/Ancient Black Dragon/AncientBlackDragon_idle": {
+      "path": "assets/monsters/Ancient Black Dragon/AncientBlackDragon_idle.png",
+      "width": 576,
+      "height": 576
+    },
+    "monsters/Ancient Black Dragon/AncientBlackDragon_special": {
+      "path": "assets/monsters/Ancient Black Dragon/AncientBlackDragon_special.png",
+      "width": 1296,
+      "height": 576
+    },
+    "monsters/Blue Wyrmling/BlueWyrmling_attack": {
+      "path": "assets/monsters/Blue Wyrmling/BlueWyrmling_attack.png",
+      "width": 288,
+      "height": 192
+    },
+    "monsters/Blue Wyrmling/BlueWyrmling_die": {
+      "path": "assets/monsters/Blue Wyrmling/BlueWyrmling_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Blue Wyrmling/BlueWyrmling_hit": {
+      "path": "assets/monsters/Blue Wyrmling/BlueWyrmling_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Blue Wyrmling/BlueWyrmling_idle": {
+      "path": "assets/monsters/Blue Wyrmling/BlueWyrmling_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Blue Wyrmling/BlueWyrmling_special": {
+      "path": "assets/monsters/Blue Wyrmling/BlueWyrmling_special.png",
+      "width": 336,
+      "height": 192
+    },
+    "monsters/Blue Wyrmling/BlueWyrmling_walk": {
+      "path": "assets/monsters/Blue Wyrmling/BlueWyrmling_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Faerie Dragon/FaerieDragon_attack": {
+      "path": "assets/monsters/Faerie Dragon/FaerieDragon_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Faerie Dragon/FaerieDragon_die": {
+      "path": "assets/monsters/Faerie Dragon/FaerieDragon_die.png",
+      "width": 64,
+      "height": 256
+    },
+    "monsters/Faerie Dragon/FaerieDragon_fly": {
+      "path": "assets/monsters/Faerie Dragon/FaerieDragon_fly.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Faerie Dragon/FaerieDragon_hit": {
+      "path": "assets/monsters/Faerie Dragon/FaerieDragon_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Faerie Dragon/FaerieDragon_idle": {
+      "path": "assets/monsters/Faerie Dragon/FaerieDragon_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Faerie Dragon/FaerieDragon_special": {
+      "path": "assets/monsters/Faerie Dragon/FaerieDragon_special.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Young Green Dragon/YoungGreenDragon_attack": {
+      "path": "assets/monsters/Young Green Dragon/YoungGreenDragon_attack.png",
+      "width": 576,
+      "height": 384
+    },
+    "monsters/Young Green Dragon/YoungGreenDragon_die": {
+      "path": "assets/monsters/Young Green Dragon/YoungGreenDragon_die.png",
+      "width": 96,
+      "height": 384
+    },
+    "monsters/Young Green Dragon/YoungGreenDragon_fly": {
+      "path": "assets/monsters/Young Green Dragon/YoungGreenDragon_fly.png",
+      "width": 384,
+      "height": 384
+    },
+    "monsters/Young Green Dragon/YoungGreenDragon_hit": {
+      "path": "assets/monsters/Young Green Dragon/YoungGreenDragon_hit.png",
+      "width": 192,
+      "height": 384
+    },
+    "monsters/Young Green Dragon/YoungGreenDragon_idle": {
+      "path": "assets/monsters/Young Green Dragon/YoungGreenDragon_idle.png",
+      "width": 384,
+      "height": 384
+    },
+    "monsters/Young Green Dragon/YoungGreenDragon_special": {
+      "path": "assets/monsters/Young Green Dragon/YoungGreenDragon_special.png",
+      "width": 480,
       "height": 384
     },
     "icons/01 - Imp's tail": {
@@ -3535,6 +3715,196 @@
       "width": 18,
       "height": 15
     },
+    "monsters/Displacer Beast/DisplacerBeast_attack": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Displacer Beast/DisplacerBeast_die": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Displacer Beast/DisplacerBeast_hit": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Displacer Beast/DisplacerBeast_idle": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Displacer Beast/DisplacerBeast_special": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_special.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Displacer Beast/DisplacerBeast_special_illusion": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_special_illusion.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Displacer Beast/DisplacerBeast_special_illusion_attack": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_special_illusion_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Displacer Beast/DisplacerBeast_special_illusion_die": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_special_illusion_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Displacer Beast/DisplacerBeast_special_illusion_hit": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_special_illusion_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Displacer Beast/DisplacerBeast_special_illusion_idle": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_special_illusion_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Displacer Beast/DisplacerBeast_special_illusion_walk": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_special_illusion_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Displacer Beast/DisplacerBeast_walk": {
+      "path": "assets/monsters/Displacer Beast/DisplacerBeast_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Dryad/Dryad_attack": {
+      "path": "assets/monsters/Dryad/Dryad_attack.png",
+      "width": 192,
+      "height": 256
+    },
+    "monsters/Dryad/Dryad_die": {
+      "path": "assets/monsters/Dryad/Dryad_die.png",
+      "width": 64,
+      "height": 256
+    },
+    "monsters/Dryad/Dryad_hit": {
+      "path": "assets/monsters/Dryad/Dryad_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Dryad/Dryad_idle": {
+      "path": "assets/monsters/Dryad/Dryad_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Dryad/Dryad_special": {
+      "path": "assets/monsters/Dryad/Dryad_special.png",
+      "width": 384,
+      "height": 256
+    },
+    "monsters/Dryad/Dryad_special_vines_grow": {
+      "path": "assets/monsters/Dryad/Dryad_special_vines_grow.png",
+      "width": 192,
+      "height": 16
+    },
+    "monsters/Dryad/Dryad_special_vines_ungrow": {
+      "path": "assets/monsters/Dryad/Dryad_special_vines_ungrow.png",
+      "width": 128,
+      "height": 16
+    },
+    "monsters/Dryad/Dryad_walk": {
+      "path": "assets/monsters/Dryad/Dryad_walk.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Owlbear/Owlbear_attack": {
+      "path": "assets/monsters/Owlbear/Owlbear_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Owlbear/Owlbear_death": {
+      "path": "assets/monsters/Owlbear/Owlbear_death.png",
+      "width": 512,
+      "height": 256
+    },
+    "monsters/Owlbear/Owlbear_hit": {
+      "path": "assets/monsters/Owlbear/Owlbear_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Owlbear/Owlbear_idle": {
+      "path": "assets/monsters/Owlbear/Owlbear_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Owlbear/Owlbear_special": {
+      "path": "assets/monsters/Owlbear/Owlbear_special.png",
+      "width": 640,
+      "height": 256
+    },
+    "monsters/Owlbear/Owlbear_walk": {
+      "path": "assets/monsters/Owlbear/Owlbear_walk.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Pixie/Pixie_attack": {
+      "path": "assets/monsters/Pixie/Pixie_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Pixie/Pixie_die": {
+      "path": "assets/monsters/Pixie/Pixie_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Pixie/Pixie_fly": {
+      "path": "assets/monsters/Pixie/Pixie_fly.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Pixie/Pixie_hit": {
+      "path": "assets/monsters/Pixie/Pixie_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Pixie/Pixie_idle": {
+      "path": "assets/monsters/Pixie/Pixie_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Pixie/Pixie_special": {
+      "path": "assets/monsters/Pixie/Pixie_special.png",
+      "width": 384,
+      "height": 192
+    },
+    "monsters/Satyr/Satyr_attack": {
+      "path": "assets/monsters/Satyr/Satyr_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Satyr/Satyr_die": {
+      "path": "assets/monsters/Satyr/Satyr_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Satyr/Satyr_hit": {
+      "path": "assets/monsters/Satyr/Satyr_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Satyr/Satyr_idle": {
+      "path": "assets/monsters/Satyr/Satyr_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Satyr/Satyr_special": {
+      "path": "assets/monsters/Satyr/Satyr_special.png",
+      "width": 288,
+      "height": 224
+    },
+    "monsters/Satyr/Satyr_walk": {
+      "path": "assets/monsters/Satyr/Satyr_walk.png",
+      "width": 192,
+      "height": 224
+    },
     "monsters/Bheur Hag/BheurHag_attack": {
       "path": "assets/monsters/Bheur Hag/BheurHag_attack.png",
       "width": 240,
@@ -3875,6 +4245,351 @@
       "width": 192,
       "height": 192
     },
+    "monsters/Griffin/Griffin_attack": {
+      "path": "assets/monsters/Griffin/Griffin_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Griffin/Griffin_die": {
+      "path": "assets/monsters/Griffin/Griffin_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Griffin/Griffin_fly": {
+      "path": "assets/monsters/Griffin/Griffin_fly.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Griffin/Griffin_hit": {
+      "path": "assets/monsters/Griffin/Griffin_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Griffin/Griffin_idle": {
+      "path": "assets/monsters/Griffin/Griffin_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Griffin/Griffin_special": {
+      "path": "assets/monsters/Griffin/Griffin_special.png",
+      "width": 528,
+      "height": 192
+    },
+    "monsters/Griffin/Griffin_special_NOwhirlwind": {
+      "path": "assets/monsters/Griffin/Griffin_special_NOwhirlwind.png",
+      "width": 528,
+      "height": 192
+    },
+    "monsters/Griffin/Griffin_special_whirlwind": {
+      "path": "assets/monsters/Griffin/Griffin_special_whirlwind.png",
+      "width": 432,
+      "height": 192
+    },
+    "monsters/Paladin/Paladin_attack": {
+      "path": "assets/monsters/Paladin/Paladin_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Paladin/Paladin_die": {
+      "path": "assets/monsters/Paladin/Paladin_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Paladin/Paladin_hit": {
+      "path": "assets/monsters/Paladin/Paladin_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Paladin/Paladin_idle": {
+      "path": "assets/monsters/Paladin/Paladin_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Paladin/Paladin_special": {
+      "path": "assets/monsters/Paladin/Paladin_special.png",
+      "width": 528,
+      "height": 224
+    },
+    "monsters/Paladin/Paladin_walk": {
+      "path": "assets/monsters/Paladin/Paladin_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Peasant/Peasant_attack": {
+      "path": "assets/monsters/Peasant/Peasant_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Peasant/Peasant_die": {
+      "path": "assets/monsters/Peasant/Peasant_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Peasant/Peasant_hit": {
+      "path": "assets/monsters/Peasant/Peasant_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Peasant/Peasant_idle": {
+      "path": "assets/monsters/Peasant/Peasant_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Peasant/Peasant_special": {
+      "path": "assets/monsters/Peasant/Peasant_special.png",
+      "width": 576,
+      "height": 224
+    },
+    "monsters/Peasant/Peasant_special_NOpitchfork": {
+      "path": "assets/monsters/Peasant/Peasant_special_NOpitchfork.png",
+      "width": 576,
+      "height": 224
+    },
+    "monsters/Peasant/Peasant_walk": {
+      "path": "assets/monsters/Peasant/Peasant_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Planetar/Planetar_attack": {
+      "path": "assets/monsters/Planetar/Planetar_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Planetar/Planetar_death": {
+      "path": "assets/monsters/Planetar/Planetar_death.png",
+      "width": 512,
+      "height": 256
+    },
+    "monsters/Planetar/Planetar_fly": {
+      "path": "assets/monsters/Planetar/Planetar_fly.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Planetar/Planetar_hit": {
+      "path": "assets/monsters/Planetar/Planetar_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Planetar/Planetar_idle": {
+      "path": "assets/monsters/Planetar/Planetar_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Planetar/Planetar_special": {
+      "path": "assets/monsters/Planetar/Planetar_special.png",
+      "width": 896,
+      "height": 256
+    },
+    "monsters/Planetar/Planetar_special_projectile": {
+      "path": "assets/monsters/Planetar/Planetar_special_projectile.png",
+      "width": 22,
+      "height": 5
+    },
+    "monsters/Planetar/Planetar_special_projectile_impact": {
+      "path": "assets/monsters/Planetar/Planetar_special_projectile_impact.png",
+      "width": 33,
+      "height": 11
+    },
+    "monsters/Wizard/Wizard_attack": {
+      "path": "assets/monsters/Wizard/Wizard_attack.png",
+      "width": 240,
+      "height": 160
+    },
+    "monsters/Wizard/Wizard_die": {
+      "path": "assets/monsters/Wizard/Wizard_die.png",
+      "width": 48,
+      "height": 160
+    },
+    "monsters/Wizard/Wizard_hit": {
+      "path": "assets/monsters/Wizard/Wizard_hit.png",
+      "width": 96,
+      "height": 160
+    },
+    "monsters/Wizard/Wizard_idle": {
+      "path": "assets/monsters/Wizard/Wizard_idle.png",
+      "width": 192,
+      "height": 160
+    },
+    "monsters/Wizard/Wizard_special": {
+      "path": "assets/monsters/Wizard/Wizard_special.png",
+      "width": 192,
+      "height": 160
+    },
+    "monsters/Wizard/Wizard_special_projectile1": {
+      "path": "assets/monsters/Wizard/Wizard_special_projectile1.png",
+      "width": 7,
+      "height": 6
+    },
+    "monsters/Wizard/Wizard_special_projectile2": {
+      "path": "assets/monsters/Wizard/Wizard_special_projectile2.png",
+      "width": 6,
+      "height": 7
+    },
+    "monsters/Wizard/Wizard_special_projectile3": {
+      "path": "assets/monsters/Wizard/Wizard_special_projectile3.png",
+      "width": 5,
+      "height": 5
+    },
+    "monsters/Wizard/Wizard_special_projectile_impact": {
+      "path": "assets/monsters/Wizard/Wizard_special_projectile_impact.png",
+      "width": 30,
+      "height": 10
+    },
+    "monsters/Wizard/Wizard_walk": {
+      "path": "assets/monsters/Wizard/Wizard_walk.png",
+      "width": 192,
+      "height": 160
+    },
+    "monsters/Blemmyae/Blemmyae_attack": {
+      "path": "assets/monsters/Blemmyae/Blemmyae_attack.png",
+      "width": 144,
+      "height": 192
+    },
+    "monsters/Blemmyae/Blemmyae_die": {
+      "path": "assets/monsters/Blemmyae/Blemmyae_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Blemmyae/Blemmyae_hit": {
+      "path": "assets/monsters/Blemmyae/Blemmyae_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Blemmyae/Blemmyae_idle": {
+      "path": "assets/monsters/Blemmyae/Blemmyae_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Blemmyae/Blemmyae_special": {
+      "path": "assets/monsters/Blemmyae/Blemmyae_special.png",
+      "width": 384,
+      "height": 192
+    },
+    "monsters/Blemmyae/Blemmyae_walk": {
+      "path": "assets/monsters/Blemmyae/Blemmyae_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Elder Snail/ElderSnail_attack": {
+      "path": "assets/monsters/Elder Snail/ElderSnail_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Elder Snail/ElderSnail_die": {
+      "path": "assets/monsters/Elder Snail/ElderSnail_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Elder Snail/ElderSnail_hit": {
+      "path": "assets/monsters/Elder Snail/ElderSnail_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Elder Snail/ElderSnail_idle": {
+      "path": "assets/monsters/Elder Snail/ElderSnail_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Elder Snail/ElderSnail_special": {
+      "path": "assets/monsters/Elder Snail/ElderSnail_special.png",
+      "width": 432,
+      "height": 192
+    },
+    "monsters/Elder Snail/ElderSnail_walk": {
+      "path": "assets/monsters/Elder Snail/ElderSnail_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Fiddle Dog/FiddleDog_attack": {
+      "path": "assets/monsters/Fiddle Dog/FiddleDog_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Fiddle Dog/FiddleDog_die": {
+      "path": "assets/monsters/Fiddle Dog/FiddleDog_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Fiddle Dog/FiddleDog_hit": {
+      "path": "assets/monsters/Fiddle Dog/FiddleDog_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Fiddle Dog/FiddleDog_idle": {
+      "path": "assets/monsters/Fiddle Dog/FiddleDog_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Fiddle Dog/FiddleDog_special": {
+      "path": "assets/monsters/Fiddle Dog/FiddleDog_special.png",
+      "width": 384,
+      "height": 192
+    },
+    "monsters/Fiddle Dog/FiddleDog_walk": {
+      "path": "assets/monsters/Fiddle Dog/FiddleDog_walk.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Manticore Bishop/ManticoreBishop_attack": {
+      "path": "assets/monsters/Manticore Bishop/ManticoreBishop_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Manticore Bishop/ManticoreBishop_death": {
+      "path": "assets/monsters/Manticore Bishop/ManticoreBishop_death.png",
+      "width": 512,
+      "height": 256
+    },
+    "monsters/Manticore Bishop/ManticoreBishop_hit": {
+      "path": "assets/monsters/Manticore Bishop/ManticoreBishop_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Manticore Bishop/ManticoreBishop_idle": {
+      "path": "assets/monsters/Manticore Bishop/ManticoreBishop_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Manticore Bishop/ManticoreBishop_special": {
+      "path": "assets/monsters/Manticore Bishop/ManticoreBishop_special.png",
+      "width": 576,
+      "height": 256
+    },
+    "monsters/Manticore Bishop/ManticoreBishop_walk": {
+      "path": "assets/monsters/Manticore Bishop/ManticoreBishop_walk.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Rabbit Soldier/RabbitSoldier_attack": {
+      "path": "assets/monsters/Rabbit Soldier/RabbitSoldier_attack.png",
+      "width": 240,
+      "height": 192
+    },
+    "monsters/Rabbit Soldier/RabbitSoldier_die": {
+      "path": "assets/monsters/Rabbit Soldier/RabbitSoldier_die.png",
+      "width": 48,
+      "height": 192
+    },
+    "monsters/Rabbit Soldier/RabbitSoldier_hit": {
+      "path": "assets/monsters/Rabbit Soldier/RabbitSoldier_hit.png",
+      "width": 96,
+      "height": 192
+    },
+    "monsters/Rabbit Soldier/RabbitSoldier_idle": {
+      "path": "assets/monsters/Rabbit Soldier/RabbitSoldier_idle.png",
+      "width": 192,
+      "height": 192
+    },
+    "monsters/Rabbit Soldier/RabbitSoldier_special": {
+      "path": "assets/monsters/Rabbit Soldier/RabbitSoldier_special.png",
+      "width": 336,
+      "height": 192
+    },
+    "monsters/Rabbit Soldier/RabbitSoldier_walk": {
+      "path": "assets/monsters/Rabbit Soldier/RabbitSoldier_walk.png",
+      "width": 192,
+      "height": 192
+    },
     "monsters/Bat/Bat_attack": {
       "path": "assets/monsters/Bat/Bat_attack.png",
       "width": 240,
@@ -4045,6 +4760,36 @@
       "width": 192,
       "height": 224
     },
+    "monsters/Cyclops/Cyclops_attack": {
+      "path": "assets/monsters/Cyclops/Cyclops_attack.png",
+      "width": 240,
+      "height": 320
+    },
+    "monsters/Cyclops/Cyclops_die": {
+      "path": "assets/monsters/Cyclops/Cyclops_die.png",
+      "width": 80,
+      "height": 320
+    },
+    "monsters/Cyclops/Cyclops_hit": {
+      "path": "assets/monsters/Cyclops/Cyclops_hit.png",
+      "width": 160,
+      "height": 320
+    },
+    "monsters/Cyclops/Cyclops_idle": {
+      "path": "assets/monsters/Cyclops/Cyclops_idle.png",
+      "width": 320,
+      "height": 320
+    },
+    "monsters/Cyclops/Cyclops_special": {
+      "path": "assets/monsters/Cyclops/Cyclops_special.png",
+      "width": 1040,
+      "height": 320
+    },
+    "monsters/Cyclops/Cyclops_walk": {
+      "path": "assets/monsters/Cyclops/Cyclops_walk.png",
+      "width": 320,
+      "height": 320
+    },
     "monsters/Goblin/Goblin_attack": {
       "path": "assets/monsters/Goblin/Goblin_attack.png",
       "width": 240,
@@ -4075,6 +4820,36 @@
       "width": 192,
       "height": 192
     },
+    "monsters/Ogre/Ogre_attack": {
+      "path": "assets/monsters/Ogre/Ogre_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Ogre/Ogre_death": {
+      "path": "assets/monsters/Ogre/Ogre_death.png",
+      "width": 704,
+      "height": 256
+    },
+    "monsters/Ogre/Ogre_hit": {
+      "path": "assets/monsters/Ogre/Ogre_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Ogre/Ogre_idle": {
+      "path": "assets/monsters/Ogre/Ogre_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Ogre/Ogre_special": {
+      "path": "assets/monsters/Ogre/Ogre_special.png",
+      "width": 896,
+      "height": 256
+    },
+    "monsters/Ogre/Ogre_walk": {
+      "path": "assets/monsters/Ogre/Ogre_walk.png",
+      "width": 256,
+      "height": 256
+    },
     "monsters/Orc/Orc_attack": {
       "path": "assets/monsters/Orc/Orc_attack.png",
       "width": 240,
@@ -4104,6 +4879,206 @@
       "path": "assets/monsters/Orc/Orc_walk.png",
       "width": 192,
       "height": 224
+    },
+    "monsters/Wolf Rider/WolfRider_attack": {
+      "path": "assets/monsters/Wolf Rider/WolfRider_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Wolf Rider/WolfRider_die": {
+      "path": "assets/monsters/Wolf Rider/WolfRider_die.png",
+      "width": 64,
+      "height": 256
+    },
+    "monsters/Wolf Rider/WolfRider_hit": {
+      "path": "assets/monsters/Wolf Rider/WolfRider_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Wolf Rider/WolfRider_idle": {
+      "path": "assets/monsters/Wolf Rider/WolfRider_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Wolf Rider/WolfRider_special": {
+      "path": "assets/monsters/Wolf Rider/WolfRider_special.png",
+      "width": 448,
+      "height": 256
+    },
+    "monsters/Wolf Rider/WolfRider_special_projectile": {
+      "path": "assets/monsters/Wolf Rider/WolfRider_special_projectile.png",
+      "width": 80,
+      "height": 11
+    },
+    "monsters/Wolf Rider/WolfRider_special_projectile_impact": {
+      "path": "assets/monsters/Wolf Rider/WolfRider_special_projectile_impact.png",
+      "width": 30,
+      "height": 10
+    },
+    "monsters/Wolf Rider/WolfRider_walk": {
+      "path": "assets/monsters/Wolf Rider/WolfRider_walk.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Kappa/Kappa_attack": {
+      "path": "assets/monsters/Kappa/Kappa_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Kappa/Kappa_die": {
+      "path": "assets/monsters/Kappa/Kappa_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Kappa/Kappa_hit": {
+      "path": "assets/monsters/Kappa/Kappa_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Kappa/Kappa_idle": {
+      "path": "assets/monsters/Kappa/Kappa_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Kappa/Kappa_special": {
+      "path": "assets/monsters/Kappa/Kappa_special.png",
+      "width": 384,
+      "height": 224
+    },
+    "monsters/Kappa/Kappa_walk": {
+      "path": "assets/monsters/Kappa/Kappa_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Oni/Oni_attack": {
+      "path": "assets/monsters/Oni/Oni_attack.png",
+      "width": 320,
+      "height": 256
+    },
+    "monsters/Oni/Oni_die": {
+      "path": "assets/monsters/Oni/Oni_die.png",
+      "width": 64,
+      "height": 256
+    },
+    "monsters/Oni/Oni_hit": {
+      "path": "assets/monsters/Oni/Oni_hit.png",
+      "width": 128,
+      "height": 256
+    },
+    "monsters/Oni/Oni_idle": {
+      "path": "assets/monsters/Oni/Oni_idle.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Oni/Oni_move": {
+      "path": "assets/monsters/Oni/Oni_move.png",
+      "width": 256,
+      "height": 256
+    },
+    "monsters/Oni/Oni_special": {
+      "path": "assets/monsters/Oni/Oni_special.png",
+      "width": 640,
+      "height": 256
+    },
+    "monsters/Ronin/Ronin_attack": {
+      "path": "assets/monsters/Ronin/Ronin_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Ronin/Ronin_die": {
+      "path": "assets/monsters/Ronin/Ronin_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Ronin/Ronin_hit": {
+      "path": "assets/monsters/Ronin/Ronin_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Ronin/Ronin_idle": {
+      "path": "assets/monsters/Ronin/Ronin_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Ronin/Ronin_special": {
+      "path": "assets/monsters/Ronin/Ronin_special.png",
+      "width": 432,
+      "height": 224
+    },
+    "monsters/Ronin/Ronin_walk": {
+      "path": "assets/monsters/Ronin/Ronin_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Samurai/Samurai_attack": {
+      "path": "assets/monsters/Samurai/Samurai_attack.png",
+      "width": 240,
+      "height": 224
+    },
+    "monsters/Samurai/Samurai_die": {
+      "path": "assets/monsters/Samurai/Samurai_die.png",
+      "width": 48,
+      "height": 224
+    },
+    "monsters/Samurai/Samurai_hit": {
+      "path": "assets/monsters/Samurai/Samurai_hit.png",
+      "width": 96,
+      "height": 224
+    },
+    "monsters/Samurai/Samurai_idle": {
+      "path": "assets/monsters/Samurai/Samurai_idle.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Samurai/Samurai_special": {
+      "path": "assets/monsters/Samurai/Samurai_special.png",
+      "width": 336,
+      "height": 224
+    },
+    "monsters/Samurai/Samurai_special_arrow": {
+      "path": "assets/monsters/Samurai/Samurai_special_arrow.png",
+      "width": 17,
+      "height": 3
+    },
+    "monsters/Samurai/Samurai_special_arrow_impact": {
+      "path": "assets/monsters/Samurai/Samurai_special_arrow_impact.png",
+      "width": 30,
+      "height": 11
+    },
+    "monsters/Samurai/Samurai_walk": {
+      "path": "assets/monsters/Samurai/Samurai_walk.png",
+      "width": 192,
+      "height": 224
+    },
+    "monsters/Tengu/Tengu_attack": {
+      "path": "assets/monsters/Tengu/Tengu_attack.png",
+      "width": 480,
+      "height": 384
+    },
+    "monsters/Tengu/Tengu_death": {
+      "path": "assets/monsters/Tengu/Tengu_death.png",
+      "width": 1152,
+      "height": 384
+    },
+    "monsters/Tengu/Tengu_fly": {
+      "path": "assets/monsters/Tengu/Tengu_fly.png",
+      "width": 384,
+      "height": 384
+    },
+    "monsters/Tengu/Tengu_hit": {
+      "path": "assets/monsters/Tengu/Tengu_hit.png",
+      "width": 192,
+      "height": 384
+    },
+    "monsters/Tengu/Tengu_idle": {
+      "path": "assets/monsters/Tengu/Tengu_idle.png",
+      "width": 384,
+      "height": 384
+    },
+    "monsters/Tengu/Tengu_special": {
+      "path": "assets/monsters/Tengu/Tengu_special.png",
+      "width": 1344,
+      "height": 384
     },
     "ui_icons/pickaxe": {
       "path": "assets/ui_icons/pickaxe.png",
@@ -5369,6 +6344,55 @@
         }
       }
     },
+    "Serpent Fly": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "feetOffset": 8,
+      "anims": {
+        "attack": {
+          "key": "monsters/Serpent Fly/SerpentFly_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Serpent Fly/SerpentFly_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "fly": {
+          "key": "monsters/Serpent Fly/SerpentFly_fly",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Serpent Fly/SerpentFly_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Serpent Fly/SerpentFly_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Serpent Fly/SerpentFly_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 7,
+          "rows": 4
+        }
+      }
+    },
     "Slime": {
       "frameWidth": 48,
       "frameHeight": 48,
@@ -5469,6 +6493,55 @@
           "key": "monsters/Anubis Warrior/AnubisWarrior_walk",
           "frameWidth": 48,
           "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Bulette": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "feetOffset": 8,
+      "anims": {
+        "attack": {
+          "key": "monsters/Bulette/Bulette_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Bulette/Bulette_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Bulette/Bulette_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Bulette/Bulette_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Bulette/Bulette_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 9,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Bulette/Bulette_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
           "cols": 4,
           "rows": 4
         }
@@ -5687,6 +6760,503 @@
           "frameWidth": 112,
           "frameHeight": 96,
           "cols": 6,
+          "rows": 4
+        }
+      }
+    },
+    "Ancient Black Dragon": {
+      "frameWidth": 144,
+      "frameHeight": 144,
+      "feetOffset": 24,
+      "anims": {
+        "attack": {
+          "key": "monsters/Ancient Black Dragon/AncientBlackDragon_attack",
+          "frameWidth": 144,
+          "frameHeight": 144,
+          "cols": 6,
+          "rows": 4
+        },
+        "death": {
+          "key": "monsters/Ancient Black Dragon/AncientBlackDragon_death",
+          "frameWidth": 144,
+          "frameHeight": 144,
+          "cols": 9,
+          "rows": 4
+        },
+        "fly": {
+          "key": "monsters/Ancient Black Dragon/AncientBlackDragon_fly",
+          "frameWidth": 144,
+          "frameHeight": 144,
+          "cols": 4,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Ancient Black Dragon/AncientBlackDragon_hit",
+          "frameWidth": 144,
+          "frameHeight": 144,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Ancient Black Dragon/AncientBlackDragon_idle",
+          "frameWidth": 144,
+          "frameHeight": 144,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Ancient Black Dragon/AncientBlackDragon_special",
+          "frameWidth": 144,
+          "frameHeight": 144,
+          "cols": 9,
+          "rows": 4
+        }
+      }
+    },
+    "Blue Wyrmling": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "feetOffset": 8,
+      "anims": {
+        "attack": {
+          "key": "monsters/Blue Wyrmling/BlueWyrmling_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 6,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Blue Wyrmling/BlueWyrmling_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Blue Wyrmling/BlueWyrmling_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Blue Wyrmling/BlueWyrmling_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Blue Wyrmling/BlueWyrmling_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 7,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Blue Wyrmling/BlueWyrmling_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Faerie Dragon": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "feetOffset": 16,
+      "anims": {
+        "attack": {
+          "key": "monsters/Faerie Dragon/FaerieDragon_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Faerie Dragon/FaerieDragon_die",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 1,
+          "rows": 4
+        },
+        "fly": {
+          "key": "monsters/Faerie Dragon/FaerieDragon_fly",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Faerie Dragon/FaerieDragon_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Faerie Dragon/FaerieDragon_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Faerie Dragon/FaerieDragon_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Young Green Dragon": {
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "feetOffset": 16,
+      "anims": {
+        "attack": {
+          "key": "monsters/Young Green Dragon/YoungGreenDragon_attack",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 6,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Young Green Dragon/YoungGreenDragon_die",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 1,
+          "rows": 4
+        },
+        "fly": {
+          "key": "monsters/Young Green Dragon/YoungGreenDragon_fly",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 4,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Young Green Dragon/YoungGreenDragon_hit",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Young Green Dragon/YoungGreenDragon_idle",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Young Green Dragon/YoungGreenDragon_special",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 5,
+          "rows": 4
+        }
+      }
+    },
+    "Displacer Beast": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "feetOffset": 8,
+      "anims": {
+        "attack": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special_illusion": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_special_illusion",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special_illusion_attack": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_special_illusion_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "special_illusion_die": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_special_illusion_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "special_illusion_hit": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_special_illusion_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "special_illusion_idle": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_special_illusion_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special_illusion_walk": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_special_illusion_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Displacer Beast/DisplacerBeast_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Dryad": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "feetOffset": 16,
+      "anims": {
+        "attack": {
+          "key": "monsters/Dryad/Dryad_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 3,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Dryad/Dryad_die",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Dryad/Dryad_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Dryad/Dryad_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Dryad/Dryad_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 6,
+          "rows": 4
+        },
+        "special_vines_grow": {
+          "key": "monsters/Dryad/Dryad_special_vines_grow",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 3,
+          "rows": 1
+        },
+        "special_vines_ungrow": {
+          "key": "monsters/Dryad/Dryad_special_vines_ungrow",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 1
+        },
+        "walk": {
+          "key": "monsters/Dryad/Dryad_walk",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Owlbear": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "feetOffset": 16,
+      "anims": {
+        "attack": {
+          "key": "monsters/Owlbear/Owlbear_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "death": {
+          "key": "monsters/Owlbear/Owlbear_death",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 8,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Owlbear/Owlbear_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Owlbear/Owlbear_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Owlbear/Owlbear_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 10,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Owlbear/Owlbear_walk",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Pixie": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "feetOffset": 8,
+      "anims": {
+        "attack": {
+          "key": "monsters/Pixie/Pixie_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Pixie/Pixie_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "fly": {
+          "key": "monsters/Pixie/Pixie_fly",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Pixie/Pixie_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Pixie/Pixie_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Pixie/Pixie_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 8,
+          "rows": 4
+        }
+      }
+    },
+    "Satyr": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "feetOffset": 4,
+      "anims": {
+        "attack": {
+          "key": "monsters/Satyr/Satyr_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Satyr/Satyr_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Satyr/Satyr_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Satyr/Satyr_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Satyr/Satyr_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 6,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Satyr/Satyr_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
           "rows": 4
         }
       }
@@ -6223,6 +7793,517 @@
         }
       }
     },
+    "Griffin": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "feetOffset": 8,
+      "anims": {
+        "attack": {
+          "key": "monsters/Griffin/Griffin_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Griffin/Griffin_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "fly": {
+          "key": "monsters/Griffin/Griffin_fly",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Griffin/Griffin_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Griffin/Griffin_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Griffin/Griffin_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 11,
+          "rows": 4
+        },
+        "special_NOwhirlwind": {
+          "key": "monsters/Griffin/Griffin_special_NOwhirlwind",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 11,
+          "rows": 4
+        },
+        "special_whirlwind": {
+          "key": "monsters/Griffin/Griffin_special_whirlwind",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 9,
+          "rows": 4
+        }
+      }
+    },
+    "Paladin": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "feetOffset": 4,
+      "anims": {
+        "attack": {
+          "key": "monsters/Paladin/Paladin_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Paladin/Paladin_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Paladin/Paladin_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Paladin/Paladin_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Paladin/Paladin_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 11,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Paladin/Paladin_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Peasant": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "feetOffset": 4,
+      "anims": {
+        "attack": {
+          "key": "monsters/Peasant/Peasant_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Peasant/Peasant_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Peasant/Peasant_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Peasant/Peasant_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Peasant/Peasant_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 12,
+          "rows": 4
+        },
+        "special_NOpitchfork": {
+          "key": "monsters/Peasant/Peasant_special_NOpitchfork",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 12,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Peasant/Peasant_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Planetar": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "feetOffset": 16,
+      "anims": {
+        "attack": {
+          "key": "monsters/Planetar/Planetar_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "death": {
+          "key": "monsters/Planetar/Planetar_death",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 8,
+          "rows": 4
+        },
+        "fly": {
+          "key": "monsters/Planetar/Planetar_fly",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Planetar/Planetar_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Planetar/Planetar_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Planetar/Planetar_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 14,
+          "rows": 4
+        }
+      }
+    },
+    "Wizard": {
+      "frameWidth": 48,
+      "frameHeight": 40,
+      "feetOffset": 12,
+      "anims": {
+        "attack": {
+          "key": "monsters/Wizard/Wizard_attack",
+          "frameWidth": 48,
+          "frameHeight": 40,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Wizard/Wizard_die",
+          "frameWidth": 48,
+          "frameHeight": 40,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Wizard/Wizard_hit",
+          "frameWidth": 48,
+          "frameHeight": 40,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Wizard/Wizard_idle",
+          "frameWidth": 48,
+          "frameHeight": 40,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Wizard/Wizard_special",
+          "frameWidth": 48,
+          "frameHeight": 40,
+          "cols": 4,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Wizard/Wizard_walk",
+          "frameWidth": 48,
+          "frameHeight": 40,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Blemmyae": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "feetOffset": 8,
+      "anims": {
+        "attack": {
+          "key": "monsters/Blemmyae/Blemmyae_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 3,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Blemmyae/Blemmyae_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Blemmyae/Blemmyae_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Blemmyae/Blemmyae_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Blemmyae/Blemmyae_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 8,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Blemmyae/Blemmyae_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Elder Snail": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "feetOffset": 8,
+      "anims": {
+        "attack": {
+          "key": "monsters/Elder Snail/ElderSnail_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Elder Snail/ElderSnail_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Elder Snail/ElderSnail_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Elder Snail/ElderSnail_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Elder Snail/ElderSnail_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 9,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Elder Snail/ElderSnail_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Fiddle Dog": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "feetOffset": 8,
+      "anims": {
+        "attack": {
+          "key": "monsters/Fiddle Dog/FiddleDog_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Fiddle Dog/FiddleDog_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Fiddle Dog/FiddleDog_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Fiddle Dog/FiddleDog_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Fiddle Dog/FiddleDog_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 8,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Fiddle Dog/FiddleDog_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Manticore Bishop": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "feetOffset": 16,
+      "anims": {
+        "attack": {
+          "key": "monsters/Manticore Bishop/ManticoreBishop_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "death": {
+          "key": "monsters/Manticore Bishop/ManticoreBishop_death",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 8,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Manticore Bishop/ManticoreBishop_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Manticore Bishop/ManticoreBishop_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Manticore Bishop/ManticoreBishop_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 9,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Manticore Bishop/ManticoreBishop_walk",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Rabbit Soldier": {
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "feetOffset": 8,
+      "anims": {
+        "attack": {
+          "key": "monsters/Rabbit Soldier/RabbitSoldier_attack",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Rabbit Soldier/RabbitSoldier_die",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Rabbit Soldier/RabbitSoldier_hit",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Rabbit Soldier/RabbitSoldier_idle",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Rabbit Soldier/RabbitSoldier_special",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 7,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Rabbit Soldier/RabbitSoldier_walk",
+          "frameWidth": 48,
+          "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
     "Bat": {
       "frameWidth": 48,
       "frameHeight": 48,
@@ -6482,6 +8563,55 @@
         }
       }
     },
+    "Cyclops": {
+      "frameWidth": 80,
+      "frameHeight": 80,
+      "feetOffset": 8,
+      "anims": {
+        "attack": {
+          "key": "monsters/Cyclops/Cyclops_attack",
+          "frameWidth": 80,
+          "frameHeight": 80,
+          "cols": 3,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Cyclops/Cyclops_die",
+          "frameWidth": 80,
+          "frameHeight": 80,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Cyclops/Cyclops_hit",
+          "frameWidth": 80,
+          "frameHeight": 80,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Cyclops/Cyclops_idle",
+          "frameWidth": 80,
+          "frameHeight": 80,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Cyclops/Cyclops_special",
+          "frameWidth": 80,
+          "frameHeight": 80,
+          "cols": 13,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Cyclops/Cyclops_walk",
+          "frameWidth": 80,
+          "frameHeight": 80,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
     "Goblin": {
       "frameWidth": 48,
       "frameHeight": 48,
@@ -6526,6 +8656,55 @@
           "key": "monsters/Goblin/Goblin_walk",
           "frameWidth": 48,
           "frameHeight": 48,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Ogre": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "feetOffset": 16,
+      "anims": {
+        "attack": {
+          "key": "monsters/Ogre/Ogre_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "death": {
+          "key": "monsters/Ogre/Ogre_death",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 11,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Ogre/Ogre_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Ogre/Ogre_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Ogre/Ogre_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 14,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Ogre/Ogre_walk",
+          "frameWidth": 64,
+          "frameHeight": 64,
           "cols": 4,
           "rows": 4
         }
@@ -6576,6 +8755,314 @@
           "frameWidth": 48,
           "frameHeight": 56,
           "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Wolf Rider": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "feetOffset": 16,
+      "anims": {
+        "attack": {
+          "key": "monsters/Wolf Rider/WolfRider_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Wolf Rider/WolfRider_die",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Wolf Rider/WolfRider_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Wolf Rider/WolfRider_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Wolf Rider/WolfRider_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 7,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Wolf Rider/WolfRider_walk",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Kappa": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "feetOffset": 4,
+      "anims": {
+        "attack": {
+          "key": "monsters/Kappa/Kappa_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Kappa/Kappa_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Kappa/Kappa_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Kappa/Kappa_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Kappa/Kappa_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 8,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Kappa/Kappa_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Oni": {
+      "frameWidth": 64,
+      "frameHeight": 64,
+      "feetOffset": 16,
+      "anims": {
+        "attack": {
+          "key": "monsters/Oni/Oni_attack",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Oni/Oni_die",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Oni/Oni_hit",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Oni/Oni_idle",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "move": {
+          "key": "monsters/Oni/Oni_move",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Oni/Oni_special",
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "cols": 10,
+          "rows": 4
+        }
+      }
+    },
+    "Ronin": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "feetOffset": 4,
+      "anims": {
+        "attack": {
+          "key": "monsters/Ronin/Ronin_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Ronin/Ronin_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Ronin/Ronin_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Ronin/Ronin_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Ronin/Ronin_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 9,
+          "rows": 4
+        },
+        "walk": {
+          "key": "monsters/Ronin/Ronin_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Samurai": {
+      "frameWidth": 48,
+      "frameHeight": 56,
+      "feetOffset": 4,
+      "anims": {
+        "attack": {
+          "key": "monsters/Samurai/Samurai_attack",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 5,
+          "rows": 4
+        },
+        "die": {
+          "key": "monsters/Samurai/Samurai_die",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Samurai/Samurai_hit",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Samurai/Samurai_idle",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Samurai/Samurai_special",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 7,
+          "rows": 4
+        },
+        "special_arrow": {
+          "key": "monsters/Samurai/Samurai_special_arrow",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 1
+        },
+        "special_arrow_impact": {
+          "key": "monsters/Samurai/Samurai_special_arrow_impact",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 1,
+          "rows": 1
+        },
+        "walk": {
+          "key": "monsters/Samurai/Samurai_walk",
+          "frameWidth": 48,
+          "frameHeight": 56,
+          "cols": 4,
+          "rows": 4
+        }
+      }
+    },
+    "Tengu": {
+      "frameWidth": 96,
+      "frameHeight": 96,
+      "feetOffset": 16,
+      "anims": {
+        "attack": {
+          "key": "monsters/Tengu/Tengu_attack",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 5,
+          "rows": 4
+        },
+        "death": {
+          "key": "monsters/Tengu/Tengu_death",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 12,
+          "rows": 4
+        },
+        "fly": {
+          "key": "monsters/Tengu/Tengu_fly",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 4,
+          "rows": 4
+        },
+        "hit": {
+          "key": "monsters/Tengu/Tengu_hit",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 2,
+          "rows": 4
+        },
+        "idle": {
+          "key": "monsters/Tengu/Tengu_idle",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 4,
+          "rows": 4
+        },
+        "special": {
+          "key": "monsters/Tengu/Tengu_special",
+          "frameWidth": 96,
+          "frameHeight": 96,
+          "cols": 14,
           "rows": 4
         }
       }

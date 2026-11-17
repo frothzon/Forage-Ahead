@@ -81,6 +81,19 @@ const DUNGEON_CONFIGS: Record<DungeonId, DungeonConfig> = {
       { itemId: 'demon_horn', count: 4 },
     ],
   },
+  void_spire: {
+    id: 'void_spire',
+    title: 'Void Spire',
+    floorTint: 0x3b2859,
+    wallTint: 0x1b122b,
+    minions: ['Pixie', 'Owlbear'],
+    bossId: 'Oni',
+    relicId: 'void_rod',
+    chestLoot: [
+      { itemId: 'void_shard', count: 2 },
+      { itemId: 'astral_essence', count: 1 },
+    ],
+  },
 };
 
 const ROOM_W = 32;
@@ -96,6 +109,8 @@ interface BreakableProp {
 
 export class DungeonScene extends Phaser.Scene {
   private cfg!: DungeonConfig;
+  private voidFloor = 1;
+  private nextFloorPortal?: Phaser.GameObjects.Container;
   private player!: Player;
   private hud!: HudController;
   private enemies: Enemy[] = [];
@@ -132,8 +147,39 @@ export class DungeonScene extends Phaser.Scene {
     super('DungeonScene');
   }
 
-  init(data: { dungeonId?: DungeonId }): void {
-    this.cfg = DUNGEON_CONFIGS[data?.dungeonId ?? 'skull_crypt'];
+  init(data: { dungeonId?: DungeonId; floor?: number }): void {
+    const id = data?.dungeonId ?? 'skull_crypt';
+    this.voidFloor = Math.max(1, data?.floor ?? 1);
+    const base = DUNGEON_CONFIGS[id];
+    if (id !== 'void_spire') {
+      this.cfg = base;
+      return;
+    }
+    const f = this.voidFloor;
+    const minions =
+      f <= 5
+        ? ['Pixie', 'Dryad', 'Satyr', 'Displacer Beast', 'Owlbear', 'Kappa', 'Tengu', 'Ronin']
+        : f <= 10
+          ? ['Samurai', 'Serpent Fly', 'Bulette', 'Wolf Rider', 'Ogre', 'Cyclops', 'Blue Wyrmling']
+          : f <= 15
+            ? ['Faerie Dragon', 'Peasant', 'Wizard', 'Paladin', 'Griffin', 'Beholder']
+            : ['Efreet', 'Elder Snail', 'Fiddle Dog', 'Blemmyae', 'Rabbit Soldier', 'Manticore Bishop'];
+    const bossId =
+      f >= 20
+        ? 'Ancient Black Dragon'
+        : f >= 15
+          ? 'Planetar'
+          : f >= 10
+            ? 'Young Green Dragon'
+            : f >= 5
+              ? 'Oni'
+              : 'Owlbear';
+    this.cfg = {
+      ...base,
+      title: `Void Spire • Floor ${f} (Lv.${20 + f * 2})`,
+      minions,
+      bossId,
+    };
   }
 
   create(): void {
@@ -143,6 +189,7 @@ export class DungeonScene extends Phaser.Scene {
     this.breakables = [];
     this.switches = [];
     this.boss = null;
+    this.nextFloorPortal = undefined;
     this.bossEnraged = false;
     this.gateOpen = false;
     this.relicSpawned = false;
@@ -162,6 +209,26 @@ export class DungeonScene extends Phaser.Scene {
       onSave: () => {
         gameState.save();
         this.hud.showToast('Saved!');
+      },
+      onTouchAction: () => {
+        if (this.hud.isBlockingInput()) return;
+        const f = this.player.facing;
+        const dx = f === 'left' ? -28 : f === 'right' ? 28 : 0;
+        const dy = f === 'up' ? -28 : f === 'down' ? 28 : 0;
+        this.handleAttack(this.player.x + dx, this.player.y + dy);
+      },
+      onTouchInteract: () => {
+        if (this.hud.isBlockingInput()) return;
+        if (Math.hypot(this.exitPortal.x - this.player.x, this.exitPortal.y - this.player.y) <= 28) {
+          this.hud.setBossBar(null);
+          this.hud.destroy();
+          this.scene.start('OverworldScene');
+        }
+      },
+      onTouchDash: () => {
+        if (this.hud.isBlockingInput()) return;
+        const tv = this.hud.getTouchMoveVector();
+        this.player.tryDash(new Phaser.Math.Vector2(tv.x, tv.y));
       },
       getWorldDebugStats: () => ({
         scene: `Dungeon: ${this.cfg.title}`,
@@ -463,7 +530,9 @@ export class DungeonScene extends Phaser.Scene {
 
   private damageEnemy(enemy: Enemy, baseDmg: number, dirX: number, dirY: number): void {
     const crit = Math.random() < gameState.getCritChance(this.player.dodgeMomentumMs > 0 ? 15 : 0);
-    const dmg = crit ? Math.round(baseDmg * 2) : baseDmg;
+    const scale = gameState.getDamageScaleVsEnemy(enemy.def.level);
+    const rawDmg = crit ? Math.round(baseDmg * 2) : baseDmg;
+    const dmg = Math.max(1, Math.round(rawDmg * scale.dealMult));
     SFX.playHit();
     spawnFloatingText(this, enemy.x, enemy.y - 16, crit ? `${dmg}!` : `${dmg}`, crit ? '#ffe066' : '#ffffff');
     spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, 5);
@@ -514,10 +583,35 @@ export class DungeonScene extends Phaser.Scene {
       if (enemy === this.boss && !this.relicSpawned) {
         this.relicSpawned = true;
         this.hud.setBossBar(null);
-        gameState.clearedDungeons.add(this.cfg.id);
-        gameState.addItem(this.cfg.relicId, 1);
+        if (this.cfg.id === 'void_spire') {
+          gameState.voidSpireHighestFloor = Math.max(gameState.voidSpireHighestFloor, this.voidFloor);
+          if (this.voidFloor >= 15 && !gameState.isGearOwned('void_rod')) {
+            gameState.addItem('void_rod', 1);
+            this.hud.showToast(`FLOOR ${this.voidFloor} CLEARED! Unlocked Void Singularity Rod!`);
+          } else if (this.voidFloor >= 20 && !gameState.finalBossDefeated) {
+            gameState.finalBossDefeated = true;
+            this.hud.showToast('OBSIDIAN SOVEREIGN DEFEATED! GRAND VICTORY UNLOCKED!');
+          } else {
+            this.hud.showToast(`Floor ${this.voidFloor} Cleared! Enter Next Floor Portal ->`);
+          }
+          const nx = 29 * TILE_PX + 8;
+          const ny = 8 * TILE_PX;
+          const ring = this.add.circle(0, 0, 12, 0x6ce5ff, 0.35).setStrokeStyle(2, 0xbef8ff, 0.9);
+          const lbl = this.add
+            .text(0, -17, `[E] Floor ${this.voidFloor + 1}`, {
+              fontSize: '7px',
+              color: '#8ef5ff',
+              stroke: '#000',
+              strokeThickness: 2,
+            })
+            .setOrigin(0.5);
+          this.nextFloorPortal = this.add.container(nx, ny, [ring, lbl]).setDepth(4500);
+        } else {
+          gameState.clearedDungeons.add(this.cfg.id);
+          gameState.addItem(this.cfg.relicId, 1);
+          this.hud.showToast(`BOSS DEFEATED! Unlocked ${ITEMS[this.cfg.relicId].name}!`);
+        }
         SFX.playLevelUp();
-        this.hud.showToast(`BOSS DEFEATED! Unlocked ${ITEMS[this.cfg.relicId].name}!`);
         gameState.save();
       }
     }
@@ -537,6 +631,12 @@ export class DungeonScene extends Phaser.Scene {
     const dt = Math.min(dtMs, 50);
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.E)) {
+      if (this.nextFloorPortal && Math.hypot(this.nextFloorPortal.x - this.player.x, this.nextFloorPortal.y - this.player.y) <= 28) {
+        this.hud.setBossBar(null);
+        this.hud.destroy();
+        this.scene.restart({ dungeonId: 'void_spire', floor: this.voidFloor + 1 });
+        return;
+      }
       if (Math.hypot(this.exitPortal.x - this.player.x, this.exitPortal.y - this.player.y) <= 28) {
         this.hud.setBossBar(null);
         this.hud.destroy();
@@ -559,11 +659,14 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     if (!this.hud.isBlockingInput()) {
+      const tv = this.hud.getTouchMoveVector();
       const dir = new Phaser.Math.Vector2(
         (this.keys.D.isDown || this.keys.RIGHT.isDown ? 1 : 0) -
-          (this.keys.A.isDown || this.keys.LEFT.isDown ? 1 : 0),
+          (this.keys.A.isDown || this.keys.LEFT.isDown ? 1 : 0) +
+          tv.x,
         (this.keys.S.isDown || this.keys.DOWN.isDown ? 1 : 0) -
-          (this.keys.W.isDown || this.keys.UP.isDown ? 1 : 0),
+          (this.keys.W.isDown || this.keys.UP.isDown ? 1 : 0) +
+          tv.y,
       );
       if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
         if (this.player.tryDash(dir)) {

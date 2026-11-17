@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { gameState } from '../core/GameState';
 import { HALF_ISLAND_AGGRO_PX, MONSTERS, type MonsterDef } from '../data/monsters';
 import { vectorToDirection, type Direction } from './AnimationRegistry';
 import { applySafeKnockback } from './knockback';
@@ -16,6 +17,7 @@ export class Enemy extends Phaser.GameObjects.Container {
   public sprite: Phaser.GameObjects.Sprite;
   private hpBarBg: Phaser.GameObjects.Rectangle;
   private hpBarFill: Phaser.GameObjects.Rectangle;
+  private levelLabel: Phaser.GameObjects.Text;
   private curAnim = '';
   private attackCooldownMs = 0;
   private specialCooldownMs = 3200;
@@ -75,12 +77,27 @@ export class Enemy extends Phaser.GameObjects.Container {
       this.hpBarBg.setVisible(false);
       this.hpBarFill.setVisible(false);
     }
+    this.levelLabel = scene.add
+      .text(0, barY - 7, `Lv.${def.level}`, {
+        fontSize: '7px',
+        color: '#ffe066',
+        stroke: '#000000',
+        strokeThickness: 2,
+      })
+      .setOrigin(0.5);
 
-    this.add([shadow, this.sprite, this.hpBarBg, this.hpBarFill]);
+    this.add([shadow, this.sprite, this.hpBarBg, this.hpBarFill, this.levelLabel]);
+    this.syncLevelColor();
     this.setDepth(y);
     scene.add.existing(this);
 
     this.playMonAnim('idle', true);
+  }
+
+  private syncLevelColor(): void {
+    const diff = this.def.level - gameState.getPowerLevel();
+    const col = diff >= 4 ? '#ff5e6c' : diff >= 2 ? '#ff9b5a' : diff <= -2 ? '#8ef5a7' : '#ffe066';
+    this.levelLabel.setColor(col);
   }
 
   private playMonAnim(anim: 'idle' | 'walk' | 'attack' | 'special' | 'hit' | 'die', force = false): void {

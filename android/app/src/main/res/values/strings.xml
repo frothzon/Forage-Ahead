@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Forage Ahead</string>
+    <string name="title_activity_main">Forage Ahead</string>
+    <string name="package_name">com.forageahead.arpg</string>
+    <string name="custom_url_scheme">com.forageahead.arpg</string>
+</resources>
