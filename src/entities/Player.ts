@@ -24,6 +24,7 @@ export class Player extends Phaser.GameObjects.Container {
   private heldItemKey = '';
   private swingTimerMs = 0;
   private swingDurationMs = 180;
+  private footstepTimerMs = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
@@ -51,14 +52,15 @@ export class Player extends Phaser.GameObjects.Container {
       def && (!def.equipSlot && def.category !== 'gadget' ? (gameState.inventory[itemId] ?? 0) > 0 : true);
     const texKey = def && hasQty ? def.iconKey ?? '' : '';
 
-    if (texKey && this.scene.textures.exists(texKey)) {
+    const hideForAction = this.isActionLocked || this.swingTimerMs > 0 || this.isDashing;
+    if (!hideForAction && texKey && this.scene.textures.exists(texKey)) {
       if (this.heldItemKey !== texKey) {
         this.heldItemKey = texKey;
         this.heldItemSprite.setTexture(texKey);
       }
       this.heldItemSprite.setVisible(true);
     } else {
-      this.heldItemKey = '';
+      if (!texKey) this.heldItemKey = '';
       this.heldItemSprite.setVisible(false);
     }
     this.positionHeldItem();
@@ -168,7 +170,7 @@ export class Player extends Phaser.GameObjects.Container {
     const mitigated = Math.max(1, amount - Math.floor(gameState.getArmorDefense() * 0.6));
     gameState.hp = Math.max(0, gameState.hp - mitigated);
     this.invulnerableMs = 650;
-    SFX.playHit();
+    SFX.playPlayerHurt();
     this.sprite.setTintFill(0xff6b6b);
     this.scene.time.delayedCall(120, () => {
       if (this.sprite.active) this.sprite.clearTint();
@@ -215,8 +217,23 @@ export class Player extends Phaser.GameObjects.Container {
       if (!this.isActionLocked) {
         this.facing = vectorToDirection(norm.x, norm.y, this.facing);
         this.playHeroAnim('walk');
+        this.footstepTimerMs -= dtMs;
+        if (this.footstepTimerMs <= 0) {
+          this.footstepTimerMs = 260;
+          SFX.playFootstep('grass');
+          const dust = this.scene.add.circle(this.x + Phaser.Math.Between(-3, 3), this.y + 1, 1.8, 0xd8d2c5, 0.45).setDepth(this.y - 1);
+          this.scene.tweens.add({
+            targets: dust,
+            y: dust.y - 4,
+            scale: 0.3,
+            alpha: 0,
+            duration: 240,
+            onComplete: () => dust.destroy(),
+          });
+        }
       }
     } else if (!this.isActionLocked) {
+      this.footstepTimerMs = 60;
       this.playHeroAnim('idle');
     }
 

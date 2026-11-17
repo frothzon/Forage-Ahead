@@ -245,9 +245,11 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       this.progressText = scene.add
         .text(0, -29, `[E]`, {
           fontSize: '7px',
+          fontStyle: 'bold',
           color: '#ffe9a6',
           stroke: '#000000',
           strokeThickness: 2,
+          resolution: 4,
         })
         .setOrigin(0.5)
         .setVisible(false);

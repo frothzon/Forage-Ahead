@@ -497,6 +497,19 @@ export const RECIPES: RecipeDef[] = [
     outputCount: 1,
     craftTimeMs: 2500,
   },
+  {
+    id: 'cook_meat',
+    name: 'Seared Steak',
+    station: 'bonfire',
+    description: 'Grill Raw Meat over a Bonfire for +45 HP and +35 Energy.',
+    ingredients: [
+      { itemId: 'raw_meat', count: 1 },
+      { itemId: 'wood', count: 1 },
+    ],
+    outputItemId: 'cooked_meat',
+    outputCount: 1,
+    craftTimeMs: 2500,
+  },
 
   // ANVIL TOOL, WEAPON & ARMOR CRAFTING
   {

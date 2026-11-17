@@ -8,6 +8,7 @@ export class LootDrop extends Phaser.GameObjects.Container {
   public readonly isCoin: boolean;
   public qty: number;
   private iconObj: Phaser.GameObjects.Image | Phaser.GameObjects.Arc;
+  private badgeText?: Phaser.GameObjects.Text;
   private ageMs = 0;
   private vy = -38;
   private vx = 0;
@@ -42,19 +43,43 @@ export class LootDrop extends Phaser.GameObjects.Container {
     this.add(this.iconObj);
 
     if (count > 1) {
-      const badge = scene.add
-        .text(3, -7, `${count}`, {
-          fontSize: '7px',
-          color: '#ffffff',
-          stroke: '#000000',
-          strokeThickness: 2,
-        })
-        .setOrigin(0, 0.5);
-      this.add(badge);
+      this.ensureBadge(count);
     }
 
     this.setDepth(y);
     scene.add.existing(this);
+  }
+
+  private ensureBadge(count: number): void {
+    if (this.badgeText) {
+      this.badgeText.setText(`${count}`);
+      return;
+    }
+    this.badgeText = this.scene.add
+      .text(3, -7, `${count}`, {
+        fontSize: '7px',
+        fontStyle: 'bold',
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 2,
+        resolution: 4,
+      })
+      .setOrigin(0, 0.5);
+    this.add(this.badgeText);
+  }
+
+  public addCount(amount: number): void {
+    if (this.collected || amount <= 0) return;
+    this.qty += amount;
+    if (this.qty > 1) {
+      this.ensureBadge(this.qty);
+    }
+    this.scene.tweens.add({
+      targets: this,
+      scale: { from: 1.28, to: 1 },
+      duration: 140,
+      ease: 'Back.Out',
+    });
   }
 
   public updateDrop(dtMs: number, playerX: number, playerY: number): boolean {

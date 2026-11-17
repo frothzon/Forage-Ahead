@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { gameState, type HeroClassId } from '../core/GameState';
+import { SFX } from '../core/SoundFX';
 
 interface ClassMeta {
   id: HeroClassId;
@@ -51,6 +52,8 @@ export class TitleScene extends Phaser.Scene {
   create(): void {
     const hud = document.getElementById('hud-root');
     if (hud) hud.innerHTML = '';
+    SFX.setMusicPaused(false);
+    SFX.setMusicSituation('title');
 
     const { width, height } = this.scale;
     const compact = width < 920 || height < 480;

@@ -80,9 +80,11 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.levelLabel = scene.add
       .text(0, barY - 7, `Lv.${def.level}`, {
         fontSize: '7px',
+        fontStyle: 'bold',
         color: '#ffe066',
         stroke: '#000000',
         strokeThickness: 2,
+        resolution: 4,
       })
       .setOrigin(0.5);
 

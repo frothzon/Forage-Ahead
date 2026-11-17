@@ -24,6 +24,8 @@ export interface StationQueueView {
   craftQueue: CraftQueueJob[];
 }
 import { SFX } from '../core/SoundFX';
+import { dialogueBox } from './DialogueBox';
+import { revealSequence } from './RevealSequence';
 import { ITEMS, RARITY_COLOR } from '../data/items';
 import { ISLANDS, STORY_CHAPTERS, WORLD_GRID_SIZE, getIslandAt, getIslandRecommendedLevel } from '../data/islands';
 import { MONSTERS } from '../data/monsters';
@@ -85,6 +87,7 @@ export class HudController {
   private bannerLayer!: HTMLElement;
 
   public activeModal: HudModal = 'none';
+  private lastMenuTab: Exclude<HudModal, 'none'> = 'inventory';
   public activeStationTab: CraftingStation = 'build';
   public activeStationId: string | null = null;
   private selectedInspect: SelectedInspection = null;
@@ -117,6 +120,7 @@ export class HudController {
     onTouchDash?: () => void;
     onTouchPlaceBuilding?: () => void;
     getStations?: (stationType: QueuedStationType) => StationQueueView[];
+    getNearbyStations?: () => Set<CraftingStation>;
     onEnqueueCraft?: (stationId: string, recipeId: string) => boolean;
     onCancelCraft?: (stationId: string, queueIdx: number) => boolean;
     getWorldDebugStats?: () => WorldDebugStats;
@@ -133,6 +137,7 @@ export class HudController {
     onTouchDash?: () => void;
     onTouchPlaceBuilding?: () => void;
     getStations?: (stationType: QueuedStationType) => StationQueueView[];
+    getNearbyStations?: () => Set<CraftingStation>;
     onEnqueueCraft?: (stationId: string, recipeId: string) => boolean;
     onCancelCraft?: (stationId: string, queueIdx: number) => boolean;
     getWorldDebugStats?: () => WorldDebugStats;
@@ -158,7 +163,7 @@ export class HudController {
   }
 
   public isBlockingInput(): boolean {
-    return this.activeModal !== 'none';
+    return this.activeModal !== 'none' || dialogueBox.isActive() || revealSequence.isActive();
   }
 
   private bindTouchControls(): void {
@@ -267,8 +272,18 @@ export class HudController {
 
     if (this.activeModal === modal && !station) {
       this.activeModal = 'none';
+      SFX.playUiClose();
+      SFX.setMusicPaused(false);
     } else {
       this.activeModal = modal;
+      if (modal !== 'none') {
+        this.lastMenuTab = modal;
+        SFX.playUiOpen();
+        SFX.setMusicPaused(true);
+      } else {
+        SFX.playUiClose();
+        SFX.setMusicPaused(false);
+      }
     }
     this.moveSourceBagIdx = null;
     if (this.activeModal === 'inventory' && !this.selectedInspect) {
@@ -279,6 +294,15 @@ export class HudController {
         this.selectedInspect = { kind: 'equip', slot: 'weapon', itemId: gameState.equipment.weapon };
       }
     }
+    this.render();
+  }
+
+  public closeModal(): void {
+    if (this.activeModal === 'none') return;
+    this.activeModal = 'none';
+    this.moveSourceBagIdx = null;
+    SFX.playUiClose();
+    SFX.setMusicPaused(false);
     this.render();
   }
 
@@ -856,13 +880,8 @@ export class HudController {
           </div>
         </div>
 
-        <div id="hud-top-nav" class="hud-interactive" style="position:absolute; top:10px; right:10px; max-width:calc(100vw - 440px); display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end;">
-          <button class="hud-btn" data-nav="inventory"><span class="nav-full">Character & Bag</span><span class="nav-short">Bag</span><span class="nav-key"> [I]</span></button>
-          <button class="hud-btn" data-nav="craft"><span class="nav-full">Craft & Build</span><span class="nav-short">Craft</span><span class="nav-key"> [Tab]</span></button>
-          <button class="hud-btn" data-nav="skills" id="hud-skills-btn">Skills<span class="nav-key"> [K]</span></button>
-          <button class="hud-btn" data-nav="quests" id="hud-quests-btn">Quests<span class="nav-key"> [Q]</span></button>
-          <button class="hud-btn" data-nav="map" id="hud-map-btn"><span class="nav-full">Islands</span><span class="nav-short">Map</span><span class="nav-key"> [M]</span></button>
-          <button class="hud-btn" data-nav="progress" id="hud-progress-btn"><span class="nav-full">Progress & Debug</span><span class="nav-short">Debug</span><span class="nav-key"> [P]</span></button>
+        <div id="hud-top-nav" class="hud-interactive" style="position:absolute; top:10px; right:10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+          <button class="hud-btn gold" data-nav="menu" id="hud-menu-btn">Menu<span class="nav-key"> [I/Tab]</span></button>
           <button class="hud-btn primary" data-action="save">Save</button>
           <button class="hud-btn" data-action="music" id="hud-music-btn">Music: Off</button>
           <button class="hud-btn" data-action="mute" id="hud-mute-btn">SFX</button>
@@ -893,9 +912,18 @@ export class HudController {
       `;
 
       this.chromeLayer.querySelectorAll<HTMLElement>('[data-nav]').forEach((el) => {
-        el.onclick = () => this.toggleModal(el.dataset.nav as HudModal);
+        el.onclick = () => {
+          SFX.playUiClick();
+          const nav = el.dataset.nav;
+          if (nav === 'menu') {
+            this.toggleModal(this.activeModal === 'none' ? this.lastMenuTab : 'none');
+          } else {
+            this.toggleModal(nav as HudModal);
+          }
+        };
       });
       this.chromeLayer.querySelector<HTMLElement>('#hud-quest-tracker')?.addEventListener('click', () => {
+        SFX.playUiClick();
         this.toggleModal('quests');
       });
       this.chromeLayer.querySelector<HTMLElement>('[data-action="save"]')!.onclick = () => this.callbacks.onSave();
@@ -904,7 +932,7 @@ export class HudController {
         this.renderChrome();
       };
       this.chromeLayer.querySelector<HTMLElement>('[data-action="mute"]')!.onclick = () => {
-        SFX.muted = !SFX.muted;
+        SFX.setMuted(!SFX.muted);
         this.renderChrome();
       };
       this.minimapCanvas = this.chromeLayer.querySelector<HTMLCanvasElement>('#hud-minimap-canvas') ?? undefined;
@@ -1024,6 +1052,7 @@ export class HudController {
     this.hotbarLayer.querySelectorAll<HTMLElement>('[data-hotbar]').forEach((el) => {
       const idx = Number(el.dataset.hotbar);
       el.onclick = () => {
+        if (gameState.selectedHotbarIndex !== idx) SFX.playHotbarSelect();
         gameState.selectedHotbarIndex = idx;
         this.renderHotbar();
       };
@@ -1085,18 +1114,18 @@ export class HudController {
     this.modalLayer.innerHTML = `
       <div class="modal-backdrop hud-interactive" data-action="close-backdrop">
         <div class="hud-panel ledger-window" onclick="event.stopPropagation()">
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:#0d1624; border-bottom:2px solid #354c6b;">
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-end; padding:10px 14px 0 14px; background:#09101b; border-bottom:2px solid #354c6b;">
+            <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:flex-end;">
               ${tabs
-                .map(
-                  (t) =>
-                    `<button class="hud-btn ${this.activeModal === t.id ? 'gold' : ''}" data-tab="${t.id}">${t.label}</button>`,
-                )
+                .map((t) => {
+                  const isActive = this.activeModal === t.id;
+                  return `<button class="hud-btn" data-tab="${t.id}" style="border-radius:8px 8px 0 0; padding:7px 13px; border:1px solid ${isActive ? '#ffe066' : '#2a3d59'}; border-top:${isActive ? '3px solid #ffe066' : '1px solid #2a3d59'}; border-bottom:${isActive ? '2px solid #162236' : 'none'}; background:${isActive ? '#162236' : '#0d1624'}; color:${isActive ? '#ffe066' : '#8ba6c4'}; margin-bottom:${isActive ? '-2px' : '0'}; font-weight:${isActive ? '800' : '600'};">${t.label}</button>`;
+                })
                 .join('')}
             </div>
-            <button class="hud-btn" data-action="close-modal">Close [Esc]</button>
+            <button class="hud-btn" data-action="close-modal" style="margin-bottom:8px;">Close [Esc]</button>
           </div>
-          <div class="ledger-body">${bodyHtml}</div>
+          <div class="ledger-body" style="background:#162236;">${bodyHtml}</div>
         </div>
       </div>
     `;
@@ -1363,6 +1392,18 @@ export class HudController {
     if (timeEl) timeEl.textContent = `${Math.max(0.1, job.remainingMs / 1000).toFixed(1)}s`;
   }
 
+  private isQueuedStation(st: CraftingStation): st is QueuedStationType {
+    return (
+      st === 'furnace' ||
+      st === 'anvil' ||
+      st === 'bonfire' ||
+      st === 'alchemy_lab' ||
+      st === 'frost_kiln' ||
+      st === 'infernal_forge' ||
+      st === 'void_altar'
+    );
+  }
+
   private renderCraftTab(): string {
     const tabs: Array<{ id: CraftingStation; label: string }> = [
       { id: 'build', label: 'Build' },
@@ -1375,14 +1416,9 @@ export class HudController {
       { id: 'infernal_forge', label: 'Infernal Forge' },
       { id: 'void_altar', label: 'Void Altar' },
     ];
-    const isQueuedStation =
-      this.activeStationTab === 'furnace' ||
-      this.activeStationTab === 'anvil' ||
-      this.activeStationTab === 'bonfire' ||
-      this.activeStationTab === 'alchemy_lab' ||
-      this.activeStationTab === 'frost_kiln' ||
-      this.activeStationTab === 'infernal_forge' ||
-      this.activeStationTab === 'void_altar';
+    const isQueuedStation = this.isQueuedStation(this.activeStationTab);
+    const nearby = this.callbacks.getNearbyStations?.();
+    const inRange = !isQueuedStation || !nearby || nearby.has(this.activeStationTab);
 
     const stations = isQueuedStation
       ? (this.callbacks.getStations?.(this.activeStationTab as QueuedStationType) ?? [])
@@ -1398,6 +1434,12 @@ export class HudController {
         queuePanelHtml = `
           <div class="hud-panel" style="padding:10px; margin-bottom:12px; background:#0d1522; border-color:#ff9b6a; font-size:12px;">
             No <strong>${this.activeStationTab}</strong> placed yet! Build one from <strong>Build Structures</strong> to queue recipes here.
+          </div>
+        `;
+      } else if (!inRange) {
+        queuePanelHtml = `
+          <div class="hud-panel" style="padding:10px; margin-bottom:12px; background:#0d1522; border-color:#ff9b6a; font-size:12px;">
+            Move closer to a <strong>${this.activeStationTab}</strong> (or press <strong>[E]</strong> beside it) to craft here.
           </div>
         `;
       } else {
@@ -1469,10 +1511,11 @@ export class HudController {
     return `
       <div style="display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;">
         ${tabs
-          .map(
-            (t) =>
-              `<button class="hud-btn ${this.activeStationTab === t.id ? 'gold' : ''}" data-station="${t.id}">${t.label}</button>`,
-          )
+          .map((t) => {
+            const avail = !this.isQueuedStation(t.id) || !nearby || nearby.has(t.id);
+            const isSel = this.activeStationTab === t.id;
+            return `<button class="hud-btn ${isSel ? 'gold' : ''}" data-station="${t.id}" style="${avail ? '' : 'opacity:0.42; color:#708299; filter:grayscale(0.6);'}" title="${avail ? t.label : `${t.label} (Walk near structure to craft)`}">${t.label}${avail ? '' : ' 🔒'}</button>`;
+          })
           .join('')}
       </div>
       ${queuePanelHtml}
@@ -1482,7 +1525,7 @@ export class HudController {
             const lockedByBlueprint = r.unlockMode === 'blueprint' && !gameState.unlockedBlueprints.has(r.id);
             const lockedBySkill = r.requiresSkill && !gameState.hasSkill(r.requiresSkill);
             const hasMats = gameState.canCraft(r);
-            const canAction = isQueuedStation ? Boolean(selectedStation) && !queueFull && hasMats : hasMats;
+            const canAction = isQueuedStation ? Boolean(selectedStation) && inRange && !queueFull && hasMats : hasMats;
             const isBuild = r.station === 'build';
             const ings = r.ingredients
               .map((ing) => {
@@ -1504,9 +1547,11 @@ export class HudController {
               : isBuild
                 ? 'Place Structure'
                 : isQueuedStation
-                  ? queueFull
-                    ? 'Queue Full (5/5)'
-                    : `Queue (${timeSec}s)`
+                  ? !inRange
+                    ? 'Move Near Station'
+                    : queueFull
+                      ? 'Queue Full (5/5)'
+                      : `Queue (${timeSec}s)`
                   : 'Craft';
             return `
               <div class="hud-panel" style="padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px; opacity:${lockedByBlueprint ? '0.68' : '1'}; border-color:${lockedByBlueprint ? '#4a3d28' : '#354c6b'};">
@@ -1875,21 +1920,18 @@ export class HudController {
   private bindModalEvents(): void {
     const backdrop = this.modalLayer.querySelector<HTMLElement>('[data-action="close-backdrop"]');
     if (backdrop) {
-      backdrop.onclick = () => {
-        this.activeModal = 'none';
-        this.render();
-      };
+      backdrop.onclick = () => this.closeModal();
     }
     const closeBtn = this.modalLayer.querySelector<HTMLElement>('[data-action="close-modal"]');
     if (closeBtn) {
-      closeBtn.onclick = () => {
-        this.activeModal = 'none';
-        this.render();
-      };
+      closeBtn.onclick = () => this.closeModal();
     }
     this.modalLayer.querySelectorAll<HTMLElement>('[data-tab]').forEach((el) => {
       el.onclick = () => {
-        this.activeModal = el.dataset.tab as HudModal;
+        const tab = el.dataset.tab as HudModal;
+        if (tab !== 'none') this.lastMenuTab = tab;
+        SFX.playUiClick();
+        this.activeModal = tab;
         this.render();
       };
     });
@@ -2095,10 +2137,15 @@ export class HudController {
         if (!rec) return;
         if (rec.station === 'build') {
           gameState.pendingBuildRecipeId = id;
-          this.activeModal = 'none';
+          this.closeModal();
           this.callbacks.onSelectBuild(id);
-          this.render();
-        } else if (rec.station === 'furnace' || rec.station === 'anvil' || rec.station === 'bonfire') {
+        } else if (this.isQueuedStation(rec.station)) {
+          const nearby = this.callbacks.getNearbyStations?.();
+          if (nearby && !nearby.has(rec.station)) {
+            SFX.playUiError();
+            this.showToast(`Move closer to a ${rec.station} to craft!`);
+            return;
+          }
           const st = this.getSelectedStation();
           if (st && this.callbacks.onEnqueueCraft?.(st.id, id)) {
             this.renderModal();
@@ -2114,9 +2161,11 @@ export class HudController {
       el.onclick = () => {
         const id = el.dataset.skill!;
         if (gameState.unlockSkill(id)) {
-          SFX.playLevelUp();
+          SFX.playSkillUnlock();
           const sk = SKILLS.find((s) => s.id === id);
           this.showToast(`Unlocked ${sk?.name ?? id}!`);
+        } else {
+          SFX.playUiError();
         }
       };
     });

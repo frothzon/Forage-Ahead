@@ -296,9 +296,10 @@ export function computeOverlayTile(
   const hasW = match(x - 1, y);
 
   if (current === 'dirt') {
+    const mask = (hasN ? 1 : 0) | (hasE ? 2 : 0) | (hasS ? 4 : 0) | (hasW ? 8 : 0);
     return {
-      tilesetKey: 'tileset_dirt',
-      frame: resolveBlockFrame(DIRT_BLOCK, hasN, hasE, hasS, hasW),
+      tilesetKey: '_hoed_soil_16',
+      frame: mask,
     };
   }
   return {

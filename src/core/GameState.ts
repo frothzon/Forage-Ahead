@@ -917,6 +917,7 @@ export class GameState {
 
   public getWeaponDamage(weaponId: string): number {
     const def = ITEMS[weaponId];
+    if (def?.category === 'tool') return 1;
     const eq = this.getEquippedStats();
     const weaponInstId = this.equipment.weapon === weaponId ? this.equippedInstanceIds.weapon : undefined;
     let dmg = this.getGearStats(weaponId, weaponInstId).attack ?? 12;

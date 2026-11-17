@@ -65,11 +65,10 @@ export class WeatherSystem {
     const vw = Math.max(320, scene.scale.width);
     const vh = Math.max(200, scene.scale.height);
 
-    // Seamless Perlin-noise cloud shadows drifted across the world (no visible clouds)
+    // Seamless Perlin-noise cloud shadows drifted across the world (world-space locked)
     this.cloudTile = scene.add
       .tileSprite(0, 0, vw, vh, CLOUD_SHADOW_TEX_KEY)
       .setOrigin(0, 0)
-      .setScrollFactor(0)
       .setDepth(8800)
       .setAlpha(this.cloudOpacity);
 
@@ -212,13 +211,19 @@ export class WeatherSystem {
     this.cloudDriftX -= this.wind.dirX * driftSpeed * dt;
     this.cloudDriftY -= this.wind.dirY * driftSpeed * dt;
 
-    if (this.cloudTile.width !== vw || this.cloudTile.height !== vh) {
-      this.cloudTile.setSize(vw, vh);
+    const viewW = Math.max(320, Math.ceil(cam.worldView.width) + 8);
+    const viewH = Math.max(200, Math.ceil(cam.worldView.height) + 8);
+    const vx = cam.worldView.x - 4;
+    const vy = cam.worldView.y - 4;
+
+    this.cloudTile.setPosition(vx, vy);
+    if (this.cloudTile.width !== viewW || this.cloudTile.height !== viewH) {
+      this.cloudTile.setSize(viewW, viewH);
     }
-    const worldScale = 1.65 * cam.zoom;
+    const worldScale = 1.65;
     this.cloudTile.setTileScale(worldScale, worldScale);
-    this.cloudTile.tilePositionX = (cam.worldView.x * cam.zoom + this.cloudDriftX * cam.zoom) / worldScale;
-    this.cloudTile.tilePositionY = (cam.worldView.y * cam.zoom + this.cloudDriftY * cam.zoom) / worldScale;
+    this.cloudTile.tilePositionX = (vx + this.cloudDriftX) / worldScale;
+    this.cloudTile.tilePositionY = (vy + this.cloudDriftY) / worldScale;
     this.cloudTile.setAlpha(this.cloudOpacity);
 
     // 2. Desert / Volcanic Atmospheric Haze

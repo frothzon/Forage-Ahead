@@ -8,14 +8,20 @@ import type { DungeonId } from '../data/islands';
 import { TILE_PX } from '../data/islands';
 import {
   drawSlashArc,
+  spawnArcParticles,
   spawnBurstParticles,
+  spawnDeathBurst,
+  spawnDirectionalSparks,
   spawnFloatingText,
+  spawnShockwaveRing,
+  spawnSparklers,
   type ActiveProjectile,
 } from '../entities/CombatHelpers';
 import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
 import { Player } from '../entities/Player';
 import { HudController } from '../ui/HudController';
+import { revealSequence } from '../ui/RevealSequence';
 
 interface DungeonConfig {
   id: DungeonId;
@@ -255,7 +261,8 @@ export class DungeonScene extends Phaser.Scene {
       },
     });
     this.hud.showToast(`${this.cfg.title} — Break crates, loot the chest, and activate both sigils!`);
-    if (SFX.musicEnabled) SFX.startAmbientMusic('dungeon');
+    SFX.setMusicPaused(false);
+    SFX.setMusicSituation('dungeon');
 
     this.setupInput();
   }
@@ -299,9 +306,11 @@ export class DungeonScene extends Phaser.Scene {
     this.add
       .text(this.exitPortal.x, this.exitPortal.y + 12, '[E] Exit', {
         fontSize: '7px',
+        fontStyle: 'bold',
         color: '#9ee6ff',
         stroke: '#000',
         strokeThickness: 2,
+        resolution: 4,
       })
       .setOrigin(0.5)
       .setDepth(7000);
@@ -383,14 +392,14 @@ export class DungeonScene extends Phaser.Scene {
     kb.on('keydown-P', () => this.hud.toggleModal('progress'));
     kb.on('keydown-ESC', () => {
       if (this.hud.activeModal !== 'none') {
-        this.hud.activeModal = 'none';
-        this.hud.render();
+        this.hud.closeModal();
       }
     });
 
     for (let i = 1; i <= 9; i++) {
       kb.on(`keydown-${i}`, () => {
         if (this.hud.isBlockingInput()) return;
+        if (gameState.selectedHotbarIndex !== i - 1) SFX.playHotbarSelect();
         gameState.selectedHotbarIndex = i - 1;
         this.hud.render();
       });
@@ -417,21 +426,32 @@ export class DungeonScene extends Phaser.Scene {
     gameState.removeItem(itemId, 1);
     if (def.healHp) gameState.hp = Math.min(gameState.getMaxHp(), gameState.hp + def.healHp);
     if (def.healEnergy) gameState.energy = Math.min(gameState.getMaxEnergy(), gameState.energy + def.healEnergy);
-    SFX.playPickup();
+    if (itemId.startsWith('potion')) SFX.playDrinkPotion();
+    else SFX.playEat();
+    spawnBurstParticles(this, this.player.x, this.player.y - 6, 0x7ef59a, 6);
     gameState.emitVitals();
+  }
+
+  private spawnDrop(x: number, y: number, itemId: string, count: number, isCoin: boolean): void {
+    const existing = this.drops.find(
+      (d) => d.active && d.isCoin === isCoin && d.itemId === itemId && Math.hypot(d.x - x, d.y - y) <= 28,
+    );
+    if (existing) {
+      existing.addCount(count);
+      return;
+    }
+    this.drops.push(new LootDrop(this, x, y, itemId, count, isCoin));
   }
 
   private shatterBreakable(bp: BreakableProp): void {
     if (bp.broken) return;
     bp.broken = true;
     bp.sprite.destroy();
-    SFX.playChop();
-    spawnBurstParticles(this, bp.x, bp.y, bp.kind === 'box' ? 0xb8763e : 0xa68976, 6);
-    this.drops.push(new LootDrop(this, bp.x, bp.y, 'coin', Phaser.Math.Between(3, 8), true));
+    SFX.playBreakProp(bp.kind);
+    spawnArcParticles(this, bp.x, bp.y, bp.kind === 'box' ? 0xb8763e : 0xc9886b, 8);
+    this.spawnDrop(bp.x, bp.y, 'coin', Phaser.Math.Between(3, 8), true);
     if (Math.random() < 0.45) {
-      this.drops.push(
-        new LootDrop(this, bp.x, bp.y, Math.random() < 0.5 ? 'berries' : 'potion_red', 1, false),
-      );
+      this.spawnDrop(bp.x, bp.y, Math.random() < 0.5 ? 'berries' : 'potion_red', 1, false);
     }
   }
 
@@ -481,7 +501,8 @@ export class DungeonScene extends Phaser.Scene {
         gameState.energy = Math.max(0, gameState.energy - enCost);
         gameState.emitVitals();
       }
-      SFX.playCast();
+      if (itemId === 'bow') SFX.playBowShoot();
+      else SFX.playCast();
       const texMap: Record<string, { tex: string; kind: ActiveProjectile['kind'] }> = {
         bow: { tex: 'projectiles/Arrow', kind: 'arrow' },
         necro_rod: { tex: 'monster_projectiles/DeathCoil', kind: 'necro' },
@@ -523,6 +544,12 @@ export class DungeonScene extends Phaser.Scene {
 
     for (const e of this.enemies) {
       if (e.active && !e.isDead && Math.hypot(e.x - hitX, e.y - hitY) <= range * 0.78) {
+        if (!itemId.startsWith('sword')) {
+          if (SFX.canPlay('needSwordHint', 750)) {
+            spawnFloatingText(this, e.x, e.y - 16, 'Use Sword!', '#ffbe76');
+          }
+          break;
+        }
         this.damageEnemy(e, dmg, nx, ny);
       }
     }
@@ -534,14 +561,17 @@ export class DungeonScene extends Phaser.Scene {
     const rawDmg = crit ? Math.round(baseDmg * 2) : baseDmg;
     const dmg = Math.max(1, Math.round(rawDmg * scale.dealMult));
     SFX.playHit();
+    spawnDirectionalSparks(this, enemy.x, enemy.y - 4, Math.atan2(dirY, dirX), crit ? 0xffe066 : 0xffffff, crit ? 9 : 5);
     spawnFloatingText(this, enemy.x, enemy.y - 16, crit ? `${dmg}!` : `${dmg}`, crit ? '#ffe066' : '#ffffff');
-    spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, 5);
+    spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, crit ? 8 : 5);
 
     const killed = enemy.takeDamage(dmg, dirX, dirY, this.isWalkable);
 
     // Boss Enrage Phase 2 below 50% HP
     if (!killed && enemy === this.boss && !this.bossEnraged && enemy.hp <= enemy.maxHp * 0.5) {
       this.bossEnraged = true;
+      SFX.playBossEnrage();
+      spawnShockwaveRing(this, enemy.x, enemy.y - 4, 0xff5e6c, 54, 380);
       this.cameras.main.shake(200, 0.008);
       enemy.sprite.setTint(0xff8a8a);
       this.hud.showToast(`${enemy.def.name} ENRAGED! Phase 2!`);
@@ -562,6 +592,8 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     if (killed) {
+      spawnDeathBurst(this, enemy.x, enemy.y, enemy.def.id, enemy === this.boss);
+      if (enemy !== this.boss) SFX.playEnemyDeath();
       gameState.recordQuestProgress('kill', enemy.def.id, 1);
       const bpName = tryUnlockBlueprintFromPool(
         getBlueprintsForMonster(enemy.def.id, enemy === this.boss),
@@ -570,12 +602,10 @@ export class DungeonScene extends Phaser.Scene {
       if (bpName) {
         this.hud.showToast(`BLUEPRINT UNLOCKED: ${bpName}!`);
       }
-      this.drops.push(
-        new LootDrop(this, enemy.x, enemy.y, 'coin', Phaser.Math.Between(enemy.def.coins[0], enemy.def.coins[1]), true),
-      );
+      this.spawnDrop(enemy.x, enemy.y, 'coin', Phaser.Math.Between(enemy.def.coins[0], enemy.def.coins[1]), true);
       for (const d of enemy.def.drops) {
         if (Math.random() <= d.chance) {
-          this.drops.push(new LootDrop(this, enemy.x, enemy.y, d.itemId, d.count, false));
+          this.spawnDrop(enemy.x, enemy.y, d.itemId, d.count, false);
         }
       }
       gameState.addXp(enemy.def.xp);
@@ -600,18 +630,28 @@ export class DungeonScene extends Phaser.Scene {
           const lbl = this.add
             .text(0, -17, `[E] Floor ${this.voidFloor + 1}`, {
               fontSize: '7px',
+              fontStyle: 'bold',
               color: '#8ef5ff',
               stroke: '#000',
               strokeThickness: 2,
+              resolution: 4,
             })
             .setOrigin(0.5);
           this.nextFloorPortal = this.add.container(nx, ny, [ring, lbl]).setDepth(4500);
         } else {
           gameState.clearedDungeons.add(this.cfg.id);
           gameState.addItem(this.cfg.relicId, 1);
-          this.hud.showToast(`BOSS DEFEATED! Unlocked ${ITEMS[this.cfg.relicId].name}!`);
+          const relicDef = ITEMS[this.cfg.relicId];
+          this.hud.showToast(`BOSS DEFEATED! Unlocked ${relicDef.name}!`);
+          revealSequence.show({
+            title: 'RELIC UNLOCKED!',
+            subtitle: `${relicDef.name} — ${this.cfg.title} Cleared!`,
+            iconKey: relicDef.iconKey,
+            accentColor: '#c07dff',
+          });
         }
-        SFX.playLevelUp();
+        SFX.playBossDefeat();
+        SFX.setMusicSituation('dungeon');
         gameState.save();
       }
     }
@@ -649,10 +689,11 @@ export class DungeonScene extends Phaser.Scene {
       ) {
         this.treasureChest.opened = true;
         this.treasureChest.spr.play('prop_chest_big_open');
-        SFX.playLevelUp();
-        this.drops.push(new LootDrop(this, this.treasureChest.x, this.treasureChest.y + 10, 'coin', 45, true));
+        SFX.playChestOpen();
+        spawnSparklers(this, this.treasureChest.x, this.treasureChest.y - 4, 16);
+        this.spawnDrop(this.treasureChest.x, this.treasureChest.y + 10, 'coin', 45, true);
         for (const item of this.cfg.chestLoot) {
-          this.drops.push(new LootDrop(this, this.treasureChest.x, this.treasureChest.y + 10, item.itemId, item.count, false));
+          this.spawnDrop(this.treasureChest.x, this.treasureChest.y + 10, item.itemId, item.count, false);
         }
         this.hud.showToast('Opened Dungeon Treasure Chest!');
       }
@@ -691,19 +732,22 @@ export class DungeonScene extends Phaser.Scene {
         if (!sw.active && Math.hypot(sw.x - this.player.x, sw.y - this.player.y) <= 13) {
           sw.active = true;
           sw.spr.setTexture('ui_icons/sigil_on');
-          SFX.playCraft();
+          SFX.playSwitch();
+          spawnShockwaveRing(this, sw.x, sw.y, 0x7ac7ff, 22, 260);
         }
       }
       if (this.switches.every((s) => s.active)) {
         this.gateOpen = true;
         this.bossGateGroup?.clear(true, true);
-        SFX.playLevelUp();
+        SFX.playGateUnlock();
+        spawnShockwaveRing(this, 20 * TILE_PX + 8, 7.5 * TILE_PX, 0xffe066, 48, 420);
         this.hud.showToast('Boss Gate Unsealed!');
       }
     }
 
     // Update Boss Bar if in Room 3
     if (this.boss && !this.boss.isDead && this.player.x > 20 * TILE_PX) {
+      SFX.setMusicSituation('boss');
       this.hud.setBossBar({
         name: this.bossEnraged ? `${this.boss.def.name} [ENRAGED]` : this.boss.def.name,
         hp: this.boss.hp,

@@ -1,5 +1,12 @@
 import { SFX } from '../core/SoundFX';
 
+export type FishBehavior = 'steady' | 'heavy' | 'erratic' | 'dart' | 'sinker';
+
+export interface FishingStartOpts {
+  fishName?: string;
+  behavior?: FishBehavior;
+}
+
 export class FishingMinigame {
   private container: HTMLElement | null = null;
   private active = false;
@@ -16,6 +23,11 @@ export class FishingMinigame {
 
   private progress = 0.32;
   private holding = false;
+  private readyTimerMs = 0;
+  private goShown = false;
+  private reelTickTimerMs = 0;
+  private fishBehavior: FishBehavior = 'steady';
+  private fishSpeed = 0.42;
   private rafId?: number;
   private lastTs = 0;
 
@@ -27,10 +39,13 @@ export class FishingMinigame {
     return this.active;
   }
 
-  public start(onFinish: (caught: boolean) => void): void {
+  public start(onFinish: (caught: boolean) => void, opts?: FishingStartOpts): void {
     if (this.active) return;
     this.active = true;
     this.onFinish = onFinish;
+    this.fishBehavior = opts?.behavior ?? 'steady';
+    this.fishSpeed = 0.42;
+    const fishTitle = opts?.fishName ? `${opts.fishName}!` : 'REELING IN!';
     this.elapsedMs = 0;
     this.barPos = 0.2;
     this.barVel = 0;
@@ -39,6 +54,9 @@ export class FishingMinigame {
     this.fishMoveTimer = 0;
     this.progress = 0.32;
     this.holding = false;
+    this.readyTimerMs = 2000;
+    this.goShown = false;
+    SFX.playFishBite();
 
     const root = document.getElementById('hud-root');
     if (!root) {
@@ -69,10 +87,10 @@ export class FishingMinigame {
 
     wrap.innerHTML = `
       <div style="display:flex; justify-content:space-between; width:100%; align-items:center; gap:12px;">
-        <strong style="font-size:12px; color:#8ae6ff;">REELING IN!</strong>
+        <strong style="font-size:12px; color:#8ae6ff;">${fishTitle}</strong>
         <span id="fish-timer" style="font-size:12px; font-weight:700; color:#ffe066;">20.0s</span>
       </div>
-      <div style="display:flex; gap:10px; align-items:stretch; height:210px;">
+      <div style="display:flex; gap:10px; align-items:stretch; height:210px; position:relative;">
         <!-- Water Track -->
         <div id="fish-track" style="position:relative; width:34px; height:210px; background:linear-gradient(180deg, #1b527a 0%, #0e2d47 100%); border:2px solid #75b8e0; border-radius:6px; overflow:hidden;">
           <div id="fish-bar" style="position:absolute; left:2px; right:2px; height:54px; background:rgba(104, 232, 134, 0.65); border:1.5px solid #a8ffbb; border-radius:4px;"></div>
@@ -82,6 +100,7 @@ export class FishingMinigame {
         <div style="width:14px; height:210px; background:#0b131f; border:1.5px solid #486485; border-radius:4px; position:relative; overflow:hidden;">
           <div id="fish-prog" style="position:absolute; left:0; right:0; bottom:0; height:32%; background:linear-gradient(180deg, #ffe066 0%, #59d97d 100%);"></div>
         </div>
+        <div id="fish-ready-banner" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; font-size:16px; font-weight:900; color:#ffe066; text-shadow:0 2px 8px rgba(0,0,0,0.95); background:rgba(8,16,28,0.45); border-radius:6px;">Ready...</div>
       </div>
       <button id="fish-reel-btn" class="hud-btn primary" style="width:100%; font-size:11px;">Hold Click / Space to Reel</button>
       <div style="font-size:10px; color:#9db6cf;">[ESC] Cancel</div>
@@ -125,6 +144,35 @@ export class FishingMinigame {
     if (!this.active) return;
     const dt = Math.min(0.05, (ts - this.lastTs) / 1000);
     this.lastTs = ts;
+
+    if (this.readyTimerMs > 0) {
+      this.readyTimerMs = Math.max(0, this.readyTimerMs - dt * 1000);
+      const bannerEl = this.container?.querySelector<HTMLElement>('#fish-ready-banner');
+      if (bannerEl) {
+        if (this.readyTimerMs <= 650) {
+          if (!this.goShown) {
+            this.goShown = true;
+            SFX.playFishGo();
+          }
+          bannerEl.textContent = 'Go!';
+          bannerEl.style.color = '#7ef29d';
+          bannerEl.style.fontSize = '20px';
+        } else {
+          bannerEl.textContent = 'Ready...';
+          bannerEl.style.color = '#ffe066';
+        }
+        if (this.readyTimerMs <= 0) bannerEl.style.display = 'none';
+      }
+      // Position initial bar and fish during countdown
+      const trackH = 210;
+      const barEl = this.container?.querySelector<HTMLElement>('#fish-bar');
+      const fishEl = this.container?.querySelector<HTMLElement>('#fish-sprite');
+      if (barEl) barEl.style.bottom = `${Math.round(this.barPos * trackH)}px`;
+      if (fishEl) fishEl.style.bottom = `${Math.round(this.fishPos * (trackH - 22))}px`;
+      this.rafId = requestAnimationFrame((nextTs) => this.tick(nextTs));
+      return;
+    }
+
     this.elapsedMs += dt * 1000;
 
     // 1. Catch Bar physics (Stardew-style gravity + upward thrust + bottom bounce)
@@ -140,19 +188,48 @@ export class FishingMinigame {
       this.barVel = 0;
     }
 
-    // 2. Fish swimming AI
+    // 2. Fish swimming AI (unique movement per fish behavior)
     this.fishMoveTimer -= dt;
     if (this.fishMoveTimer <= 0) {
-      this.fishMoveTimer = 0.65 + Math.random() * 0.95;
-      this.fishTarget = 0.08 + Math.random() * 0.82;
+      if (this.fishBehavior === 'heavy') {
+        const lunge = Math.random() < 0.35;
+        this.fishMoveTimer = lunge ? 0.45 : 0.95 + Math.random() * 0.75;
+        this.fishSpeed = lunge ? 0.78 : 0.28;
+        this.fishTarget = 0.08 + Math.random() * 0.76;
+      } else if (this.fishBehavior === 'erratic') {
+        this.fishMoveTimer = 0.32 + Math.random() * 0.42;
+        this.fishSpeed = 0.65;
+        this.fishTarget = 0.06 + Math.random() * 0.86;
+      } else if (this.fishBehavior === 'dart') {
+        this.fishMoveTimer = 0.42 + Math.random() * 0.5;
+        this.fishSpeed = 0.72;
+        this.fishTarget = Math.random() < 0.5 ? 0.62 + Math.random() * 0.28 : 0.1 + Math.random() * 0.28;
+      } else if (this.fishBehavior === 'sinker') {
+        this.fishMoveTimer = 0.38 + Math.random() * 0.48;
+        this.fishSpeed = 0.78;
+        this.fishTarget = Math.random() < 0.65 ? 0.05 + Math.random() * 0.2 : 0.72 + Math.random() * 0.2;
+      } else {
+        this.fishMoveTimer = 0.68 + Math.random() * 0.85;
+        this.fishSpeed = 0.42;
+        this.fishTarget = 0.1 + Math.random() * 0.78;
+      }
     }
     const fishDiff = this.fishTarget - this.fishPos;
-    this.fishPos += Math.sign(fishDiff) * Math.min(Math.abs(fishDiff), 0.42 * dt);
+    this.fishPos += Math.sign(fishDiff) * Math.min(Math.abs(fishDiff), this.fishSpeed * dt);
 
     // 3. Overlap check -> fill/drain progress
     const barTop = this.barPos + this.barHeight;
     const overlapping = this.fishPos >= this.barPos - 0.03 && this.fishPos <= barTop + 0.03;
     this.progress += (overlapping ? 0.27 : -0.15) * dt;
+    if (overlapping) {
+      this.reelTickTimerMs -= dt * 1000;
+      if (this.reelTickTimerMs <= 0) {
+        this.reelTickTimerMs = 130;
+        SFX.playFishTick(this.progress);
+      }
+    } else {
+      this.reelTickTimerMs = 30;
+    }
 
     // 4. Update DOM visuals
     if (this.container) {
@@ -181,12 +258,12 @@ export class FishingMinigame {
     }
 
     if (this.progress >= 1) {
-      SFX.playLevelUp();
+      SFX.playFishCatch();
       this.finish(true);
       return;
     }
     if (this.progress <= 0 || this.elapsedMs >= this.maxDurationMs) {
-      SFX.playHit();
+      SFX.playFishFail();
       this.finish(false);
       return;
     }

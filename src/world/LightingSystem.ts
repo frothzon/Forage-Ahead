@@ -166,37 +166,39 @@ export class LightingSystem {
     const hrs = Math.floor((totalMinutes / 60 + 6) % 24);
     const mins = totalMinutes % 60;
     const clockStr = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-    if (t < 0.2) return { label: 'Dawn', clockStr, darkness: 0.35 };
-    if (t < 0.6) return { label: 'Day', clockStr, darkness: 0 };
-    if (t < 0.78) return { label: 'Dusk', clockStr, darkness: 0.45 };
+    if (t < 0.22) return { label: 'Dawn', clockStr, darkness: 0.45 };
+    if (t < 0.60) return { label: 'Day', clockStr, darkness: 0 };
+    if (t < 0.72) return { label: 'Dusk', clockStr, darkness: 0.55 };
     return { label: 'Night', clockStr, darkness: 1 };
   }
 
   public getAmbientColor(): { color: number; nightFactor: number } {
     const t = this.timeOfDay;
     const DAY = 0xffffff;
-    const DAWN = 0xf2b59b;
-    const DUSK = 0xd48599;
-    const NIGHT = 0x3b4875;
+    const DAWN = 0xffa05c; // ~1hr warm orange morning tint
+    const DUSK = 0xff8547; // ~1hr warm orange evening tint
+    const NIGHT = 0x161d38; // Darker night so light sources are needed
 
-    if (t < 0.2) {
-      const k = t / 0.2;
-      return { color: lerpColor(NIGHT, DAWN, k), nightFactor: 1 - k * 0.65 };
+    if (t < 0.16) {
+      const k = t / 0.16;
+      return { color: lerpColor(NIGHT, DAWN, k), nightFactor: 1 - k * 0.68 };
     }
-    if (t < 0.28) {
-      const k = (t - 0.2) / 0.08;
-      return { color: lerpColor(DAWN, DAY, k), nightFactor: 0.35 * (1 - k) };
+    if (t < 0.24) {
+      // Early morning orange glow (~1 in-game hour) transitioning to full day
+      const k = (t - 0.16) / 0.08;
+      return { color: lerpColor(DAWN, DAY, k), nightFactor: 0.32 * (1 - k) };
     }
-    if (t < 0.6) {
+    if (t < 0.60) {
       return { color: DAY, nightFactor: 0 };
     }
-    if (t < 0.72) {
-      const k = (t - 0.6) / 0.12;
-      return { color: lerpColor(DAY, DUSK, k), nightFactor: k * 0.55 };
+    if (t < 0.67) {
+      // Evening orange glow (~1 in-game hour)
+      const k = (t - 0.60) / 0.07;
+      return { color: lerpColor(DAY, DUSK, k), nightFactor: k * 0.42 };
     }
-    if (t < 0.82) {
-      const k = (t - 0.72) / 0.1;
-      return { color: lerpColor(DUSK, NIGHT, k), nightFactor: 0.55 + k * 0.45 };
+    if (t < 0.78) {
+      const k = (t - 0.67) / 0.11;
+      return { color: lerpColor(DUSK, NIGHT, k), nightFactor: 0.42 + k * 0.58 };
     }
     return { color: NIGHT, nightFactor: 1 };
   }
