@@ -60,15 +60,23 @@ describe('AutoTiler', () => {
     );
   });
 
-  it('computes exact 4-bit bitmask frames (0..15) for hoed dirt overlays', () => {
+  it('computes exact 47-tile Sprout Lands blob frames for hoed dirt overlays', () => {
     const overlays: OverlayType[][] = [
       ['none', 'dirt', 'none'],
       ['dirt', 'dirt', 'dirt'],
       ['none', 'dirt', 'none'],
     ];
-    expect(computeOverlayTile(overlays, 1, 1)).toEqual({ tilesetKey: '_hoed_soil_16', frame: 15 });
-    expect(computeOverlayTile(overlays, 1, 0)).toEqual({ tilesetKey: '_hoed_soil_16', frame: 4 });
-    expect(computeOverlayTile(overlays, 2, 1)).toEqual({ tilesetKey: '_hoed_soil_16', frame: 8 });
-    expect(computeOverlayTile([['dirt']], 0, 0)).toEqual({ tilesetKey: '_hoed_soil_16', frame: 0 });
+    expect(computeOverlayTile(overlays, 1, 1)).toEqual({ tilesetKey: 'sprout_tilled_dirt', frame: 52 });
+    expect(computeOverlayTile(overlays, 1, 0)).toEqual({ tilesetKey: 'sprout_tilled_dirt', frame: 3 });
+    expect(computeOverlayTile(overlays, 2, 1)).toEqual({ tilesetKey: 'sprout_tilled_dirt', frame: 35 });
+    expect(computeOverlayTile([['dirt']], 0, 0)).toEqual({ tilesetKey: 'sprout_tilled_dirt', frame: 36 });
+
+    const solid3x3: OverlayType[][] = [
+      ['dirt', 'dirt', 'dirt'],
+      ['dirt', 'dirt', 'dirt'],
+      ['dirt', 'dirt', 'dirt'],
+    ];
+    expect(computeOverlayTile(solid3x3, 1, 1)).toEqual({ tilesetKey: 'sprout_tilled_dirt', frame: 12 });
+    expect(computeOverlayTile(solid3x3, 0, 0)).toEqual({ tilesetKey: 'sprout_tilled_dirt', frame: 0 });
   });
 });

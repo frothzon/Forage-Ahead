@@ -5340,6 +5340,11 @@
       "width": 80,
       "height": 48
     },
+    "sprout/tilled_dirt": {
+      "path": "assets/sprout/tilled_dirt.png",
+      "width": 176,
+      "height": 112
+    },
     "sprout_icons/corn": {
       "path": "assets/sprout_icons/corn.png",
       "width": 16,

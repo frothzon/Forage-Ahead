@@ -399,6 +399,7 @@ function extractSproutLands(manifest) {
 
   const mapFiles = {
     'Sprout Lands - Sprites - premium pack/Objects/Farming Plants.png': 'sprout/farming_plants.png',
+    'Sprout Lands - Sprites - premium pack/Tilesets/ground tiles/Old tiles/Tilled_Dirt_Wide_v2.png': 'sprout/tilled_dirt.png',
     'Sprout Lands - Sprites - premium pack/Objects/Items/Farming Plants items.png': 'sprout/farming_items.png',
     'Sprout Lands - Sprites - premium pack/Tilesets/Building parts/Wooden_House_Walls_Tilset.png': 'sprout/house_walls.png',
     'Sprout Lands - Sprites - premium pack/Tilesets/Building parts/Wooden_House_Roof_Tilset.png': 'sprout/house_roof.png',

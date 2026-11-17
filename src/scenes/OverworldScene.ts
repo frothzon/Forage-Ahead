@@ -291,43 +291,8 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  private ensureHoedSoilTexture(): void {
-    if (this.textures.exists('_hoed_soil_16')) return;
-    const tex = this.textures.createCanvas('_hoed_soil_16', 16 * 16, 16);
-    if (!tex) return;
-    const ctx = tex.getContext();
-    ctx.clearRect(0, 0, 256, 16);
-
-    for (let mask = 0; mask < 16; mask++) {
-      const ox = mask * 16;
-      const hasN = (mask & 1) !== 0;
-      const hasE = (mask & 2) !== 0;
-      const hasS = (mask & 4) !== 0;
-      const hasW = (mask & 8) !== 0;
-
-      const x0 = hasW ? 0 : 2;
-      const y0 = hasN ? 0 : 2;
-      const x1 = hasE ? 16 : 14;
-      const y1 = hasS ? 16 : 14;
-
-      // Dark soil outline
-      ctx.fillStyle = '#4a2d1b';
-      ctx.fillRect(ox + x0, y0, x1 - x0, y1 - y0);
-      // Warm tilled soil fill
-      ctx.fillStyle = '#73482d';
-      ctx.fillRect(ox + x0 + (hasW ? 0 : 1), y0 + (hasN ? 0 : 1), x1 - x0 - (hasW ? 0 : 1) - (hasE ? 0 : 1), y1 - y0 - (hasN ? 0 : 1) - (hasS ? 0 : 1));
-      // Subtle furrow lines
-      ctx.fillStyle = '#5b3721';
-      ctx.fillRect(ox + x0 + 2, y0 + 3, Math.max(2, x1 - x0 - 4), 1);
-      ctx.fillRect(ox + x0 + 2, y0 + 7, Math.max(2, x1 - x0 - 4), 1);
-      ctx.fillRect(ox + x0 + 2, y0 + 11, Math.max(2, x1 - x0 - 4), 1);
-    }
-    tex.refresh();
-  }
-
   private buildTilemap(): void {
     ensureCleanTilesets(this);
-    this.ensureHoedSoilTexture();
 
     this.map = this.make.tilemap({
       tileWidth: TILE_PX,
@@ -350,7 +315,7 @@ export class OverworldScene extends Phaser.Scene {
     const winter = addTs('tileset_winter', 'tileset_winter_clean');
     const coastlines = addTs('tileset_coastlines', 'tileset_coastlines_clean');
     const dirt = addTs('tileset_dirt', 'tileset_dirt');
-    const hoedSoil = addTs('_hoed_soil_16', '_hoed_soil_16');
+    const hoedSoil = addTs('sprout_tilled_dirt', 'sprout_tilled_dirt');
     const road = addTs('tileset_roads_stone', 'tileset_roads_stone');
 
     this.tilesets = { grass, autumn, winter, coastlines, dirt, hoedSoil, road };
@@ -373,7 +338,7 @@ export class OverworldScene extends Phaser.Scene {
     if (key === 'tileset_autumn') return this.tilesets.autumn.firstgid;
     if (key === 'tileset_winter') return this.tilesets.winter.firstgid;
     if (key === 'tileset_coastlines') return this.tilesets.coastlines.firstgid;
-    if (key === '_hoed_soil_16') return this.tilesets.hoedSoil.firstgid;
+    if (key === 'sprout_tilled_dirt') return this.tilesets.hoedSoil.firstgid;
     if (key === 'tileset_dirt') return this.tilesets.dirt.firstgid;
     if (key === 'tileset_roads_stone') return this.tilesets.road.firstgid;
     return this.tilesets.grass.firstgid;

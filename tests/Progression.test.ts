@@ -9,7 +9,7 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     const state = new GameState();
     state.reset('Beastmaster');
     expect(state.level).toBe(1);
-    const leveled = state.addXp(100);
+    const leveled = state.addXp(160);
     expect(leveled).toBe(true);
     expect(state.level).toBeGreaterThanOrEqual(2);
     expect(state.skillPoints).toBeGreaterThanOrEqual(1);

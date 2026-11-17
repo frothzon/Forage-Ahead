@@ -273,6 +273,60 @@ export function computeTerrainTile(
 }
 
 /**
+ * Exact 47-tile Sprout Lands 8-bit blob bitmask lookup for 11x7 tilled soil tileset
+ * Bitmask: N=1, NE=2, E=4, SE=8, S=16, SW=32, W=64, NW=128 (diagonals only set when both adjacent cardinals are true).
+ */
+export const SPROUT_TILLED_BLOB_MAP: Record<number, number> = {
+  0: 36,
+  1: 25,
+  4: 33,
+  5: 37,
+  7: 22,
+  16: 3,
+  17: 14,
+  20: 4,
+  21: 48,
+  23: 15,
+  28: 0,
+  29: 26,
+  31: 11,
+  64: 35,
+  65: 40,
+  68: 34,
+  69: 41,
+  71: 39,
+  80: 7,
+  81: 51,
+  84: 8,
+  85: 52,
+  87: 42,
+  92: 6,
+  93: 31,
+  95: 50,
+  112: 2,
+  113: 29,
+  116: 5,
+  117: 32,
+  119: 20,
+  124: 1,
+  125: 30,
+  127: 28,
+  193: 24,
+  197: 38,
+  199: 23,
+  209: 18,
+  213: 43,
+  215: 19,
+  221: 9,
+  223: 17,
+  241: 13,
+  245: 49,
+  247: 16,
+  253: 27,
+  255: 12,
+};
+
+/**
  * Computes the auto-tiled overlay frame for dirt patches or stone roads.
  */
 export function computeOverlayTile(
@@ -296,10 +350,22 @@ export function computeOverlayTile(
   const hasW = match(x - 1, y);
 
   if (current === 'dirt') {
-    const mask = (hasN ? 1 : 0) | (hasE ? 2 : 0) | (hasS ? 4 : 0) | (hasW ? 8 : 0);
+    const hasNE = hasN && hasE && match(x + 1, y - 1);
+    const hasSE = hasS && hasE && match(x + 1, y + 1);
+    const hasSW = hasS && hasW && match(x - 1, y + 1);
+    const hasNW = hasN && hasW && match(x - 1, y - 1);
+    const mask =
+      (hasN ? 1 : 0) |
+      (hasNE ? 2 : 0) |
+      (hasE ? 4 : 0) |
+      (hasSE ? 8 : 0) |
+      (hasS ? 16 : 0) |
+      (hasSW ? 32 : 0) |
+      (hasW ? 64 : 0) |
+      (hasNW ? 128 : 0);
     return {
-      tilesetKey: '_hoed_soil_16',
-      frame: mask,
+      tilesetKey: 'sprout_tilled_dirt',
+      frame: SPROUT_TILLED_BLOB_MAP[mask] ?? 36,
     };
   }
   return {

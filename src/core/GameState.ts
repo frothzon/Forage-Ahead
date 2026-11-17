@@ -564,7 +564,7 @@ export class GameState {
   }
 
   public getXpForNextLevel(): number {
-    return Math.round(45 + this.level * 30 + this.level * this.level * 4);
+    return Math.round(100 + this.level * 50 + this.level * this.level * 4);
   }
 
   public addXp(amount: number): boolean {

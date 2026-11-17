@@ -32,6 +32,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('tileset_winter', 'assets/extras/Tileset_winter (free demo).png');
     this.load.image('tileset_coastlines', 'assets/tileset/Coastlines.png');
     this.load.image('tileset_dirt', 'assets/tileset/Dirt.png');
+    this.load.image('sprout_tilled_dirt', 'assets/sprout/tilled_dirt.png');
     this.load.image('tileset_roads_stone', 'assets/tileset/Roads_stone.png');
     this.load.image('tileset_stone_tile', 'assets/tileset/Stone tile.png');
 
