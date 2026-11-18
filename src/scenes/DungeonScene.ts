@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { gameState } from '../core/GameState';
+import { computeResponsiveZoom } from '../core/ViewportScaler';
 import { SFX } from '../core/SoundFX';
 import { ITEMS } from '../data/items';
 import { tryActivateGadget } from '../entities/GadgetHelper';
@@ -210,10 +211,33 @@ export class DungeonScene extends Phaser.Scene {
       this.fox = new FoxCompanion(this, this.player.x - 14, this.player.y + 6);
     }
 
-    this.cameras.main.setBounds(0, 0, ROOM_W * TILE_PX, ROOM_H * TILE_PX);
-    this.cameras.main.setZoom(3);
+    const roomW = ROOM_W * TILE_PX;
+    const roomH = ROOM_H * TILE_PX;
+    this.cameras.main.setBounds(0, 0, roomW, roomH);
+    this.cameras.main.setZoom(
+      computeResponsiveZoom(this.scale.width, this.scale.height, {
+        worldWidthPx: roomW,
+        worldHeightPx: roomH,
+        minZoom: 3,
+      }),
+    );
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
     this.cameras.main.roundPixels = true;
+
+    const onResize = (gameSize: Phaser.Structs.Size) => {
+      this.cameras.main.setSize(gameSize.width, gameSize.height);
+      this.cameras.main.setZoom(
+        computeResponsiveZoom(gameSize.width, gameSize.height, {
+          worldWidthPx: roomW,
+          worldHeightPx: roomH,
+          minZoom: 3,
+        }),
+      );
+    };
+    this.scale.on('resize', onResize);
+    this.events.once('shutdown', () => {
+      this.scale.off('resize', onResize);
+    });
 
     this.hud = new HudController({
       onBuyIsland: () => {},
@@ -268,18 +292,20 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private buildRoom(): void {
-    for (let y = 0; y < ROOM_H; y++) {
-      for (let x = 0; x < ROOM_W; x++) {
-        const isBorder = x === 0 || y === 0 || x === ROOM_W - 1 || y === ROOM_H - 1;
-        const isRoom1Wall = x === 10 && (y < 6 || y > 9);
-        const isBossWall = x === 20 && (y < 6 || y > 9);
+    const pad = 10;
+    for (let y = -pad; y < ROOM_H + pad; y++) {
+      for (let x = -pad; x < ROOM_W + pad; x++) {
+        const outside = x < 0 || y < 0 || x >= ROOM_W || y >= ROOM_H;
+        const isBorder = outside || x === 0 || y === 0 || x === ROOM_W - 1 || y === ROOM_H - 1;
+        const isRoom1Wall = !outside && x === 10 && (y < 6 || y > 9);
+        const isBossWall = !outside && x === 20 && (y < 6 || y > 9);
         const isWall = isBorder || isRoom1Wall || isBossWall;
         const tile = this.add
           .image(x * TILE_PX + 8, y * TILE_PX + 8, 'tileset/Stone tile')
           .setTint(isWall ? this.cfg.wallTint : this.cfg.floorTint)
           .setDepth(0);
         if (isWall) {
-          tile.setAlpha(0.95);
+          tile.setAlpha(outside ? 0.8 : 0.95);
         }
       }
     }

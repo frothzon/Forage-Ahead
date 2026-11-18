@@ -118,8 +118,8 @@ export class OceanSystem {
         uNightFactor: { type: '1f', value: 0 },
       });
       this.shaderObj = scene.add
-        .shader(baseShader, 0, 0, w, h)
-        .setOrigin(0, 0)
+        .shader(baseShader, w / 2, h / 2, w, h)
+        .setOrigin(0.5, 0.5)
         .setScrollFactor(0)
         .setDepth(0.35);
     } else {
@@ -174,6 +174,9 @@ export class OceanSystem {
       if (this.shaderObj.width !== vw || this.shaderObj.height !== vh) {
         this.shaderObj.setSize(vw, vh);
       }
+      this.shaderObj.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
+      this.shaderObj.setUniform('resolution.value.x', vw);
+      this.shaderObj.setUniform('resolution.value.y', vh);
       this.shaderObj.setUniform('uTime.value', tSec);
       this.shaderObj.setUniform('uCamPos.value.x', cam.worldView.x);
       this.shaderObj.setUniform('uCamPos.value.y', cam.worldView.y);

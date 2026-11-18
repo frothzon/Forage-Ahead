@@ -66,44 +66,39 @@ export class FishingMinigame {
 
     const wrap = document.createElement('div');
     wrap.id = 'fishing-minigame-overlay';
-    wrap.className = 'hud-interactive';
+    wrap.className = 'hud-panel hud-interactive';
     wrap.style.cssText = `
       position: absolute;
       left: 50%;
       top: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(12, 22, 36, 0.95);
-      border: 2.5px solid #59a8d9;
-      border-radius: 10px;
-      padding: 12px 14px;
+      padding: 10px 14px;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 8px;
       z-index: 40;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.65);
-      color: #f6eedc;
     `;
 
     wrap.innerHTML = `
       <div style="display:flex; justify-content:space-between; width:100%; align-items:center; gap:12px;">
-        <strong style="font-size:12px; color:#8ae6ff;">${fishTitle}</strong>
-        <span id="fish-timer" style="font-size:12px; font-weight:700; color:#ffe066;">20.0s</span>
+        <strong style="font-size:12px; color:#3b2316;">${fishTitle}</strong>
+        <span id="fish-timer" style="font-size:12px; font-weight:700; color:#8f5616;">20.0s</span>
       </div>
       <div style="display:flex; gap:10px; align-items:stretch; height:210px; position:relative;">
         <!-- Water Track -->
-        <div id="fish-track" style="position:relative; width:34px; height:210px; background:linear-gradient(180deg, #1b527a 0%, #0e2d47 100%); border:2px solid #75b8e0; border-radius:6px; overflow:hidden;">
-          <div id="fish-bar" style="position:absolute; left:2px; right:2px; height:54px; background:rgba(104, 232, 134, 0.65); border:1.5px solid #a8ffbb; border-radius:4px;"></div>
+        <div id="fish-track" style="position:relative; width:38px; height:210px; background:linear-gradient(180deg, #1e5f8c 0%, #10324f 100%); border-style:solid; border-image-source:url('assets/sprout_ui/frames/backdrop_c3.png'); border-image-slice:5 5 5 5; border-image-width:10px; border-width:5px; image-rendering:pixelated; overflow:hidden;">
+          <div id="fish-bar" style="position:absolute; left:2px; right:2px; height:54px; border-style:solid; border-image-source:url('assets/sprout_ui/controls/scrollbar_v_thumb_med.png'); border-image-slice:4 4 5 4 fill; border-image-width:8px 8px 10px 8px; border-width:4px; image-rendering:pixelated; opacity:0.9;"></div>
           <img id="fish-sprite" src="assets/ui_icons/fish.png" style="position:absolute; left:50%; transform:translateX(-50%); width:22px; height:22px; image-rendering:pixelated; pointer-events:none;" />
         </div>
         <!-- Catch Progress Meter -->
-        <div style="width:14px; height:210px; background:#0b131f; border:1.5px solid #486485; border-radius:4px; position:relative; overflow:hidden;">
-          <div id="fish-prog" style="position:absolute; left:0; right:0; bottom:0; height:32%; background:linear-gradient(180deg, #ffe066 0%, #59d97d 100%);"></div>
+        <div style="width:16px; height:210px; border-style:solid; border-image-source:url('assets/sprout_ui/bars/bar_frame_empty_sm.png'); border-image-slice:3 4 3 4 fill; border-image-width:4px; border-width:3px; image-rendering:pixelated; position:relative; overflow:hidden;">
+          <div id="fish-prog" style="position:absolute; left:0; right:0; bottom:0; height:32%; background:url('assets/sprout_ui/bars/bar_fill_green.png') repeat-y center / 100% 100%; image-rendering:pixelated;"></div>
         </div>
-        <div id="fish-ready-banner" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; font-size:16px; font-weight:900; color:#ffe066; text-shadow:0 2px 8px rgba(0,0,0,0.95); background:rgba(8,16,28,0.45); border-radius:6px;">Ready...</div>
+        <div id="fish-ready-banner" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; font-size:16px; font-weight:900; color:#ffe066; text-shadow:0 2px 8px rgba(0,0,0,0.95); background:rgba(36,22,12,0.5); border-radius:4px;">Ready...</div>
       </div>
       <button id="fish-reel-btn" class="hud-btn primary" style="width:100%; font-size:11px;">Hold Click / Space to Reel</button>
-      <div style="font-size:10px; color:#9db6cf;">[ESC] Cancel</div>
+      <div style="font-size:10px; color:#5c3a24;">[ESC] Cancel</div>
     `;
 
     wrap.addEventListener('pointerdown', (e) => {
@@ -241,9 +236,9 @@ export class FishingMinigame {
 
       if (barEl) {
         barEl.style.bottom = `${Math.round(this.barPos * trackH)}px`;
-        barEl.style.background = overlapping
-          ? 'rgba(110, 240, 140, 0.78)'
-          : 'rgba(235, 130, 95, 0.55)';
+        barEl.style.filter = overlapping
+          ? 'hue-rotate(65deg) saturate(1.4) brightness(1.1)'
+          : 'none';
       }
       if (fishEl) {
         fishEl.style.bottom = `${Math.round(this.fishPos * (trackH - 22))}px`;

@@ -6,6 +6,7 @@ import {
   type SaveSlotIndex,
 } from '../core/GameState';
 import { SFX } from '../core/SoundFX';
+import { addSproutNineSlice, createSproutButton } from '../ui/PhaserNineSlice';
 
 interface ClassMeta {
   id: HeroClassId;
@@ -94,10 +95,10 @@ export class TitleScene extends Phaser.Scene {
     this.groundY = height * 0.87;
 
     // Backdrop + subtle animated stars/ocean shimmer
-    this.add.rectangle(width / 2, height / 2, width, height, 0x0d192a);
+    const bgRect = this.add.rectangle(width / 2, height / 2, width, height, 0x0d192a);
     for (let i = 0; i < 40; i++) {
-      const rx = Phaser.Math.Between(24, width - 24);
-      const ry = Phaser.Math.Between(20, Math.round(height * 0.82));
+      const rx = Phaser.Math.Between(24, Math.max(48, width - 24));
+      const ry = Phaser.Math.Between(20, Math.max(40, Math.round(height * 0.82)));
       const dot = this.add.circle(rx, ry, Phaser.Math.Between(1, 2), 0x4b8ec2, 0.35);
       this.tweens.add({
         targets: dot,
@@ -109,12 +110,30 @@ export class TitleScene extends Phaser.Scene {
     }
 
     // Ground horizon strip where shattered title pieces settle
-    this.add.rectangle(width / 2, this.groundY + (height - this.groundY) / 2, width, height - this.groundY, 0x101d2d);
-    this.add.rectangle(width / 2, this.groundY, width, 2, 0x2f4d6e, 0.7);
+    const horizonRect = this.add.rectangle(width / 2, this.groundY + (height - this.groundY) / 2, width, height - this.groundY, 0x101d2d);
+    const horizonLine = this.add.rectangle(width / 2, this.groundY, width, 2, 0x2f4d6e, 0.7);
     this.rubbleContainer = this.add.container(0, 0).setDepth(5);
     this.menuContainer = this.add.container(0, 0).setDepth(20);
 
+    const onResize = (gameSize: Phaser.Structs.Size) => {
+      const w = gameSize.width;
+      const h = gameSize.height;
+      this.cameras.main.setSize(w, h);
+      this.groundY = h * 0.87;
+      bgRect.setPosition(w / 2, h / 2).setSize(w, h);
+      horizonRect.setPosition(w / 2, this.groundY + (h - this.groundY) / 2).setSize(w, h - this.groundY);
+      horizonLine.setPosition(w / 2, this.groundY).setSize(w, 2);
+      if (this.splashSkipped) {
+        this.showFileSelectMenu();
+      }
+    };
+    this.scale.on('resize', onResize);
+    this.events.once('shutdown', () => {
+      this.scale.off('resize', onResize);
+    });
+
     if (data?.skipSplash) {
+      this.splashSkipped = true;
       this.showFileSelectMenu();
     } else {
       this.playIntroSplash();
@@ -375,11 +394,12 @@ export class TitleScene extends Phaser.Scene {
     // Header banner
     const title = this.add
       .text(width / 2, compact ? 22 : 42, 'FORAGE AHEAD', {
+        fontFamily: 'SproutLandsDisplay, monospace, sans-serif',
         fontSize: compact ? '20px' : '30px',
         fontStyle: 'bold',
         color: '#ffe596',
-        stroke: '#09121d',
-        strokeThickness: 5,
+        stroke: '#3b2316',
+        strokeThickness: 6,
       })
       .setOrigin(0.5);
 
@@ -391,17 +411,18 @@ export class TitleScene extends Phaser.Scene {
           ? `SELECT AN EMPTY FILE TO COPY FILE ${this.copySourceSlot + 1} INTO`
           : 'SELECT AN ADVENTURE FILE',
         {
+          fontFamily: 'SproutLandsUI, monospace, sans-serif',
           fontSize: compact ? '10px' : '12px',
           fontStyle: 'bold',
-          color: this.copySourceSlot !== null ? '#7ce8ff' : '#9fc2e6',
+          color: this.copySourceSlot !== null ? '#7ce8ff' : '#fff6e5',
         },
       )
       .setOrigin(0.5);
 
     this.menuContainer.add([title, subtitle]);
 
-    const slotW = Math.min(640, width - 32);
-    const slotH = compact ? Math.min(72, Math.floor((height - 108) / 3)) : 96;
+    const slotW = Math.min(660, width - 32);
+    const slotH = compact ? Math.min(76, Math.floor((height - 108) / 3)) : 100;
     const slotGap = compact ? 8 : 12;
     const totalH = SAVE_SLOT_COUNT * slotH + (SAVE_SLOT_COUNT - 1) * slotGap;
     const startY = (compact ? 56 : 96) + (height - (compact ? 86 : 140) - totalH) / 2 + slotH / 2;
@@ -413,19 +434,24 @@ export class TitleScene extends Phaser.Scene {
       const isCopySource = this.copySourceSlot === slot;
       const isPasteTarget = this.copySourceSlot !== null && !summary;
 
-      const cardBg = this.add
-        .rectangle(width / 2, cy, slotW, slotH, summary ? 0x16263a : 0x111d2c, 0.94)
-        .setStrokeStyle(
-          2,
-          isCopySource ? 0x7ce8ff : isPasteTarget ? 0x8ef5a7 : summary ? 0x4b6e94 : 0x2c425c,
-        )
-        .setInteractive({ useHandCursor: true });
+      const cardBg = addSproutNineSlice(
+        this,
+        width / 2,
+        cy,
+        slotW,
+        slotH,
+        summary ? 'panel_wood' : 'dock_dark',
+        2,
+      ).setInteractive({ useHandCursor: true });
+      if (isCopySource) cardBg.setTint(0xc8f4ff);
+      else if (isPasteTarget) cardBg.setTint(0xd4ffdc);
 
       const slotTag = this.add
-        .text(width / 2 - slotW / 2 + 12, cy - slotH / 2 + 8, `FILE ${slot + 1}`, {
+        .text(width / 2 - slotW / 2 + 14, cy - slotH / 2 + 10, `FILE ${slot + 1}`, {
+          fontFamily: 'SproutLandsCompact, SproutLandsUI, monospace',
           fontSize: compact ? '9px' : '11px',
           fontStyle: 'bold',
-          color: summary ? '#ffe066' : '#6c87a6',
+          color: summary ? '#7a4b1e' : '#f2d9b1',
         })
         .setOrigin(0, 0);
 
@@ -433,73 +459,50 @@ export class TitleScene extends Phaser.Scene {
 
       if (summary) {
         const clsMeta = CLASSES.find((c) => c.id === summary.heroClass) ?? CLASSES[0];
-        const sprX = width / 2 - slotW / 2 + (compact ? 42 : 54);
+        const sprX = width / 2 - slotW / 2 + (compact ? 44 : 56);
+        const portFrame = addSproutNineSlice(
+          this,
+          sprX,
+          cy + 4,
+          compact ? 44 : 54,
+          compact ? 44 : 54,
+          'frame_wood_a1',
+          2,
+        );
         const spr = this.add
-          .sprite(sprX, cy + 6, `heroes/${summary.heroClass}/${summary.heroClass}_idle`, 0)
-          .setScale(compact ? 1.35 : 1.75);
+          .sprite(sprX, cy + 4, `heroes/${summary.heroClass}/${summary.heroClass}_idle`, 0)
+          .setScale(compact ? 1.25 : 1.55);
         const animKey = `hero_${summary.heroClass}_idle_down`;
         if (this.anims.exists(animKey)) spr.play(animKey);
 
         const infoX = sprX + (compact ? 34 : 44);
         const heroTitle = this.add
-          .text(infoX, cy - (compact ? 14 : 20), `Lv.${summary.level} ${clsMeta.title}`, {
+          .text(infoX, cy - (compact ? 14 : 18), `Lv.${summary.level} ${clsMeta.title}`, {
+            fontFamily: 'SproutLandsDisplay, SproutLandsUI, monospace',
             fontSize: compact ? '12px' : '15px',
             fontStyle: 'bold',
-            color: '#ffffff',
+            color: '#3b2316',
           })
           .setOrigin(0, 0.5);
 
         const statsLine = this.add
           .text(
             infoX,
-            cy + (compact ? 6 : 8),
-            `♥ ${summary.hp}/${summary.maxHp}   •   ${summary.coins}g   •   Islands ${summary.islands}/25   •   Dungeons ${summary.dungeonsCleared}/4${summary.voidSpireFloor > 0 ? `   •   Void Fl.${summary.voidSpireFloor}` : ''}`,
+            cy + (compact ? 7 : 9),
+            `♥ ${summary.hp}/${summary.maxHp}  •  ${summary.coins}g  •  Islands ${summary.islands}/25  •  Dungeons ${summary.dungeonsCleared}/4${summary.voidSpireFloor > 0 ? `  •  Void Fl.${summary.voidSpireFloor}` : ''}`,
             {
+              fontFamily: 'SproutLandsUI, monospace, sans-serif',
               fontSize: compact ? '9px' : '11px',
-              color: '#a8cbe8',
+              color: '#5c3a24',
             },
           )
           .setOrigin(0, 0.5);
 
-        this.menuContainer.add([spr, heroTitle, statsLine]);
+        this.menuContainer.add([portFrame, spr, heroTitle, statsLine]);
 
         // Action buttons on right side of card
-        const rightX = width / 2 + slotW / 2 - 12;
-        const btnH = compact ? 24 : 30;
-        const btnW = compact ? 64 : 84;
-
-        const playBtn = this.add
-          .rectangle(rightX - btnW / 2 - (compact ? 104 : 132), cy, btnW + 10, btnH, 0x327a4a)
-          .setStrokeStyle(1.5, 0x8ef5a7)
-          .setInteractive({ useHandCursor: true });
-        const playTxt = this.add
-          .text(playBtn.x, cy, 'PLAY', { fontSize: compact ? '10px' : '12px', fontStyle: 'bold', color: '#ffffff' })
-          .setOrigin(0.5);
-
-        const copyBtn = this.add
-          .rectangle(rightX - btnW / 2 - (compact ? 48 : 62), cy, compact ? 46 : 56, btnH, 0x243b57)
-          .setStrokeStyle(1.5, isCopySource ? 0x7ce8ff : 0x58789c)
-          .setInteractive({ useHandCursor: true });
-        const copyTxt = this.add
-          .text(copyBtn.x, cy, isCopySource ? 'CANCEL' : 'COPY', {
-            fontSize: compact ? '9px' : '10px',
-            fontStyle: 'bold',
-            color: '#d6e9ff',
-          })
-          .setOrigin(0.5);
-
-        let eraseConfirm = false;
-        const eraseBtn = this.add
-          .rectangle(rightX - (compact ? 22 : 26), cy, compact ? 44 : 52, btnH, 0x5c232b)
-          .setStrokeStyle(1.5, 0xff7d8a)
-          .setInteractive({ useHandCursor: true });
-        const eraseTxt = this.add
-          .text(eraseBtn.x, cy, 'ERASE', {
-            fontSize: compact ? '9px' : '10px',
-            fontStyle: 'bold',
-            color: '#ffb4bc',
-          })
-          .setOrigin(0.5);
+        const rightX = width / 2 + slotW / 2 - 14;
+        const btnH = compact ? 28 : 34;
 
         const launchSlot = () => {
           SFX.playUiClick();
@@ -507,35 +510,69 @@ export class TitleScene extends Phaser.Scene {
             this.scene.start('OverworldScene');
           }
         };
+
+        const playBtn = this.add
+          .image(
+            rightX - (compact ? 128 : 162),
+            cy,
+            'sprout_ui/buttons/btn_wide_play_normal',
+          )
+          .setScale(compact ? 0.95 : 1.15)
+          .setInteractive({ useHandCursor: true });
+        playBtn.on('pointerdown', () => {
+          playBtn.setTexture('sprout_ui/buttons/btn_wide_play_pressed');
+          launchSlot();
+        });
+        playBtn.on('pointerout', () => playBtn.setTexture('sprout_ui/buttons/btn_wide_play_normal'));
+
+        const copyBtn = createSproutButton(this, {
+          x: rightX - (compact ? 64 : 80),
+          y: cy,
+          width: compact ? 52 : 62,
+          height: btnH,
+          label: isCopySource ? 'CANCEL' : 'COPY',
+          variant: 'tan',
+          fontSize: compact ? '9px' : '10px',
+          onClick: () => {
+            SFX.playUiClick();
+            this.copySourceSlot = isCopySource ? null : slot;
+            this.showFileSelectMenu();
+          },
+        });
+
+        let eraseConfirm = false;
+        const eraseBtn = createSproutButton(this, {
+          x: rightX - (compact ? 24 : 28),
+          y: cy,
+          width: compact ? 48 : 56,
+          height: btnH,
+          label: 'ERASE',
+          variant: 'dark',
+          textColor: '#ffb4bc',
+          fontSize: compact ? '9px' : '10px',
+          onClick: () => {
+            SFX.playUiClick();
+            if (!eraseConfirm) {
+              eraseConfirm = true;
+              eraseBtn.bg.setTint(0xff9aa2);
+              eraseBtn.setLabel('SURE?');
+              this.time.delayedCall(2800, () => {
+                if (!eraseBtn.bg.active) return;
+                eraseConfirm = false;
+                eraseBtn.bg.clearTint();
+                eraseBtn.setLabel('ERASE');
+              });
+              return;
+            }
+            gameState.deleteSlot(slot);
+            if (this.copySourceSlot === slot) this.copySourceSlot = null;
+            this.showFileSelectMenu();
+          },
+        });
+
         cardBg.on('pointerdown', launchSlot);
-        playBtn.on('pointerdown', launchSlot);
 
-        copyBtn.on('pointerdown', () => {
-          SFX.playUiClick();
-          this.copySourceSlot = isCopySource ? null : slot;
-          this.showFileSelectMenu();
-        });
-
-        eraseBtn.on('pointerdown', () => {
-          SFX.playUiClick();
-          if (!eraseConfirm) {
-            eraseConfirm = true;
-            eraseBtn.setFillStyle(0x9e2a37);
-            eraseTxt.setText('SURE?');
-            this.time.delayedCall(2800, () => {
-              if (!eraseBtn.active) return;
-              eraseConfirm = false;
-              eraseBtn.setFillStyle(0x5c232b);
-              eraseTxt.setText('ERASE');
-            });
-            return;
-          }
-          gameState.deleteSlot(slot);
-          if (this.copySourceSlot === slot) this.copySourceSlot = null;
-          this.showFileSelectMenu();
-        });
-
-        this.menuContainer.add([playBtn, playTxt, copyBtn, copyTxt, eraseBtn, eraseTxt]);
+        this.menuContainer.add([playBtn, copyBtn.container, eraseBtn.container]);
       } else {
         const emptyLabel = this.add
           .text(
@@ -543,9 +580,10 @@ export class TitleScene extends Phaser.Scene {
             cy,
             isPasteTarget ? `TAP TO PASTE FILE ${this.copySourceSlot! + 1} HERE` : '+ NEW ADVENTURE',
             {
+              fontFamily: 'SproutLandsDisplay, SproutLandsUI, monospace',
               fontSize: compact ? '12px' : '14px',
               fontStyle: 'bold',
-              color: isPasteTarget ? '#8ef5a7' : '#8fb3d9',
+              color: isPasteTarget ? '#8ef5a7' : '#fff6e5',
             },
           )
           .setOrigin(0.5);
@@ -584,18 +622,20 @@ export class TitleScene extends Phaser.Scene {
 
     const header = this.add
       .text(width / 2, compact ? 22 : 44, `CHOOSE YOUR HERO — FILE ${targetSlot + 1}`, {
+        fontFamily: 'SproutLandsDisplay, monospace, sans-serif',
         fontSize: compact ? '16px' : '24px',
         fontStyle: 'bold',
         color: '#ffe596',
-        stroke: '#09121d',
-        strokeThickness: 4,
+        stroke: '#3b2316',
+        strokeThickness: 5,
       })
       .setOrigin(0.5);
 
     const sub = this.add
       .text(width / 2, compact ? 42 : 74, 'Select a starting class to begin your adventure', {
+        fontFamily: 'SproutLandsUI, monospace, sans-serif',
         fontSize: compact ? '10px' : '12px',
-        color: '#9fc2e6',
+        color: '#fff6e5',
       })
       .setOrigin(0.5);
 
@@ -608,47 +648,70 @@ export class TitleScene extends Phaser.Scene {
     const startX = width / 2 - totalW / 2 + cardW / 2;
     const cardY = compact ? height * 0.48 : height / 2 - 10;
 
-    const cards: Array<{ id: HeroClassId; bg: Phaser.GameObjects.Rectangle }> = [];
+    const cards: Array<{ id: HeroClassId; bg: Phaser.GameObjects.NineSlice; brackets: Phaser.GameObjects.Image[] }> = [];
     const refreshCards = () => {
       for (const c of cards) {
-        c.bg.setStrokeStyle(3, c.id === this.selected ? 0xffe066 : 0x38506e);
+        const isSel = c.id === this.selected;
+        c.bg.setTint(isSel ? 0xffffff : 0xead8be);
+        c.brackets.forEach((b) => b.setVisible(isSel));
       }
     };
 
     CLASSES.forEach((cls, idx) => {
       const cx = startX + idx * (cardW + gap);
-      const bg = this.add
-        .rectangle(cx, cardY, cardW, cardH, 0x192a3f, 0.95)
-        .setStrokeStyle(3, cls.id === this.selected ? 0xffe066 : 0x38506e)
+      const isSel = cls.id === this.selected;
+      const bg = addSproutNineSlice(this, cx, cardY, cardW, cardH, 'panel_wood', 2)
         .setInteractive({ useHandCursor: true });
+      bg.setTint(isSel ? 0xffffff : 0xead8be);
 
-      const children: Phaser.GameObjects.GameObject[] = [bg];
+      const bOffX = cardW / 2 - 4;
+      const bOffY = cardH / 2 - 4;
+      const brackets = [
+        this.add.image(cx - bOffX, cardY - bOffY, 'sprout_ui/selectors/selector_c_tl').setScale(1.5).setVisible(isSel),
+        this.add.image(cx + bOffX, cardY - bOffY, 'sprout_ui/selectors/selector_c_tr').setScale(1.5).setVisible(isSel),
+        this.add.image(cx - bOffX, cardY + bOffY, 'sprout_ui/selectors/selector_c_bl').setScale(1.5).setVisible(isSel),
+        this.add.image(cx + bOffX, cardY + bOffY, 'sprout_ui/selectors/selector_c_br').setScale(1.5).setVisible(isSel),
+      ];
+
+      const children: Phaser.GameObjects.GameObject[] = [bg, ...brackets];
+      const portFrame = addSproutNineSlice(
+        this,
+        cx,
+        cardY - cardH * 0.27,
+        compact ? 48 : 58,
+        compact ? 48 : 58,
+        'frame_wood_a4',
+        2,
+      );
+      children.push(portFrame);
       if (this.textures.exists(cls.portraitKey)) {
-        children.push(this.add.image(cx, cardY - cardH * 0.29, cls.portraitKey).setScale(compact ? 1.5 : 2));
+        children.push(this.add.image(cx, cardY - cardH * 0.27, cls.portraitKey).setScale(compact ? 1.3 : 1.7));
       }
       const heroSpr = this.add
-        .sprite(cx, cardY + (compact ? 0 : 2), `heroes/${cls.id}/${cls.id}_idle`, 0)
-        .setScale(compact ? 1.85 : 2.4);
+        .sprite(cx, cardY + (compact ? 2 : 4), `heroes/${cls.id}/${cls.id}_idle`, 0)
+        .setScale(compact ? 1.8 : 2.3);
       const animKey = `hero_${cls.id}_idle_down`;
       if (this.anims.exists(animKey)) heroSpr.play(animKey);
       children.push(heroSpr);
 
       children.push(
         this.add
-          .text(cx, cardY + cardH * 0.21, cls.title, {
+          .text(cx, cardY + cardH * 0.22, cls.title, {
+            fontFamily: 'SproutLandsDisplay, SproutLandsUI, monospace',
             fontSize: compact ? '13px' : '16px',
             fontStyle: 'bold',
-            color: '#ffffff',
+            color: '#3b2316',
           })
           .setOrigin(0.5),
       );
       children.push(
         this.add
           .text(cx, cardY + cardH * 0.36, cls.perk, {
+            fontFamily: 'SproutLandsUI, monospace, sans-serif',
             fontSize: compact ? '9px' : '11px',
-            color: '#b7d4ea',
+            color: '#5c3a24',
             align: 'center',
-            wordWrap: { width: cardW - 14 },
+            wordWrap: { width: cardW - 18 },
           })
           .setOrigin(0.5),
       );
@@ -659,50 +722,46 @@ export class TitleScene extends Phaser.Scene {
         refreshCards();
       });
 
-      cards.push({ id: cls.id, bg });
+      cards.push({ id: cls.id, bg, brackets });
       this.menuContainer?.add(children);
     });
 
     const btnY = compact ? cardY + cardH / 2 + 26 : cardY + 146;
     const btnH = compact ? 34 : 42;
 
-    const backBtn = this.add
-      .rectangle(width / 2 - (compact ? 96 : 114), btnY, compact ? 156 : 176, btnH, 0x22344d)
-      .setStrokeStyle(2, 0x58789c)
-      .setInteractive({ useHandCursor: true });
-    const backTxt = this.add
-      .text(backBtn.x, btnY, '← BACK TO FILES', {
-        fontSize: compact ? '11px' : '13px',
-        fontStyle: 'bold',
-        color: '#d6e9ff',
-      })
-      .setOrigin(0.5);
-
-    const startBtn = this.add
-      .rectangle(width / 2 + (compact ? 96 : 114), btnY, compact ? 176 : 196, btnH, 0x3b8c52)
-      .setStrokeStyle(2, 0x8ef5a7)
-      .setInteractive({ useHandCursor: true });
-    const startTxt = this.add
-      .text(startBtn.x, btnY, 'START ADVENTURE', {
-        fontSize: compact ? '11px' : '13px',
-        fontStyle: 'bold',
-        color: '#ffffff',
-      })
-      .setOrigin(0.5);
-
-    backBtn.on('pointerdown', () => {
-      SFX.playUiClick();
-      this.showFileSelectMenu();
-    });
-    startBtn.on('pointerdown', () => {
-      SFX.playUiClick();
-      gameState.setActiveSlot(targetSlot);
-      gameState.reset(this.selected);
-      gameState.save(targetSlot);
-      this.scene.start('OverworldScene');
+    const backBtn = createSproutButton(this, {
+      x: width / 2 - (compact ? 96 : 114),
+      y: btnY,
+      width: compact ? 156 : 176,
+      height: btnH,
+      label: '← BACK TO FILES',
+      variant: 'tan',
+      fontSize: compact ? '11px' : '13px',
+      onClick: () => {
+        SFX.playUiClick();
+        this.showFileSelectMenu();
+      },
     });
 
-    this.menuContainer.add([backBtn, backTxt, startBtn, startTxt]);
+    const startBtn = createSproutButton(this, {
+      x: width / 2 + (compact ? 96 : 114),
+      y: btnY,
+      width: compact ? 176 : 196,
+      height: btnH,
+      label: 'START ADVENTURE',
+      variant: 'white',
+      textColor: '#214f26',
+      fontSize: compact ? '11px' : '13px',
+      onClick: () => {
+        SFX.playUiClick();
+        gameState.setActiveSlot(targetSlot);
+        gameState.reset(this.selected);
+        gameState.save(targetSlot);
+        this.scene.start('OverworldScene');
+      },
+    });
+
+    this.menuContainer.add([backBtn.container, startBtn.container]);
 
     this.tweens.add({
       targets: this.menuContainer,

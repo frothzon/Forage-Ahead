@@ -26,6 +26,7 @@ export interface StationQueueView {
 import { SFX } from '../core/SoundFX';
 import { dialogueBox } from './DialogueBox';
 import { revealSequence } from './RevealSequence';
+import { SPROUT_UI_CSS } from './SproutUiTheme';
 import { ITEMS, RARITY_COLOR } from '../data/items';
 import { ISLANDS, STORY_CHAPTERS, WORLD_GRID_SIZE, getIslandAt, getIslandRecommendedLevel } from '../data/islands';
 import { MONSTERS } from '../data/monsters';
@@ -335,6 +336,23 @@ export class HudController {
     this.timeLabelText = label;
     const el = this.chromeLayer.querySelector<HTMLElement>('#hud-time-badge');
     if (el) el.textContent = label;
+    const weatherIcon = this.chromeLayer.querySelector<HTMLImageElement>('#hud-weather-icon');
+    if (weatherIcon) {
+      const lower = label.toLowerCase();
+      const isNight = lower.includes('night');
+      const isDusk = lower.includes('dusk') || lower.includes('dawn');
+      let iconName = isNight ? 'night_clear' : isDusk ? 'dusk_clear' : 'day_sunny';
+      if (lower.includes('snow') || lower.includes('blizzard')) {
+        iconName = lower.includes('blizzard') ? 'day_blizzard' : 'day_snow';
+      } else if (lower.includes('rain') || lower.includes('storm')) {
+        iconName = isNight ? 'night_rain' : isDusk ? 'dusk_rain' : 'day_rain';
+      } else if (lower.includes('cloud')) {
+        iconName = isNight ? 'night_cloudy' : isDusk ? 'dusk_cloudy' : 'day_partly_cloudy';
+      } else if (lower.includes('sand')) {
+        iconName = 'dusk_hot_sun';
+      }
+      weatherIcon.src = `assets/sprout_ui/weather/icon_sm_${iconName}.png`;
+    }
   }
 
   public toggleMinimap(): void {
@@ -528,16 +546,16 @@ export class HudController {
     row.className = 'item-feed-row';
     const isAdd = ev.delta > 0;
     const sign = isAdd ? `+${ev.delta}` : `${ev.delta}`;
-    const diffColor = isAdd ? '#6ee88a' : '#ff6b78';
+    const diffColor = isAdd ? '#216b2b' : '#9e2a35';
     const iconHtml = ev.iconKey
       ? `<img src="assets/${ev.iconKey}.png" class="px-icon" style="width:16px; height:16px;" />`
       : '';
 
     row.innerHTML = `
       ${iconHtml}
-      <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${ev.name}</span>
-      <span style="color:${diffColor}; font-weight:700;">${sign}</span>
-      <span style="color:#9db6cf; font-size:10px;">(${ev.total})</span>
+      <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#3b2316;">${ev.name}</span>
+      <span style="color:${diffColor}; font-weight:800;">${sign}</span>
+      <span style="color:#7a5438; font-size:10px;">(${ev.total})</span>
     `;
     this.feedLayer.appendChild(row);
 
@@ -557,90 +575,70 @@ export class HudController {
     const style = document.createElement('style');
     style.id = 'forager-hud-styles';
     style.textContent = `
-      .px-icon { image-rendering: pixelated; object-fit: contain; flex-shrink: 0; }
-      .hud-panel {
-        background: rgba(14, 22, 35, 0.94);
-        border: 2px solid #486485;
-        border-radius: 6px;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 20px rgba(0,0,0,0.55);
-        color: #f6eedc;
-      }
-      .hud-btn {
-        background: #22344d;
-        border: 1.5px solid #58789c;
-        color: #f6eedc;
-        border-radius: 4px;
-        padding: 5px 10px;
-        font-size: 12px;
-        font-weight: 600;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        transition: background 100ms ease, border-color 100ms ease, transform 80ms ease;
-      }
-      .hud-btn:active:not(:disabled) { transform: scale(0.97); }
-      .hud-btn:hover:not(:disabled) { background: #30496b; border-color: #8bb4e0; }
-      .hud-btn:disabled { opacity: 0.42; cursor: not-allowed; }
-      .hud-btn.primary { background: #327a4a; border-color: #7ae398; }
-      .hud-btn.primary:hover:not(:disabled) { background: #3e965b; }
-      .hud-btn.gold { background: #8f6b1e; border-color: #ffe066; }
-      .hud-btn.danger { background: #7a2e38; border-color: #ff7d8a; }
-      .bar-track {
-        width: 148px;
-        height: 11px;
-        background: #0c131f;
-        border: 1px solid #3c506b;
-        border-radius: 3px;
-        overflow: hidden;
-      }
-      .bar-fill { height: 100%; transition: width 120ms ease; }
+      ${SPROUT_UI_CSS}
       .hotbar-dock {
         position: absolute;
-        bottom: 12px;
+        bottom: 6px;
         left: 50%;
         transform: translateX(-50%);
         display: flex;
-        gap: 6px;
-        z-index: 30;
-        padding: 5px 7px;
-        background: rgba(11, 18, 29, 0.85);
-        border: 2px solid #3e5775;
-        border-radius: 8px;
+        gap: 5px;
+        z-index: 35;
+        padding: 3px 6px;
+        border-style: solid;
+        border-image-source: url('assets/sprout_ui/docks/tray_dark_enclosed.png');
+        border-image-slice: 5 5 7 5 fill;
+        border-image-width: 10px 10px 14px 10px;
+        border-width: 6px 8px 10px 8px;
+        image-rendering: pixelated;
+        box-shadow: 0 6px 18px rgba(16, 10, 4, 0.55);
       }
       .hotbar-slot {
-        width: 46px;
-        height: 46px;
-        background: rgba(20, 32, 49, 0.96);
-        border: 2px solid #486485;
-        border-radius: 5px;
+        width: 48px;
+        height: 48px;
+        background: url('assets/sprout_ui/slots/slot_oct_med.png') no-repeat center / 100% 100%;
+        image-rendering: pixelated;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         position: relative;
-        cursor: pointer;
+        cursor: url('/assets/sprout_ui/cursors/cursor_catpaw_pointing_2x.png') 8 4, pointer;
         font-size: 10px;
-        transition: transform 80ms ease, border-color 80ms ease;
+        transition: transform 80ms ease, filter 80ms ease;
       }
-      .hotbar-slot.active { border-color: #ffe066; box-shadow: 0 0 10px rgba(255,224,102,0.55); transform: translateY(-2px); }
-      .hotbar-slot.drag-over { border-color: #7ae398; background: rgba(45, 92, 65, 0.7); }
-      .hotbar-slot.rarity-uncommon:not(.active) { border-color: #469c60; }
-      .hotbar-slot.rarity-rare:not(.active) { border-color: #3d7ec7; }
-      .hotbar-slot.rarity-epic:not(.active) { border-color: #9353c9; box-shadow: inset 0 0 6px rgba(199,125,255,0.22); }
-      .hotbar-slot.rarity-relic:not(.active) { border-color: #cfa430; box-shadow: inset 0 0 7px rgba(255,210,66,0.28); }
+      .hotbar-slot:hover { filter: brightness(1.06); }
+      .hotbar-slot.active {
+        background-image: url('assets/sprout_ui/slots/slot_oct_light.png');
+        transform: translateY(-3px);
+      }
+      .hotbar-slot.drag-over { filter: brightness(1.18) drop-shadow(0 0 6px #7ae398); }
+      .hotbar-slot.rarity-uncommon:not(.active) { filter: drop-shadow(0 0 3px #469c60); }
+      .hotbar-slot.rarity-rare:not(.active) { filter: drop-shadow(0 0 3px #3d7ec7); }
+      .hotbar-slot.rarity-epic:not(.active) { filter: drop-shadow(0 0 4px #9353c9); }
+      .hotbar-slot.rarity-relic:not(.active) { filter: drop-shadow(0 0 5px #cfa430); }
+      .slot-corner {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        image-rendering: pixelated;
+        pointer-events: none;
+        z-index: 3;
+      }
+      .slot-corner.tl { top: -3px; left: -3px; }
+      .slot-corner.tr { top: -3px; right: -3px; }
+      .slot-corner.bl { bottom: -3px; left: -3px; }
+      .slot-corner.br { bottom: -3px; right: -3px; }
       .hotbar-eq {
         position: absolute;
         top: 2px;
-        right: 2px;
+        right: 3px;
         font-size: 7px;
         font-weight: 800;
-        color: #8ef5a7;
-        background: rgba(18, 44, 28, 0.9);
-        border: 1px solid #4fa86c;
-        border-radius: 2px;
-        padding: 0 2px;
-        line-height: 1.2;
+        color: #fff6e5;
+        background: url('assets/sprout_ui/buttons/round_sm_green_normal.png') no-repeat center / 100% 100%;
+        padding: 1px 3px;
+        line-height: 1.1;
         pointer-events: none;
       }
       #hud-item-tooltip {
@@ -648,9 +646,17 @@ export class HudController {
         z-index: 60;
         pointer-events: none;
         padding: 8px 10px;
-        max-width: 240px;
+        max-width: 245px;
         font-size: 11px;
         line-height: 1.35;
+        border-style: solid;
+        border-image-source: url('assets/sprout_ui/dialogue/dialog_box_frame.png');
+        border-image-slice: 4 4 6 4 fill;
+        border-image-width: 8px 8px 12px 8px;
+        border-width: 6px 8px 10px 8px;
+        color: #3b2316;
+        image-rendering: pixelated;
+        box-shadow: 0 6px 18px rgba(16, 10, 4, 0.55);
       }
       @keyframes readyPulse {
         0%, 100% { opacity: 1; }
@@ -658,8 +664,8 @@ export class HudController {
       }
       .quest-ready-pill {
         font-size: 9px;
-        color: #8ef5a7;
-        font-weight: 700;
+        color: #216b2b;
+        font-weight: 800;
         animation: readyPulse 1.5s ease-in-out infinite;
       }
       @keyframes lowHpPulse {
@@ -679,89 +685,120 @@ export class HudController {
         #hud-vitals-panel {
           top: max(6px, env(safe-area-inset-top)) !important;
           left: max(6px, env(safe-area-inset-left)) !important;
-          padding: 5px 7px !important;
+          padding: 4px 6px !important;
           gap: 6px !important;
         }
-        #hud-vitals-panel .bar-track { width: 102px; height: 9px; }
+        #hud-vitals-panel .bar-track { width: 102px; height: 13px; }
         #hud-top-nav {
           top: max(6px, env(safe-area-inset-top)) !important;
           right: max(6px, env(safe-area-inset-right)) !important;
           gap: 4px !important;
         }
-        #hud-top-nav .hud-btn { padding: 4px 7px; font-size: 11px; }
+        #hud-top-nav .hud-btn { padding: 2px 6px; font-size: 11px; }
         .nav-key { display: none; }
-        .hotbar-dock { bottom: max(6px, env(safe-area-inset-bottom)); gap: 4px; padding: 4px 5px; }
-        .hotbar-slot { width: 38px; height: 38px; }
+        .hotbar-dock { bottom: max(6px, env(safe-area-inset-bottom)); gap: 3px; padding: 3px 4px; }
+        .hotbar-slot { width: 40px; height: 40px; }
         #hud-minimap-wrap { bottom: max(6px, env(safe-area-inset-bottom)) !important; right: max(6px, env(safe-area-inset-right)) !important; }
       }
       .modal-backdrop {
         position: absolute;
         inset: 0;
-        background: rgba(6, 10, 18, 0.72);
+        background: rgba(18, 11, 6, 0.72);
         display: flex;
-        align-items: center;
-        justify-content: center;
-        padding-bottom: 58px;
-        z-index: 20;
+        align-items: stretch;
+        justify-content: stretch;
+        padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(68px, calc(env(safe-area-inset-bottom) + 64px)) max(8px, env(safe-area-inset-left));
+        z-index: 25;
       }
       .ledger-window {
-        width: min(960px, 95vw);
-        max-height: 78vh;
+        width: 100%;
+        height: 100%;
+        max-height: none;
         display: flex;
         flex-direction: column;
         overflow: hidden;
       }
+      .ledger-tab-btn {
+        border-style: solid;
+        border-image-source: url('assets/sprout_ui/docks/dock_bar_dark_sm.png');
+        border-image-slice: 4 4 0 4 fill;
+        border-image-width: 8px 8px 0 8px;
+        border-width: 5px 8px 3px 8px;
+        background: transparent;
+        color: #f2d9b1;
+        padding: 2px 10px 4px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: url('/assets/sprout_ui/cursors/cursor_catpaw_pointing_2x.png') 8 4, pointer;
+        image-rendering: pixelated;
+      }
+      .ledger-tab-btn.active {
+        border-image-source: url('assets/sprout_ui/docks/dock_bar_light_sm.png');
+        color: #3b2316;
+        font-weight: 800;
+        transform: translateY(2px);
+      }
       .ledger-body {
-        padding: 14px;
+        padding: 10px 12px;
         overflow-y: auto;
         flex: 1;
+        min-height: 0;
+        color: #3b2316;
       }
       .diablo-layout {
         display: grid;
-        grid-template-columns: 225px 1fr 270px;
+        grid-template-columns: minmax(275px, 1.05fr) minmax(320px, 1.25fr) minmax(290px, 1.05fr);
         gap: 12px;
-        align-items: start;
+        align-items: stretch;
+        height: 100%;
+        min-height: 0;
+      }
+      .equip-grid-2x3 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
       }
       .bag-grid {
         display: grid;
-        grid-template-columns: repeat(${BAG_COLS}, 46px);
-        gap: 5px;
+        grid-template-columns: repeat(${BAG_COLS}, clamp(44px, 6.6vh, 60px));
+        gap: 6px;
         justify-content: center;
-        padding: 8px;
-        background: #0b121d;
-        border: 2px inset #2b3e57;
-        border-radius: 6px;
+        align-content: center;
+        padding: 10px;
       }
       .inv-slot {
-        width: 46px;
-        height: 46px;
-        background: #172336;
-        border: 1.5px solid #3c5370;
-        border-radius: 4px;
+        width: clamp(44px, 6.6vh, 60px);
+        height: clamp(44px, 6.6vh, 60px);
+        background: url('assets/sprout_ui/slots/slot_round_light.png') no-repeat center / 100% 100%;
+        image-rendering: pixelated;
         display: flex;
         align-items: center;
         justify-content: center;
         position: relative;
-        cursor: pointer;
+        cursor: url('/assets/sprout_ui/cursors/cursor_catpaw_pointing_2x.png') 8 4, pointer;
       }
-      .inv-slot:hover { border-color: #93b8e0; background: #1e2e47; }
-      .inv-slot.selected { border-color: #ffe066; box-shadow: inset 0 0 8px rgba(255,224,102,0.35); }
-      .inv-slot.move-source { border-color: #6ee88a; box-shadow: 0 0 8px rgba(110,232,138,0.5); }
-      .inv-slot.drag-over { border-color: #7ae398; background: #223f35; }
+      .inv-slot:hover { background-image: url('assets/sprout_ui/slots/slot_round_med.png'); }
+      .inv-slot.selected { filter: brightness(1.08); }
+      .inv-slot.move-source { filter: drop-shadow(0 0 6px #6ee88a); }
+      .inv-slot.drag-over { filter: brightness(1.18) drop-shadow(0 0 6px #7ae398); }
       .equip-slot {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 6px 8px;
-        background: #131f30;
-        border: 1.5px solid #3c5370;
-        border-radius: 5px;
-        cursor: pointer;
+        gap: 6px;
+        padding: 3px 6px;
+        border-style: solid;
+        border-image-source: url('assets/sprout_ui/docks/tray_light_enclosed.png');
+        border-image-slice: 5 5 7 5 fill;
+        border-image-width: 8px 8px 10px 8px;
+        border-width: 4px 6px 6px 6px;
+        color: #3b2316;
+        image-rendering: pixelated;
+        cursor: url('/assets/sprout_ui/cursors/cursor_catpaw_pointing_2x.png') 8 4, pointer;
       }
-      .equip-slot:hover { border-color: #93b8e0; }
-      .equip-slot.selected { border-color: #ffe066; }
-      .equip-slot.drag-over { border-color: #7ae398; background: #1d3c32; }
-      .grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+      .equip-slot:hover { filter: brightness(1.05); }
+      .equip-slot.selected { filter: drop-shadow(0 0 4px #ffe066) brightness(1.06); }
+      .equip-slot.drag-over { filter: drop-shadow(0 0 6px #7ae398); }
+      .grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(225px, 1fr)); gap: 8px; }
 
       /* Right-side ascending stacking item notification feed */
       .item-feed-stack {
@@ -779,12 +816,17 @@ export class HudController {
         display: flex;
         align-items: center;
         gap: 7px;
-        padding: 5px 9px;
-        background: rgba(13, 21, 34, 0.88);
-        border: 1.5px solid #415d7d;
-        border-radius: 5px;
+        padding: 3px 8px;
+        border-style: solid;
+        border-image-source: url('assets/sprout_ui/docks/tray_light_enclosed.png');
+        border-image-slice: 5 5 7 5 fill;
+        border-image-width: 8px 8px 10px 8px;
+        border-width: 4px 6px 6px 6px;
+        color: #3b2316;
         font-size: 11px;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.45);
+        font-weight: 700;
+        image-rendering: pixelated;
+        box-shadow: 0 3px 10px rgba(16,10,4,0.35);
         opacity: 0;
         transform: translateX(16px);
         transition: opacity 220ms ease, transform 220ms ease;
@@ -806,9 +848,9 @@ export class HudController {
         bottom: 84px;
         width: 108px;
         height: 108px;
-        border-radius: 50%;
-        background: rgba(15, 25, 40, 0.52);
-        border: 2px solid rgba(110, 155, 200, 0.55);
+        background: url('assets/sprout_ui/buttons/round_md_brown_pressed.png') no-repeat center / 100% 100%;
+        opacity: 0.78;
+        image-rendering: pixelated;
         touch-action: none;
         z-index: 26;
       }
@@ -818,9 +860,8 @@ export class HudController {
         top: 34px;
         width: 40px;
         height: 40px;
-        border-radius: 50%;
-        background: rgba(255, 224, 102, 0.72);
-        border: 2px solid #fff3c4;
+        background: url('assets/sprout_ui/buttons/round_md_yellow_normal.png') no-repeat center / 100% 100%;
+        image-rendering: pixelated;
         pointer-events: none;
       }
       .touch-actions-wrap {
@@ -835,49 +876,52 @@ export class HudController {
       .touch-act-btn {
         width: 56px;
         height: 56px;
-        border-radius: 50%;
-        background: rgba(17, 29, 46, 0.72);
-        border: 2px solid #6389b0;
-        color: #f6eedc;
+        border: none;
+        background: url('assets/sprout_ui/buttons/round_md_blue_normal.png') no-repeat center / 100% 100%;
+        image-rendering: pixelated;
+        color: #fff6e5;
+        text-shadow: 0 1px 2px #000;
         font-size: 11px;
-        font-weight: 700;
+        font-weight: 800;
         display: flex;
         align-items: center;
         justify-content: center;
         touch-action: none;
       }
+      .touch-act-btn:active {
+        background-image: url('assets/sprout_ui/buttons/round_md_blue_pressed.png');
+        transform: scale(0.95);
+      }
       .touch-act-btn.primary {
         width: 64px;
         height: 64px;
-        background: rgba(45, 92, 62, 0.8);
-        border-color: #7ae398;
+        background-image: url('assets/sprout_ui/buttons/round_md_green_normal.png');
       }
-      .touch-act-btn:active {
-        transform: scale(0.93);
+      .touch-act-btn.primary:active {
+        background-image: url('assets/sprout_ui/buttons/round_md_green_pressed.png');
       }
 
       .nav-short { display: none; }
       @media (max-width: 1120px), (max-height: 540px) {
         .nav-full, .nav-key { display: none; }
         .nav-short { display: inline; }
-        #hud-vitals-panel { padding: 4px 6px !important; gap: 6px !important; max-width: 245px; }
-        #hud-vitals-panel img.px-icon[style*="42px"] { width: 28px !important; height: 28px !important; }
-        #hud-vitals-panel .bar-track { width: 84px; height: 7px; }
-        #hud-time-badge { font-size: 9px !important; padding: 0px 4px !important; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #hud-vitals-panel { padding: 3px 5px !important; gap: 5px !important; max-width: 245px; }
+        #hud-vitals-panel .bar-track { width: 84px; height: 11px; }
+        #hud-time-badge { font-size: 9px !important; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #hud-top-nav { max-width: calc(100vw - 265px) !important; gap: 4px !important; }
-        #hud-top-nav .hud-btn { padding: 4px 7px; font-size: 10px; }
+        #hud-top-nav .hud-btn { padding: 2px 6px; font-size: 10px; }
         #hud-minimap-canvas { width: 80px !important; height: 80px !important; }
         .touch-actions-wrap { right: 118px; bottom: 68px; gap: 7px; }
         .touch-act-btn { width: 46px; height: 46px; font-size: 10px; }
         .touch-act-btn.primary { width: 54px; height: 54px; }
         .touch-joy-base { left: 16px; bottom: 68px; width: 92px; height: 92px; }
         .touch-joy-knob { left: 28px; top: 28px; width: 36px; height: 36px; }
-        .hotbar-dock { padding: 4px; gap: 3px; }
+        .hotbar-dock { padding: 3px; gap: 3px; }
         .hotbar-slot { width: 38px; height: 38px; }
         .modal-box { width: 98vw; max-height: 94vh; }
         .ledger-window { width: 98vw; height: 94vh; max-height: 94vh; }
         .ledger-tabs { padding: 4px 8px; gap: 4px; flex-wrap: nowrap; overflow-x: auto; }
-        .ledger-tabs .hud-btn { padding: 4px 7px; font-size: 11px; white-space: nowrap; }
+        .ledger-tabs .hud-btn { padding: 3px 6px; font-size: 11px; white-space: nowrap; }
         .ledger-body { -webkit-overflow-scrolling: touch; padding: 8px; }
         .diablo-grid { grid-template-columns: 185px 1fr !important; gap: 8px !important; }
         .inv-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; gap: 4px !important; }
@@ -900,9 +944,12 @@ export class HudController {
     this.renderBanners();
     this.renderModal();
     this.renderHotbar();
+    const modalOpen = this.activeModal !== 'none';
+    if (this.chromeLayer) this.chromeLayer.style.display = modalOpen ? 'none' : 'block';
+    if (this.feedLayer) this.feedLayer.style.display = modalOpen ? 'none' : 'flex';
     const touchEl = this.chromeLayer?.querySelector<HTMLElement>('#hud-touch-controls');
     if (touchEl) {
-      touchEl.style.display = this.touchEnabled && this.activeModal === 'none' ? 'block' : 'none';
+      touchEl.style.display = this.touchEnabled && !modalOpen ? 'block' : 'none';
     }
   }
 
@@ -927,6 +974,11 @@ export class HudController {
 
     if (hpFill) hpFill.style.width = `${hpPct}%`;
     if (hpText) hpText.textContent = `${Math.ceil(gameState.hp)}/${maxHp}`;
+    const hpHeart = this.chromeLayer.querySelector<HTMLImageElement>('#hud-hp-heart');
+    if (hpHeart) {
+      const hState = hpPct <= 0 ? 'empty' : hpPct < 50 ? 'half' : 'full';
+      hpHeart.src = `assets/sprout_ui/vitals/heart_wood_${hState}.png`;
+    }
     if (enFill) enFill.style.width = `${enPct}%`;
     if (enText) enText.textContent = `${Math.ceil(gameState.energy)}/${maxEn}`;
     if (xpFill) xpFill.style.width = `${xpPct}%`;
@@ -960,21 +1012,24 @@ export class HudController {
           .map((o) => {
             const cur = gameState.getObjectiveProgress(tracked.id, o);
             const done = cur >= o.count;
-            return `<div style="display:flex; justify-content:space-between; gap:10px; color:${done ? '#8ef5a7' : '#d2e2f2'};"><span>${done ? '✓ ' : '• '}${o.label}</span><span>${cur}/${o.count}</span></div>`;
+            const icon = done
+              ? `<img src="assets/sprout_ui/marks/check_sm_dark_normal.png" class="px-icon" style="width:11px; height:11px; margin-right:3px;" />`
+              : '• ';
+            return `<div style="display:flex; justify-content:space-between; gap:10px; color:${done ? '#216b2b' : '#3b2316'}; font-weight:${done ? '700' : '600'};"><span style="display:inline-flex; align-items:center;">${icon}${o.label}</span><span>${cur}/${o.count}</span></div>`;
           })
           .join('');
         trackerEl.innerHTML = `
           <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; ${this.questTrackerCollapsed ? '' : 'margin-bottom:3px;'}">
             <span style="display:inline-flex; align-items:center; gap:5px; min-width:0;">
               <img src="assets/hud_icons/quest.png" class="px-icon" style="width:14px; height:14px;" />
-              <strong style="color:#ffd242; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${tracked.title}</strong>
+              <strong style="color:#3b2316; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${tracked.title}</strong>
             </span>
             <span style="display:inline-flex; align-items:center; gap:4px;">
               ${ready ? `<span class="quest-ready-pill">READY</span>` : ''}
-              <button class="hud-btn" data-quest-collapse="1" style="padding:0 5px; font-size:9px; line-height:1.4;">${this.questTrackerCollapsed ? '+' : '−'}</button>
+              <button class="sl-icon-btn" data-quest-collapse="1" style="width:18px; height:18px; background-image:url('assets/sprout_ui/buttons/${this.questTrackerCollapsed ? 'ic_btn_plus_normal' : 'ic_btn_minus_normal'}.png');" title="${this.questTrackerCollapsed ? 'Expand' : 'Collapse'}"></button>
             </span>
           </div>
-          ${this.questTrackerCollapsed ? '' : `<div style="font-size:10px; display:flex; flex-direction:column; gap:2px;">${objHtml}</div>${tracked.waypoint ? `<div style="margin-top:3px; font-size:9px; color:#9db6cf; display:flex; align-items:center; gap:4px;"><img src="assets/hud_icons/compass.png" class="px-icon" style="width:11px; height:11px;" /><span>${ready ? `Return to ${tracked.npcName} at ` : ''}${tracked.waypoint.label}</span></div>` : ''}`}
+          ${this.questTrackerCollapsed ? '' : `<div style="font-size:10px; display:flex; flex-direction:column; gap:2px;">${objHtml}</div>${tracked.waypoint ? `<div style="margin-top:3px; font-size:9px; color:#5c3a24; display:flex; align-items:center; gap:4px;"><img src="assets/hud_icons/compass.png" class="px-icon" style="width:11px; height:11px;" /><span>${ready ? `Return to ${tracked.npcName} at ` : ''}${tracked.waypoint.label}</span></div>` : ''}`}
         `;
         const colBtn = trackerEl.querySelector<HTMLElement>('[data-quest-collapse]');
         if (colBtn) {
@@ -994,50 +1049,55 @@ export class HudController {
     if (!this.chromeBuilt) {
       this.chromeLayer.innerHTML = `
         <div id="hud-low-hp-vignette"></div>
-        <div id="hud-vitals-panel" class="hud-panel hud-interactive" style="position:absolute; top:10px; left:10px; padding:7px 10px; display:flex; gap:10px; align-items:center;">
-          <img src="${portrait}" class="px-icon" style="width:42px; height:42px;" />
-          <div style="display:flex; flex-direction:column; gap:3px;">
-            <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700;">
+        <div id="hud-vitals-panel" class="hud-panel hud-interactive" style="position:absolute; top:10px; left:10px; padding:5px 8px; display:flex; gap:9px; align-items:center;">
+          <div class="sl-frame-wood" style="width:54px; height:54px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <img src="${portrait}" class="px-icon" style="width:38px; height:38px;" />
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <div style="display:flex; align-items:center; gap:7px; font-size:12px; font-weight:800; color:#3b2316;">
               <span id="hud-level-label"></span>
-              <span style="color:#ffd95a; display:inline-flex; align-items:center; gap:3px;"><img src="assets/ui_icons/coin.png" class="px-icon" style="width:14px; height:14px;" /><span id="hud-coins-val"></span></span>
-              <span id="hud-time-badge" style="background:#1c2d45; border:1px solid #486485; padding:1px 6px; border-radius:4px; font-size:10px; color:#b6dcff;">${this.timeLabelText}</span>
-              <span id="hud-sp-badge" style="background:#7842a8; padding:1px 6px; border-radius:10px; font-size:10px; display:none;"></span>
+              <span style="color:#fff6e5; background:url('assets/sprout_ui/frames/coin_plate_md.png') no-repeat center / 100% 100%; padding:1px 8px 2px 6px; display:inline-flex; align-items:center; gap:4px; font-size:11px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" /><span id="hud-coins-val"></span></span>
+              <span id="hud-sp-badge" style="background:url('assets/sprout_ui/buttons/round_sm_green_normal.png') no-repeat center / 100% 100%; color:#fff6e5; padding:1px 7px; font-size:10px; display:none;"></span>
             </div>
-            <div style="display:flex; align-items:center; gap:5px; font-size:10px;">
-              <img src="assets/hud_icons/heart.png" class="px-icon" style="width:13px; height:13px;" title="HP" />
-              <div class="bar-track"><div id="hud-hp-fill" class="bar-fill" style="background:#e04f5f;"></div></div>
+            <div style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#3b2316;">
+              <img id="hud-hp-heart" src="assets/sprout_ui/vitals/heart_wood_full.png" class="px-icon" style="width:16px; height:16px;" title="HP" />
+              <div class="bar-track"><div id="hud-hp-fill" class="bar-fill hp"></div></div>
               <span id="hud-hp-text"></span>
             </div>
-            <div style="display:flex; align-items:center; gap:5px; font-size:10px;">
-              <img src="assets/hud_icons/energy.png" class="px-icon" style="width:13px; height:13px;" title="Energy" />
-              <div class="bar-track"><div id="hud-en-fill" class="bar-fill" style="background:#48c768;"></div></div>
+            <div style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#3b2316;">
+              <img src="assets/sprout_ui/icons/brown_outline_tan/sprout_2.png" class="px-icon" style="width:16px; height:16px;" title="Energy" />
+              <div class="bar-track"><div id="hud-en-fill" class="bar-fill en"></div></div>
               <span id="hud-en-text"></span>
             </div>
-            <div style="display:flex; align-items:center; gap:5px; font-size:10px;">
-              <img src="assets/hud_icons/xp.png" class="px-icon" style="width:13px; height:13px;" title="XP" />
-              <div class="bar-track" style="height:6px;"><div id="hud-xp-fill" class="bar-fill" style="background:#4fa8ff;"></div></div>
+            <div style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#3b2316;">
+              <img src="assets/sprout_ui/vitals/star_wood_full.png" class="px-icon" style="width:15px; height:15px;" title="XP" />
+              <div class="bar-track" style="height:12px;"><div id="hud-xp-fill" class="bar-fill xp"></div></div>
               <span id="hud-xp-text"></span>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px; margin-top:1px;">
+              <img id="hud-weather-icon" src="assets/sprout_ui/weather/icon_sm_day_sunny.png" class="px-icon" style="width:16px; height:16px;" />
+              <span id="hud-time-badge" style="font-size:10px; font-weight:700; color:#5c3a24;">${this.timeLabelText}</span>
             </div>
           </div>
         </div>
 
-        <div id="hud-top-nav" class="hud-interactive" style="position:absolute; top:10px; right:10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+        <div id="hud-top-nav" class="hud-interactive" style="position:absolute; top:10px; right:10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; align-items:center;">
           <button class="hud-btn gold" data-nav="menu" id="hud-menu-btn"><img src="assets/hud_icons/menu.png" class="px-icon" style="width:14px; height:14px;" /><span>Menu<span class="nav-key"> [I/Tab]</span></span></button>
           <button class="hud-btn primary" data-action="save" title="Save to File ${gameState.activeSlotIndex + 1}"><img src="assets/hud_icons/save.png" class="px-icon" style="width:14px; height:14px;" /><span>Save #${gameState.activeSlotIndex + 1}</span></button>
-          <button class="hud-btn" data-action="files" id="hud-files-btn" style="${this.callbacks.onExitToTitle ? '' : 'display:none;'}" title="Save & Return to File Select">Files</button>
-          <button class="hud-btn" data-action="music" id="hud-music-btn"><img src="assets/hud_icons/music_off.png" class="px-icon" style="width:14px; height:14px;" /><span>Music</span></button>
-          <button class="hud-btn" data-action="mute" id="hud-mute-btn"><img src="assets/hud_icons/sfx_on.png" class="px-icon" style="width:14px; height:14px;" /><span>SFX</span></button>
+          <button class="hud-btn" data-action="files" id="hud-files-btn" style="${this.callbacks.onExitToTitle ? '' : 'display:none;'}" title="Save & Return to File Select"><img src="assets/sprout_ui/icons/brown_outline_dark/logout.png" class="px-icon" style="width:14px; height:14px;" /><span>Files</span></button>
+          <button class="sl-icon-btn" data-action="music" id="hud-music-btn" title="Toggle Music" style="background-image:url('assets/sprout_ui/buttons/ic_btn_music_off_normal.png');"></button>
+          <button class="sl-icon-btn" data-action="mute" id="hud-mute-btn" title="Toggle SFX" style="background-image:url('assets/sprout_ui/buttons/ic_btn_sfx_on_normal.png');"></button>
         </div>
 
-        <div id="hud-quest-tracker" class="hud-panel hud-interactive" style="position:absolute; top:54px; right:10px; width:215px; padding:7px 9px; display:none; z-index:14; cursor:pointer;" title="Click to open Quest Log [Q]"></div>
+        <div id="hud-quest-tracker" class="hud-panel hud-interactive" style="position:absolute; top:54px; right:10px; width:222px; padding:5px 8px; display:none; z-index:14; cursor:pointer;" title="Click to open Quest Log [Q]"></div>
 
-        <div id="hud-minimap-wrap" class="hud-panel hud-interactive" style="position:absolute; bottom:12px; right:12px; padding:5px 6px; z-index:25;">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;">
-            <span style="font-size:10px; font-weight:700; color:#b6dcff;">Minimap [N]</span>
-            <button class="hud-btn" id="hud-minimap-toggle" style="padding:1px 5px; font-size:9px;">Hide</button>
+        <div id="hud-minimap-wrap" class="sl-frame-big hud-interactive" style="position:absolute; bottom:12px; right:12px; padding:3px; z-index:25;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:3px;">
+            <span style="font-size:10px; font-weight:800; color:#3b2316;">Map [N]</span>
+            <button class="hud-btn" id="hud-minimap-toggle" style="padding:0px 5px; font-size:9px;">Hide</button>
           </div>
           <div id="hud-minimap-body" style="display:block;">
-            <canvas id="hud-minimap-canvas" width="108" height="108" style="display:block; border:1px solid #3c506b; border-radius:3px; image-rendering:pixelated;"></canvas>
+            <canvas id="hud-minimap-canvas" width="104" height="104" style="display:block; border:2px solid #5c3a24; border-radius:2px; image-rendering:pixelated;"></canvas>
           </div>
         </div>
 
@@ -1131,12 +1191,13 @@ export class HudController {
     });
     const muteBtn = this.chromeLayer.querySelector<HTMLElement>('#hud-mute-btn');
     if (muteBtn) {
-      muteBtn.innerHTML = `<img src="assets/hud_icons/${SFX.muted ? 'sfx_off' : 'sfx_on'}.png" class="px-icon" style="width:14px; height:14px;" /><span>${SFX.muted ? 'Muted' : 'SFX'}</span>`;
+      muteBtn.style.backgroundImage = `url('assets/sprout_ui/buttons/${SFX.muted ? 'ic_btn_sfx_off_pressed' : 'ic_btn_sfx_on_normal'}.png')`;
+      muteBtn.title = SFX.muted ? 'SFX: Muted (Click to Unmute)' : 'SFX: On (Click to Mute)';
     }
     const musicBtn = this.chromeLayer.querySelector<HTMLElement>('#hud-music-btn');
     if (musicBtn) {
-      musicBtn.innerHTML = `<img src="assets/hud_icons/${SFX.musicEnabled ? 'music_on' : 'music_off'}.png" class="px-icon" style="width:14px; height:14px;" /><span>${SFX.musicEnabled ? 'Music: On' : 'Music: Off'}</span>`;
-      musicBtn.classList.toggle('primary', SFX.musicEnabled);
+      musicBtn.style.backgroundImage = `url('assets/sprout_ui/buttons/${SFX.musicEnabled ? 'ic_btn_music_double_normal' : 'ic_btn_music_off_pressed'}.png')`;
+      musicBtn.title = SFX.musicEnabled ? 'Music: On (Click to Disable)' : 'Music: Off (Click to Enable)';
     }
   }
 
@@ -1145,11 +1206,11 @@ export class HudController {
     if (this.bossInfo) {
       const bpct = Math.max(0, Math.min(100, (this.bossInfo.hp / this.bossInfo.maxHp) * 100));
       html += `
-        <div class="hud-panel" style="position:absolute; top:14px; left:50%; transform:translateX(-50%); padding:6px 14px; display:flex; align-items:center; gap:10px; z-index:16;">
-          ${this.bossInfo.portrait ? `<img src="assets/${this.bossInfo.portrait}.png" class="px-icon" style="width:36px; height:36px;" />` : ''}
+        <div class="hud-panel" style="position:absolute; top:14px; left:50%; transform:translateX(-50%); padding:5px 12px; display:flex; align-items:center; gap:10px; z-index:16;">
+          ${this.bossInfo.portrait ? `<div class="sl-frame-wood-dark" style="width:46px; height:46px; display:flex; align-items:center; justify-content:center;"><img src="assets/${this.bossInfo.portrait}.png" class="px-icon" style="width:32px; height:32px;" /></div>` : ''}
           <div>
-            <div style="font-size:12px; font-weight:700; color:#ff9ea8; margin-bottom:3px;">BOSS: ${this.bossInfo.name}</div>
-            <div class="bar-track" style="width:230px; height:12px;"><div class="bar-fill" style="width:${bpct}%; background:#ff4757;"></div></div>
+            <div style="font-size:12px; font-weight:800; color:#9e2a35; margin-bottom:3px; display:flex; align-items:center; gap:5px;"><img src="assets/sprout_ui/icons/brown_outline_dark/skull.png" class="px-icon" style="width:14px; height:14px;" /><span>BOSS: ${this.bossInfo.name}</span></div>
+            <div class="bar-track" style="width:230px; height:16px;"><div class="bar-fill hp" style="width:${bpct}%;"></div></div>
           </div>
         </div>
       `;
@@ -1159,15 +1220,15 @@ export class HudController {
       const rec = RECIPES.find((r) => r.id === gameState.pendingBuildRecipeId);
       if (this.touchEnabled) {
         html += `
-          <div class="hud-panel" style="position:absolute; bottom:78px; left:50%; transform:translateX(-50%); padding:5px 12px; font-size:11px; border-color:#ffe066; z-index:25; white-space:nowrap;">
+          <div class="hud-dock-light" style="position:absolute; bottom:78px; left:50%; transform:translateX(-50%); padding:4px 12px; font-size:11px; z-index:25; white-space:nowrap;">
             Placing: <strong>${rec?.name ?? ''}</strong> — Drag gizmo to position
           </div>
         `;
       } else {
         html += `
-          <div class="hud-panel hud-interactive" style="position:absolute; bottom:78px; left:50%; transform:translateX(-50%); padding:6px 14px; font-size:12px; border-color:#ffe066; z-index:25; display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center;">
+          <div class="hud-dock-light hud-interactive" style="position:absolute; bottom:78px; left:50%; transform:translateX(-50%); padding:4px 12px; font-size:12px; z-index:25; display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center;">
             <span>Placing: <strong>${rec?.name ?? ''}</strong> — Left-click valid tile • Right-click or</span>
-            <button class="hud-btn" data-action="cancel-build" style="padding:2px 6px;">Cancel [Esc]</button>
+            <button class="hud-btn" data-action="cancel-build" style="padding:1px 6px;">Cancel [Esc]</button>
           </div>
         `;
       }
@@ -1175,7 +1236,7 @@ export class HudController {
 
     if (this.toastMsg) {
       html += `
-        <div class="hud-panel" style="position:absolute; top:92px; left:50%; transform:translateX(-50%); padding:6px 14px; font-size:12px; border-color:#8ef5a7; color:#eafff0; z-index:16;">
+        <div class="hud-dock-light" style="position:absolute; top:92px; left:50%; transform:translateX(-50%); padding:5px 14px; font-size:12px; font-weight:700; color:#3b2316; z-index:16;">
           ${this.toastMsg}
         </div>
       `;
@@ -1272,7 +1333,8 @@ export class HudController {
       const rarityCls = def ? `rarity-${def.rarity}` : '';
       html += `
         <div class="hotbar-slot ${rarityCls} ${active ? 'active' : ''}" data-hotbar="${i}" draggable="${itemId ? 'true' : 'false'}">
-          <span style="position:absolute; top:2px; left:4px; font-size:9px; color:#8ca8c4;">${i + 1}</span>
+          ${active ? `<img src="assets/sprout_ui/selectors/selector_c_tl.png" class="slot-corner tl" /><img src="assets/sprout_ui/selectors/selector_c_tr.png" class="slot-corner tr" /><img src="assets/sprout_ui/selectors/selector_c_bl.png" class="slot-corner bl" /><img src="assets/sprout_ui/selectors/selector_c_br.png" class="slot-corner br" />` : ''}
+          <span style="position:absolute; top:2px; left:4px; font-size:9px; font-weight:800; color:#5c3a24;">${i + 1}</span>
           ${isEq ? `<span class="hotbar-eq">EQ</span>` : ''}
           ${
             def
@@ -1281,11 +1343,11 @@ export class HudController {
                     ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:22px; height:22px; pointer-events:none; ${cdMs > 0 ? 'opacity:0.45;' : ''}" />`
                     : ''
                 }
-                 <span style="font-size:8px; margin-top:1px; max-width:42px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:${RARITY_COLOR[def.rarity]}; pointer-events:none;">${def.name.split(' ').pop()}</span>`
+                 <span style="font-size:8px; margin-top:1px; max-width:42px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#3b2316; font-weight:800; pointer-events:none;">${def.name.split(' ').pop()}</span>`
               : ''
           }
           ${cdMs > 0 ? `<span style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#ffd242; text-shadow:0 1px 3px #000; pointer-events:none;">${(cdMs / 1000).toFixed(1)}s</span>` : ''}
-          ${showCount ? `<span style="position:absolute; bottom:1px; right:3px; font-size:9px; color:#ffe066; font-weight:700; pointer-events:none;">${count}</span>` : ''}
+          ${showCount ? `<span style="position:absolute; bottom:2px; right:4px; font-size:9px; color:#3b2316; font-weight:800; pointer-events:none;">${count}</span>` : ''}
         </div>
       `;
     }
@@ -1385,21 +1447,35 @@ export class HudController {
     else if (this.activeModal === 'map') bodyHtml = this.renderMapTab();
     else if (this.activeModal === 'progress') bodyHtml = this.renderProgressTab();
 
+    const maxHp = gameState.getMaxHp();
+    const maxEn = gameState.getMaxEnergy();
     this.modalLayer.innerHTML = `
       <div class="modal-backdrop hud-interactive" data-action="close-backdrop">
         <div class="hud-panel ledger-window" onclick="event.stopPropagation()">
-          <div style="display:flex; justify-content:space-between; align-items:flex-end; padding:10px 14px 0 14px; background:#09101b; border-bottom:2px solid #354c6b;">
+          <div class="hud-panel-inset ledger-tabs" style="display:flex; justify-content:space-between; align-items:flex-end; padding:4px 8px 0 8px; gap:8px; flex-wrap:wrap;">
             <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:flex-end;">
               ${tabs
                 .map((t) => {
                   const isActive = this.activeModal === t.id;
-                  return `<button class="hud-btn" data-tab="${t.id}" style="border-radius:8px 8px 0 0; padding:7px 13px; border:1px solid ${isActive ? '#ffe066' : '#2a3d59'}; border-top:${isActive ? '3px solid #ffe066' : '1px solid #2a3d59'}; border-bottom:${isActive ? '2px solid #162236' : 'none'}; background:${isActive ? '#162236' : '#0d1624'}; color:${isActive ? '#ffe066' : '#8ba6c4'}; margin-bottom:${isActive ? '-2px' : '0'}; font-weight:${isActive ? '800' : '600'};">${t.label}</button>`;
+                  return `<button class="ledger-tab-btn ${isActive ? 'active' : ''}" data-tab="${t.id}">${t.label}</button>`;
                 })
                 .join('')}
             </div>
-            <button class="hud-btn" data-action="close-modal" style="margin-bottom:8px;">Close [Esc]</button>
+            <div style="display:flex; align-items:center; gap:8px; padding-bottom:4px; flex-wrap:wrap;">
+              <span style="display:inline-flex; align-items:center; gap:8px; font-size:11px; font-weight:700; color:#fff6e5; background:rgba(36,20,12,0.55); padding:2px 8px; border-radius:4px;">
+                <span style="color:#ffe066;">Lv.${gameState.level} ${gameState.heroClass}</span>
+                <span>♥ ${Math.ceil(gameState.hp)}/${maxHp}</span>
+                <span>⚡ ${Math.ceil(gameState.energy)}/${maxEn}</span>
+                <span style="color:#ffd95a; display:inline-flex; align-items:center; gap:3px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" />${gameState.coins}g</span>
+                ${gameState.skillPoints > 0 ? `<span style="color:#8ef5a7;">+${gameState.skillPoints} SP</span>` : ''}
+              </span>
+              <button class="hud-btn primary" data-modal-action="save" style="padding:1px 7px; font-size:10px;"><img src="assets/hud_icons/save.png" class="px-icon" style="width:12px; height:12px;" />Save</button>
+              <button class="sl-icon-btn" data-modal-action="music" title="Toggle Music" style="width:26px; height:26px; background-image:url('assets/sprout_ui/buttons/${SFX.musicEnabled ? 'ic_btn_music_double_normal' : 'ic_btn_music_off_pressed'}.png');"></button>
+              <button class="sl-icon-btn" data-modal-action="mute" title="Toggle SFX" style="width:26px; height:26px; background-image:url('assets/sprout_ui/buttons/${SFX.muted ? 'ic_btn_sfx_off_pressed' : 'ic_btn_sfx_on_normal'}.png');"></button>
+              <button class="sl-icon-btn" data-action="close-modal" title="Close [Esc]" style="width:26px; height:26px; background-image:url('assets/sprout_ui/buttons/ic_btn_close_normal.png');"></button>
+            </div>
           </div>
-          <div class="ledger-body" style="background:#162236;">${bodyHtml}</div>
+          <div class="ledger-body">${bodyHtml}</div>
         </div>
       </div>
     `;
@@ -1422,17 +1498,16 @@ export class HudController {
         const eqId = gameState.equipment[slot];
         const eqInstId = gameState.equippedInstanceIds[slot];
         const def = eqId ? ITEMS[eqId] : undefined;
-        const rarity = eqId ? gameState.getGearRarity(eqId, eqInstId) : 'common';
         const gearLv = eqId ? gameState.getGearLevel(eqId, eqInstId) : 0;
         const selected = this.selectedInspect?.kind === 'equip' && this.selectedInspect.slot === slot;
         return `
           <div class="equip-slot ${selected ? 'selected' : ''}" data-equip-slot="${slot}" draggable="${eqId ? 'true' : 'false'}">
-            <div style="width:32px; height:32px; background:#0b121d; border:1px solid ${def ? RARITY_COLOR[rarity] : '#2e415c'}; border-radius:4px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-              ${def?.iconKey ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:24px; height:24px; pointer-events:none;" />` : `<span style="font-size:10px; color:#4f6885;">—</span>`}
+            <div style="width:34px; height:34px; background:url('assets/sprout_ui/frames/backdrop_b3.png') no-repeat center / 100% 100%; image-rendering:pixelated; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              ${def?.iconKey ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:22px; height:22px; pointer-events:none;" />` : `<span style="font-size:10px; color:#5c3a24;">—</span>`}
             </div>
             <div style="min-width:0; flex:1;">
-              <div style="font-size:9px; color:#8ba6c4; text-transform:uppercase;">${EQUIP_SLOT_LABELS[slot]}${gearLv > 0 ? ` • Lv.${gearLv}` : ''}</div>
-              <div style="font-size:11px; font-weight:700; color:${def ? RARITY_COLOR[rarity] : '#637a94'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+              <div style="font-size:9px; color:#5c3a24; font-weight:700; text-transform:uppercase;">${EQUIP_SLOT_LABELS[slot]}${gearLv > 0 ? ` • Lv.${gearLv}` : ''}</div>
+              <div style="font-size:11px; font-weight:800; color:${def ? '#3b2316' : '#7a5438'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                 ${def ? def.name : 'Empty'}
               </div>
             </div>
@@ -1452,11 +1527,11 @@ export class HudController {
         <div class="inv-slot ${isSelected ? 'selected' : ''} ${isMoveSrc ? 'move-source' : ''}"
              data-bag-idx="${i}"
              draggable="${slot ? 'true' : 'false'}"
-             style="${def ? `border-color:${isSelected ? '#ffe066' : RARITY_COLOR[def.rarity]}55;` : ''}"
              title="${def ? `${def.name} — Drag to move, equip, or assign to Hotbar 1-9` : 'Empty Slot'}">
+          ${isSelected ? `<img src="assets/sprout_ui/selectors/selector_c_tl.png" class="slot-corner tl" /><img src="assets/sprout_ui/selectors/selector_c_tr.png" class="slot-corner tr" /><img src="assets/sprout_ui/selectors/selector_c_bl.png" class="slot-corner bl" /><img src="assets/sprout_ui/selectors/selector_c_br.png" class="slot-corner br" />` : ''}
           ${def?.iconKey ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:26px; height:26px; pointer-events:none;" />` : ''}
-          ${slot && slot.count > 1 ? `<span style="position:absolute; bottom:1px; right:3px; font-size:10px; font-weight:700; color:#ffe066; text-shadow:0 1px 2px #000; pointer-events:none;">${slot.count}</span>` : ''}
-          ${def?.equipSlot ? `<span style="position:absolute; top:1px; left:3px; font-size:8px; color:${RARITY_COLOR[def.rarity]}; pointer-events:none;">E</span>` : ''}
+          ${slot && slot.count > 1 ? `<span style="position:absolute; bottom:2px; right:4px; font-size:10px; font-weight:800; color:#3b2316; pointer-events:none;">${slot.count}</span>` : ''}
+          ${def?.equipSlot ? `<span style="position:absolute; top:2px; left:4px; font-size:8px; font-weight:800; color:#216b2b; pointer-events:none;">E</span>` : ''}
         </div>
       `;
     }
@@ -1466,41 +1541,44 @@ export class HudController {
 
     return `
       <div class="diablo-layout">
-        <!-- LEFT: EQUIPMENT & STATS -->
-        <div style="display:flex; flex-direction:column; gap:8px;">
-          <div style="font-size:12px; font-weight:700; color:#ffe596;">Equipment Slots</div>
-          ${equipSlotsHtml}
-          <div class="hud-panel" style="padding:8px; background:#0d1522; font-size:11px; display:flex; flex-direction:column; gap:3px;">
-            <div style="font-weight:700; color:#9ec6eb; margin-bottom:2px;">Character Stats</div>
-            <div style="display:flex; justify-content:space-between;"><span>Power Level</span><strong style="color:#ffd242;">Lv.${gameState.getPowerLevel()}</strong></div>
-            <div style="display:flex; justify-content:space-between;"><span>Attack Power</span><strong style="color:#ff9b85;">${atkTotal}</strong></div>
-            <div style="display:flex; justify-content:space-between;"><span>Gather Power</span><strong style="color:#8ef5a7;">${gatherTotal}</strong></div>
-            <div style="display:flex; justify-content:space-between;"><span>Armor Defense</span><strong style="color:#8cc8ff;">${eqStats.armor}</strong></div>
-            <div style="display:flex; justify-content:space-between;"><span>Crit Chance</span><strong style="color:#ffe066;">${critPct}%</strong></div>
-            <div style="display:flex; justify-content:space-between;"><span>Move Speed</span><strong>${speed}</strong></div>
-            <div style="display:flex; justify-content:space-between;"><span>Dungeons</span><strong style="color:#d4a3ff;">${gameState.clearedDungeons.size}/4</strong></div>
+        <!-- LEFT: EQUIPMENT 2x3 & STATS 2x4 -->
+        <div style="display:flex; flex-direction:column; gap:8px; min-height:0;">
+          <div style="font-size:12px; font-weight:800; color:#3b2316;">Equipment Slots</div>
+          <div class="equip-grid-2x3">${equipSlotsHtml}</div>
+          <div class="hud-panel-inset" style="padding:8px 10px; font-size:11px; flex:1; display:flex; flex-direction:column; justify-content:center; gap:6px;">
+            <div style="font-weight:800; color:#ffe066;">Character Stats</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px;">
+              <div style="display:flex; justify-content:space-between;"><span>Power Lv</span><strong style="color:#ffd242;">${gameState.getPowerLevel()}</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span>Attack</span><strong style="color:#ff9b85;">${atkTotal}</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span>Gather</span><strong style="color:#8ef5a7;">${gatherTotal}</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span>Armor</span><strong style="color:#8cc8ff;">${eqStats.armor}</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span>Crit</span><strong style="color:#ffe066;">${critPct}%</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span>Speed</span><strong>${speed}</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span>Max HP/EN</span><strong>${gameState.getMaxHp()}/${gameState.getMaxEnergy()}</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span>Dungeons</span><strong style="color:#d4a3ff;">${gameState.clearedDungeons.size}/4</strong></div>
+            </div>
           </div>
         </div>
 
         <!-- CENTER: INVENTORY GRID -->
-        <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
+        <div style="display:flex; flex-direction:column; gap:8px; align-items:center; justify-content:center; min-height:0;">
           <div style="width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px;">
-            <span style="font-size:12px; font-weight:700; color:#ffe596;">Inventory (${gameState.bagSlots.filter(Boolean).length}/${BAG_SIZE})</span>
+            <span style="font-size:12px; font-weight:800; color:#3b2316;">Inventory (${gameState.bagSlots.filter(Boolean).length}/${BAG_SIZE})</span>
             <div style="display:flex; align-items:center; gap:8px;">
-              <span style="font-size:10px; color:#9db6cf;">Drag to move, equip, or drop onto Hotbar 1–9</span>
-              <button class="hud-btn" data-action="sort-bag" style="padding:2px 8px; font-size:10px;">Sort Bag</button>
+              <span style="font-size:10px; color:#5c3a24;">Drag to move, equip, or Hotbar 1–9</span>
+              <button class="hud-btn" data-action="sort-bag" style="padding:1px 7px; font-size:10px;">Sort Bag</button>
             </div>
           </div>
-          <div class="bag-grid">${bagHtml}</div>
+          <div class="bag-grid hud-panel-inset">${bagHtml}</div>
           ${
             this.moveSourceBagIdx !== null
-              ? `<div style="font-size:11px; color:#6ee88a;">Click any destination slot to move/swap • <button class="hud-btn" data-action="cancel-move" style="padding:1px 6px; font-size:10px;">Cancel</button></div>`
+              ? `<div style="font-size:11px; color:#216b2b; font-weight:700;">Click any destination slot to move/swap • <button class="hud-btn" data-action="cancel-move" style="padding:1px 6px; font-size:10px;">Cancel</button></div>`
               : ''
           }
         </div>
 
         <!-- RIGHT: INSPECTOR & COMPARISON -->
-        <div class="hud-panel" style="padding:10px; background:#0d1522; min-height:290px;">
+        <div class="hud-panel-inset sl-scroll" style="padding:10px; overflow-y:auto; min-height:0;">
           ${inspectorHtml}
         </div>
       </div>
@@ -1737,7 +1815,7 @@ export class HudController {
           const job = selectedStation.craftQueue[i];
           if (!job) {
             return `
-              <div style="height:54px; background:#0b121d; border:1.5px dashed #324863; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#556f8c;">
+              <div style="height:54px; background:url('assets/sprout_ui/slots/slot_oct_dark.png') no-repeat center / 100% 100%; image-rendering:pixelated; display:flex; align-items:center; justify-content:center; font-size:10px; color:#f2d9b1;">
                 Slot ${i + 1}
               </div>
             `;
@@ -1748,34 +1826,34 @@ export class HudController {
             ? Math.max(0, Math.min(100, ((job.totalMs - job.remainingMs) / job.totalMs) * 100))
             : 0;
           return `
-            <div style="height:54px; background:${isActive ? '#182b42' : '#121e2e'}; border:1.5px solid ${isActive ? '#ffe066' : '#415d7d'}; border-radius:5px; padding:4px 6px; display:flex; flex-direction:column; justify-content:space-between; position:relative;">
+            <div style="height:54px; background:url('assets/sprout_ui/slots/${isActive ? 'slot_oct_light' : 'slot_oct_med'}.png') no-repeat center / 100% 100%; image-rendering:pixelated; padding:5px 7px; display:flex; flex-direction:column; justify-content:space-between; position:relative; color:#3b2316;">
               <div style="display:flex; align-items:center; gap:5px;">
                 ${outDef?.iconKey ? `<img src="assets/${outDef.iconKey}.png" class="px-icon" style="width:18px; height:18px;" />` : ''}
-                <span style="font-size:10px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${outDef?.name ?? job.outputItemId}${job.outputCount > 1 ? ` x${job.outputCount}` : ''}</span>
-                <button class="hud-btn danger" data-cancel-queue="${i}" title="Remove & refund ingredients" style="padding:0px 5px; font-size:10px; line-height:14px;">×</button>
+                <span style="font-size:10px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${outDef?.name ?? job.outputItemId}${job.outputCount > 1 ? ` x${job.outputCount}` : ''}</span>
+                <button class="sl-icon-btn" data-cancel-queue="${i}" title="Remove & refund ingredients" style="width:14px; height:14px; background-image:url('assets/sprout_ui/marks/x_sm_dark_normal.png');"></button>
               </div>
               ${
                 isActive
                   ? `<div style="display:flex; align-items:center; gap:5px;">
-                      <div class="bar-track" style="flex:1; height:6px;"><div id="hud-queue-fill-0" class="bar-fill" style="width:${pct}%; background:#7ae398;"></div></div>
-                      <span id="hud-queue-time-0" style="font-size:9px; color:#ffe596; min-width:26px; text-align:right;">${Math.max(0.1, job.remainingMs / 1000).toFixed(1)}s</span>
+                      <div class="bar-track" style="flex:1; height:12px;"><div id="hud-queue-fill-0" class="bar-fill en" style="width:${pct}%;"></div></div>
+                      <span id="hud-queue-time-0" style="font-size:9px; font-weight:800; color:#3b2316; min-width:26px; text-align:right;">${Math.max(0.1, job.remainingMs / 1000).toFixed(1)}s</span>
                     </div>`
-                  : `<div style="font-size:9px; color:#8ca8c4;">Queued (${(job.totalMs / 1000).toFixed(1)}s)</div>`
+                  : `<div style="font-size:9px; font-weight:700; color:#5c3a24;">Queued (${(job.totalMs / 1000).toFixed(1)}s)</div>`
               }
             </div>
           `;
         }).join('');
 
         queuePanelHtml = `
-          <div class="hud-panel" style="padding:10px; margin-bottom:12px; background:#0d1522;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:7px;">
-              <div style="font-size:12px; font-weight:700; color:#ffe596;">
-                Crafting Queue (${selectedStation.craftQueue.length}/${selectedStation.maxQueueSize})
-                <span style="font-size:10px; font-weight:400; color:#9db6cf; margin-left:6px;">Finished items drop in front of the structure</span>
+          <div class="hud-panel-inset" style="padding:8px; display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
+              <div style="font-size:11px; font-weight:800; color:#ffe596;">
+                Queue (${selectedStation.craftQueue.length}/${selectedStation.maxQueueSize})
               </div>
               ${stationPicker}
             </div>
-            <div style="display:grid; grid-template-columns:repeat(${selectedStation.maxQueueSize}, 1fr); gap:6px;">
+            <div style="font-size:9px; color:#f2d9b1;">Finished items drop in front of station</div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
               ${slotsHtml}
             </div>
           </div>
@@ -1786,78 +1864,79 @@ export class HudController {
     const list = RECIPES.filter((r) => r.station === this.activeStationTab);
 
     return `
-      <div style="display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;">
-        ${tabs
-          .map((t) => {
-            const avail = !this.isQueuedStation(t.id) || !nearby || nearby.has(t.id);
-            const isSel = this.activeStationTab === t.id;
-            return `<button class="hud-btn ${isSel ? 'gold' : ''}" data-station="${t.id}" style="${avail ? '' : 'opacity:0.42; color:#708299; filter:grayscale(0.6);'}" title="${avail ? t.label : `${t.label} (Walk near structure to craft)`}">${t.label}${avail ? '' : ' 🔒'}</button>`;
-          })
-          .join('')}
-      </div>
-      ${queuePanelHtml}
-      <div class="grid-2">
-        ${list
-          .map((r) => {
-            const lockedByBlueprint = r.unlockMode === 'blueprint' && !gameState.unlockedBlueprints.has(r.id);
-            const lockedBySkill = r.requiresSkill && !gameState.hasSkill(r.requiresSkill);
-            const hasMats = gameState.canCraft(r);
-            const canAction = isQueuedStation ? Boolean(selectedStation) && inRange && !queueFull && hasMats : hasMats;
-            const isBuild = r.station === 'build';
-            const ingsList = r.ingredients
-              .map((ing) => {
-                const req = gameState.getStructureCostCount(ing.itemId, ing.count, isBuild);
-                const have = gameState.inventory[ing.itemId] ?? 0;
-                const itemDef = ITEMS[ing.itemId];
-                const ok = have >= req;
-                const iconImg = itemDef?.iconKey
-                  ? `<img src="assets/${itemDef.iconKey}.png" class="px-icon" style="width:12px; height:12px;" />`
+      <div style="display:flex; flex-direction:column; gap:8px; height:100%; min-height:0;">
+        <div style="display:flex; gap:5px; flex-wrap:wrap;">
+          ${tabs
+            .map((t) => {
+              const avail = !this.isQueuedStation(t.id) || !nearby || nearby.has(t.id);
+              const isSel = this.activeStationTab === t.id;
+              return `<button class="hud-btn ${isSel ? 'gold' : ''}" data-station="${t.id}" style="padding:2px 8px; font-size:11px; ${avail ? '' : 'opacity:0.45; filter:grayscale(0.6);'}" title="${avail ? t.label : `${t.label} (Walk near structure to craft)`}">${t.label}${avail ? '' : ' 🔒'}</button>`;
+            })
+            .join('')}
+        </div>
+        <div style="flex:1; min-height:0; display:grid; grid-template-columns:${isQueuedStation ? '1fr 250px' : '1fr'}; gap:10px; align-items:start;">
+          <div class="sl-scroll" style="height:100%; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(225px, 1fr)); gap:7px; align-content:start;">
+            ${list
+              .map((r) => {
+                const lockedByBlueprint = r.unlockMode === 'blueprint' && !gameState.unlockedBlueprints.has(r.id);
+                const lockedBySkill = r.requiresSkill && !gameState.hasSkill(r.requiresSkill);
+                const hasMats = gameState.canCraft(r);
+                const canAction = isQueuedStation ? Boolean(selectedStation) && inRange && !queueFull && hasMats : hasMats;
+                const isBuild = r.station === 'build';
+                const ingsList = r.ingredients
+                  .map((ing) => {
+                    const req = gameState.getStructureCostCount(ing.itemId, ing.count, isBuild);
+                    const have = gameState.inventory[ing.itemId] ?? 0;
+                    const itemDef = ITEMS[ing.itemId];
+                    const ok = have >= req;
+                    const iconImg = itemDef?.iconKey
+                      ? `<img src="assets/${itemDef.iconKey}.png" class="px-icon" style="width:12px; height:12px;" />`
+                      : '';
+                    return `<span style="display:inline-flex; align-items:center; gap:2px; color:${ok ? '#216b2b' : '#9e2a35'};">${iconImg}${itemDef?.name ?? ing.itemId}: ${have}/${req}</span>`;
+                  });
+                if (r.coinCost) {
+                  const haveCoins = gameState.coins;
+                  const ok = haveCoins >= r.coinCost;
+                  ingsList.push(`<span style="display:inline-flex; align-items:center; gap:2px; color:${ok ? '#8f5616' : '#9e2a35'};"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" />${haveCoins.toLocaleString()}/${r.coinCost.toLocaleString()}g</span>`);
+                }
+                const ings = ingsList.join(' • ');
+                const skillReqLabel = lockedBySkill
+                  ? `<div style="font-size:9px; color:#6b2d8f;">Skill: ${SKILLS.find((s) => s.id === r.requiresSkill)?.name}</div>`
                   : '';
-                return `<span style="display:inline-flex; align-items:center; gap:3px; color:${ok ? '#8ef5a7' : '#ff8a93'};">${iconImg}${itemDef?.name ?? ing.itemId}: ${have}/${req} ${ok ? '✓' : ''}</span>`;
-              });
-            if (r.coinCost) {
-              const haveCoins = gameState.coins;
-              const ok = haveCoins >= r.coinCost;
-              ingsList.push(`<span style="display:inline-flex; align-items:center; gap:3px; color:${ok ? '#ffd95a' : '#ff8a93'};"><img src="assets/ui_icons/coin.png" class="px-icon" style="width:12px; height:12px;" />${haveCoins.toLocaleString()}/${r.coinCost.toLocaleString()}g ${ok ? '✓' : ''}</span>`);
-            }
-            const ings = ingsList.join(' • ');
-            const skillReqLabel = lockedBySkill
-              ? `<div style="font-size:10px; color:#d09cff;">Requires Skill: ${SKILLS.find((s) => s.id === r.requiresSkill)?.name}</div>`
-              : '';
-            const bpReqLabel = lockedByBlueprint
-              ? `<div style="font-size:10px; color:#ffd242;">🔒 Blueprint Locked — ${r.blueprintHint ?? 'Explore & defeat monsters to discover.'}</div>`
-              : '';
-            const timeSec = isQueuedStation ? (gameState.getCraftDurationMs(r) / 1000).toFixed(1) : null;
-            const iconKey = r.iconKey ?? (r.outputItemId ? ITEMS[r.outputItemId]?.iconKey : undefined);
-            const btnLabel = lockedByBlueprint
-              ? 'Blueprint Locked'
-              : isBuild
-                ? 'Place Structure'
-                : isQueuedStation
-                  ? !inRange
-                    ? 'Move Near Station'
-                    : queueFull
-                      ? 'Queue Full (5/5)'
-                      : `Queue (${timeSec}s)`
-                  : 'Craft';
-            return `
-              <div class="hud-panel" style="padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px; opacity:${lockedByBlueprint ? '0.68' : '1'}; border-color:${lockedByBlueprint ? '#4a3d28' : '#354c6b'};">
-                <div>
-                  <div style="display:flex; align-items:center; gap:8px;">
-                    ${iconKey ? `<img src="assets/${iconKey}.png" class="px-icon" style="width:24px; height:24px; ${lockedByBlueprint ? 'filter:grayscale(0.8);' : ''}" />` : ''}
-                    <div style="font-weight:700; font-size:13px; flex:1; color:${lockedByBlueprint ? '#b8a888' : '#eef5ff'};">${r.name}</div>
-                    ${timeSec ? `<span style="font-size:10px; color:#ffe596;">⏱ ${timeSec}s</span>` : ''}
+                const bpReqLabel = lockedByBlueprint
+                  ? `<div style="font-size:9px; color:#ffe066;">🔒 ${r.blueprintHint ?? 'Blueprint Locked'}</div>`
+                  : '';
+                const timeSec = isQueuedStation ? (gameState.getCraftDurationMs(r) / 1000).toFixed(1) : null;
+                const iconKey = r.iconKey ?? (r.outputItemId ? ITEMS[r.outputItemId]?.iconKey : undefined);
+                const btnLabel = lockedByBlueprint
+                  ? 'Locked'
+                  : isBuild
+                    ? 'Place'
+                    : isQueuedStation
+                      ? !inRange
+                        ? 'Near'
+                        : queueFull
+                          ? 'Full'
+                          : `${timeSec}s`
+                      : 'Craft';
+                return `
+                  <div class="${lockedByBlueprint ? 'hud-panel-inset' : 'hud-dock-light'}" style="padding:5px 8px; display:flex; flex-direction:column; justify-content:space-between; gap:4px; opacity:${lockedByBlueprint ? '0.82' : '1'};">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      ${iconKey ? `<div style="width:26px; height:26px; background:url('assets/sprout_ui/frames/backdrop_b3.png') no-repeat center / 100% 100%; image-rendering:pixelated; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><img src="assets/${iconKey}.png" class="px-icon" style="width:18px; height:18px; ${lockedByBlueprint ? 'filter:grayscale(0.8);' : ''}" /></div>` : ''}
+                      <div style="font-weight:800; font-size:11px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:${lockedByBlueprint ? '#f2d9b1' : '#3b2316'};" title="${r.name}: ${r.description}">${r.name}</div>
+                      <button class="hud-btn ${canAction ? 'primary' : ''}" ${canAction ? '' : 'disabled'} data-craft="${r.id}" style="padding:1px 7px; font-size:10px; flex-shrink:0;">
+                        ${btnLabel}
+                      </button>
+                    </div>
+                    <div style="font-size:10px; color:${lockedByBlueprint ? '#e6d2b5' : '#5c3a24'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${r.description}</div>
+                    ${lockedByBlueprint ? bpReqLabel : `<div style="font-size:10px; font-weight:700; display:flex; flex-wrap:wrap; gap:4px;">${ings}</div>${skillReqLabel}`}
                   </div>
-                  <div style="font-size:11px; color:#b8cde0; margin:4px 0;">${r.description}</div>
-                  ${lockedByBlueprint ? bpReqLabel : `<div style="font-size:11px;">${ings}</div>${skillReqLabel}`}
-                </div>
-                <button class="hud-btn ${canAction ? 'primary' : ''}" ${canAction ? '' : 'disabled'} data-craft="${r.id}">
-                  ${btnLabel}
-                </button>
-              </div>
-            `;
-          })
-          .join('')}
+                `;
+              })
+              .join('')}
+          </div>
+          ${isQueuedStation ? `<div>${queuePanelHtml}</div>` : ''}
+        </div>
       </div>
     `;
   }
@@ -1865,36 +1944,41 @@ export class HudController {
   private renderSkillsTab(): string {
     const pillars: SkillPillar[] = ['foraging', 'industry', 'economy', 'magic'];
     return `
-      <div style="font-size:12px; color:#ffe596; font-weight:700; margin-bottom:10px;">Available Skill Points: ${gameState.skillPoints}</div>
-      <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
-        ${pillars
-          .map((p) => {
-            const meta = PILLAR_META[p];
-            const pSkills = SKILLS.filter((s) => s.pillar === p);
-            return `
-              <div style="display:flex; flex-direction:column; gap:8px;">
-                <div style="text-align:center; font-weight:700; padding:4px; background:${meta.color}; border-radius:4px; font-size:12px;">${meta.label}</div>
-                ${pSkills
-                  .map((s) => {
-                    const unlocked = gameState.hasSkill(s.id);
-                    const can = gameState.canUnlockSkill(s.id);
-                    return `
-                      <div class="hud-panel" style="padding:8px; border-color:${unlocked ? meta.accent : can ? '#ffe066' : '#354860'}; opacity:${unlocked || can ? 1 : 0.65};">
-                        <div style="font-size:12px; font-weight:700; color:${unlocked ? meta.accent : '#fff'};">T${s.tier}: ${s.name}</div>
-                        <div style="font-size:10px; color:#c5d8ea; margin:4px 0;">${s.description}</div>
-                        ${
-                          unlocked
-                            ? `<span style="font-size:10px; color:#8ef5a7; font-weight:700;">UNLOCKED</span>`
-                            : `<button class="hud-btn ${can ? 'gold' : ''}" ${can ? '' : 'disabled'} data-skill="${s.id}" style="width:100%; padding:3px;">Unlock (${s.spCost ?? 1} SP${s.minLevel ? ` • Lv.${s.minLevel}+` : ''})</button>`
-                        }
-                      </div>
-                    `;
-                  })
-                  .join('')}
-              </div>
-            `;
-          })
-          .join('')}
+      <div style="display:flex; flex-direction:column; gap:6px; height:100%; min-height:0;">
+        <div style="font-size:12px; color:#3b2316; font-weight:800;">Available Skill Points: ${gameState.skillPoints}</div>
+        <div style="flex:1; min-height:0; display:grid; grid-template-columns:repeat(4, 1fr); gap:8px;">
+          ${pillars
+            .map((p) => {
+              const meta = PILLAR_META[p];
+              const pSkills = SKILLS.filter((s) => s.pillar === p);
+              return `
+                <div style="display:grid; grid-template-rows:auto repeat(${pSkills.length}, 1fr); gap:6px; min-height:0;">
+                  <div style="text-align:center; font-weight:800; padding:4px; background:${meta.color}; color:#fff6e5; border:2px solid #4a2e1b; border-radius:4px; font-size:12px;">${meta.label}</div>
+                  ${pSkills
+                    .map((s) => {
+                      const unlocked = gameState.hasSkill(s.id);
+                      const can = gameState.canUnlockSkill(s.id);
+                      return `
+                        <div class="${unlocked || can ? 'hud-dock-light' : 'hud-panel-inset'}" style="padding:5px 7px; display:flex; flex-direction:column; justify-content:space-between; opacity:${unlocked || can ? 1 : 0.78};">
+                          <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
+                            <div style="font-size:11px; font-weight:800; color:${unlocked ? '#216b2b' : can ? '#3b2316' : '#f2d9b1'};">T${s.tier}: ${s.name}</div>
+                            <img src="assets/sprout_ui/vitals/${unlocked ? 'star_wood_full' : 'star_wood_empty'}.png" class="px-icon" style="width:14px; height:14px;" />
+                          </div>
+                          <div style="font-size:10px; color:${unlocked || can ? '#5c3a24' : '#e6d2b5'}; line-height:1.25;">${s.description}</div>
+                          ${
+                            unlocked
+                              ? `<span style="font-size:9px; color:#216b2b; font-weight:800;">✓ UNLOCKED</span>`
+                              : `<button class="hud-btn ${can ? 'gold' : ''}" ${can ? '' : 'disabled'} data-skill="${s.id}" style="width:100%; padding:1px 4px; font-size:10px;">Unlock (${s.spCost ?? 1} SP${s.minLevel ? ` • Lv.${s.minLevel}+` : ''})</button>`
+                          }
+                        </div>
+                      `;
+                    })
+                    .join('')}
+                </div>
+              `;
+            })
+            .join('')}
+        </div>
       </div>
     `;
   }
@@ -1907,7 +1991,7 @@ export class HudController {
       winter: '#5fa8c4',
       infernal: '#8c313b',
     };
-    let gridHtml = `<div style="display:grid; grid-template-columns:repeat(${WORLD_GRID_SIZE}, 1fr); gap:8px;">`;
+    let gridHtml = `<div style="display:grid; grid-template-columns:repeat(${WORLD_GRID_SIZE}, 1fr); grid-template-rows:repeat(${WORLD_GRID_SIZE}, 1fr); gap:6px; height:100%; min-height:0;">`;
     for (let gy = 0; gy < WORLD_GRID_SIZE; gy++) {
       for (let gx = 0; gx < WORLD_GRID_SIZE; gx++) {
         const spec = getIslandAt(gx, gy);
@@ -1918,24 +2002,24 @@ export class HudController {
         const recLv = getIslandRecommendedLevel(spec);
         const storyLock = gameState.getIslandStoryLockReason(gx, gy);
         const canBuy = adj && !storyLock && gameState.coins >= cost;
-        const lvColor = recLv - gameState.getPowerLevel() >= 3 ? '#ff7d87' : '#9db6cf';
+        const lvColor = recLv - gameState.getPowerLevel() >= 3 ? '#ff8a93' : '#d2e2f2';
         gridHtml += `
-          <div class="hud-panel" style="padding:8px; background:${owned ? biomeColors[spec.biome] : 'rgba(15,24,38,0.85)'}; border-color:${owned ? '#a3f7b5' : storyLock ? '#5c3842' : adj ? '#ffe066' : '#2d4057'}; display:flex; flex-direction:column; justify-content:space-between; min-height:82px;" title="${storyLock ?? ''}">
+          <div class="hud-panel-inset" style="padding:5px 7px; background:${owned ? biomeColors[spec.biome] : 'rgba(30,20,14,0.85)'}; display:flex; flex-direction:column; justify-content:space-between; min-height:0;" title="${storyLock ?? ''}">
             <div>
               <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
-                <span style="font-size:11px; font-weight:700;">${spec.name}</span>
+                <span style="font-size:11px; font-weight:800; color:#fff6e5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${spec.name}</span>
                 <span style="font-size:9px; color:${owned ? '#e6ffea' : lvColor}; font-weight:700;">Lv.${recLv}</span>
               </div>
-              <div style="font-size:10px; opacity:0.88; text-transform:capitalize;">${spec.biome}${spec.dungeonId ? ' • Dungeon' : ''}${spec.npc ? ' • NPC' : ''}</div>
+              <div style="font-size:9px; color:#f2d9b1; text-transform:capitalize;">${spec.biome}${spec.dungeonId ? ' • Dungeon' : ''}${spec.npc ? ' • NPC' : ''}</div>
             </div>
             ${
               owned
-                ? `<span style="font-size:10px; font-weight:700; color:#e6ffea;">OWNED</span>`
+                ? `<span style="font-size:9px; font-weight:800; color:#a3f7b5;">✓ OWNED</span>`
                 : storyLock
-                  ? `<span style="font-size:9px; color:#ff9ba3;">🔒 Story Ch.${spec.biome === 'autumn' || spec.biome === 'graveyard' ? 2 : spec.biome === 'winter' ? 3 : 4} (${cost}g)</span>`
+                  ? `<span style="font-size:9px; color:#ff9ba3;">🔒 Ch.${spec.biome === 'autumn' || spec.biome === 'graveyard' ? 2 : spec.biome === 'winter' ? 3 : 4} (${cost}g)</span>`
                   : adj
-                    ? `<button class="hud-btn ${canBuy ? 'gold' : ''}" ${canBuy ? '' : 'disabled'} data-buy-island="${gx},${gy}" style="padding:3px 6px; font-size:11px;">Buy ${cost}g</button>`
-                    : `<span style="font-size:10px; color:#7792ad;">Locked (${cost}g)</span>`
+                    ? `<button class="hud-btn ${canBuy ? 'gold' : ''}" ${canBuy ? '' : 'disabled'} data-buy-island="${gx},${gy}" style="padding:1px 6px; font-size:10px;">Buy ${cost}g</button>`
+                    : `<span style="font-size:9px; color:#b8a088;">Locked (${cost}g)</span>`
             }
           </div>
         `;
@@ -1943,8 +2027,25 @@ export class HudController {
     }
     gridHtml += `</div>`;
     return `
-      <div style="font-size:12px; color:#ffe596; margin-bottom:8px;">Owned Islands: ${gameState.ownedIslands.size}/${ISLANDS.length} • Coins: ${gameState.coins}g</div>
-      ${gridHtml}
+      <div style="display:grid; grid-template-columns:1fr 240px; gap:10px; height:100%; min-height:0;">
+        ${gridHtml}
+        <div class="hud-panel-inset" style="padding:10px; display:flex; flex-direction:column; gap:8px; font-size:11px;">
+          <div style="font-size:13px; font-weight:800; color:#ffe596;">Archipelago Map</div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span>Owned: <strong>${gameState.ownedIslands.size}/${ISLANDS.length}</strong></span>
+            <span>•</span>
+            <img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:13px; height:13px;" />
+            <strong style="color:#ffd95a;">${gameState.coins}g</strong>
+          </div>
+          <div style="border-top:1px solid rgba(255,255,255,0.15); padding-top:6px; font-size:10px; color:#f2d9b1; line-height:1.4;">
+            <div><strong style="color:#ffe066;">Expansion:</strong> Buy islands adjacent to your territory.</div>
+            <div style="margin-top:4px;"><strong style="color:#8ef5a7;">Story Chapters:</strong></div>
+            <div>• Ch.2: Autumn &amp; Graveyard</div>
+            <div>• Ch.3: Winter Frontier</div>
+            <div>• Ch.4: Infernal Rim</div>
+          </div>
+        </div>
+      </div>
     `;
   }
 
@@ -1970,20 +2071,20 @@ export class HudController {
               ...(q.rewards.items ?? []).map((it) => `${it.count}x ${ITEMS[it.itemId]?.name ?? it.itemId}`),
             ].join(' • ');
             return `
-              <div class="hud-panel" style="padding:10px; background:${tracked ? '#162840' : '#101a2a'}; border-color:${ready ? '#8ef5a7' : tracked ? '#ffd242' : '#354c6b'};">
+              <div class="${tracked ? 'hud-dock-light' : 'hud-panel-inset'}" style="padding:8px 10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px;">
                   <div>
-                    <strong style="font-size:13px; color:#ffe596;">${q.title}</strong>
-                    <span style="font-size:10px; color:#9db6cf; margin-left:6px;">(${q.npcName} • Step ${q.step})</span>
+                    <strong style="font-size:13px; color:${tracked ? '#3b2316' : '#ffe596'};">${q.title}</strong>
+                    <span style="font-size:10px; color:${tracked ? '#5c3a24' : '#f2d9b1'}; margin-left:6px;">(${q.npcName} • Step ${q.step})</span>
                   </div>
                   <button class="hud-btn ${tracked ? 'gold' : ''}" data-track-quest="${tracked ? '' : q.id}" style="padding:2px 8px; font-size:10px;">
                     ${tracked ? 'Tracking ✓' : 'Track'}
                   </button>
                 </div>
-                <div style="font-size:11px; color:#b8cbe0; margin-bottom:6px;">${q.description}</div>
+                <div style="font-size:11px; color:${tracked ? '#5c3a24' : '#e6d2b5'}; margin-bottom:6px;">${q.description}</div>
                 <div style="display:flex; flex-direction:column; gap:3px; margin-bottom:6px;">${objsHtml}</div>
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:#9db6cf; border-top:1px solid #263954; padding-top:5px;">
-                  <span>Rewards: <strong style="color:#ffd95a;">${rewardsText}</strong></span>
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:${tracked ? '#5c3a24' : '#f2d9b1'}; border-top:1px solid rgba(92,58,36,0.35); padding-top:5px;">
+                  <span>Rewards: <strong style="color:${tracked ? '#8f5616' : '#ffd95a'};">${rewardsText}</strong></span>
                   ${q.waypoint ? `<span>◆ ${ready ? `Return to ${q.npcName} (${q.waypoint.label})` : q.waypoint.label}</span>` : ''}
                 </div>
               </div>
@@ -1999,37 +2100,41 @@ export class HudController {
     const curChapter = gameState.getStoryChapter();
     const chMeta = STORY_CHAPTERS.find((c) => c.chapter === curChapter) ?? STORY_CHAPTERS[0];
     const storyBannerHtml = `
-      <div class="hud-panel" style="padding:10px 12px; margin-bottom:12px; background:linear-gradient(135deg, #162742, #101b2e); border-color:#ffd242;">
+      <div class="hud-panel-inset" style="padding:7px 12px;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
           <strong style="font-size:13px; color:#ffd242;">${chMeta.title}</strong>
-          <span style="font-size:10px; color:#8ef5a7; font-weight:700;">Your Power Lv.${gameState.getPowerLevel()} • ${chMeta.subtitle}</span>
+          <span style="font-size:10px; color:#8ef5a7; font-weight:700;">Power Lv.${gameState.getPowerLevel()} • ${chMeta.subtitle}</span>
         </div>
-        <div style="font-size:11px; color:#d2e2f2; margin:4px 0;">${chMeta.summary}</div>
-        <div style="font-size:10px; color:#ffe596;">Next Milestone: ${chMeta.unlockHint}</div>
+        <div style="font-size:11px; color:#fff6e5; margin:2px 0;">${chMeta.summary} <span style="color:#ffe596;">(Next: ${chMeta.unlockHint})</span></div>
       </div>
     `;
 
     return `
-      ${storyBannerHtml}
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <div style="font-size:13px; font-weight:700; color:#ffe596;">Active Quests (${activeIds.length})</div>
-        <div style="font-size:11px; color:#8ef5a7;">Completed: ${gameState.completedQuests.size}/${QUESTS.length}</div>
+      <div style="display:flex; flex-direction:column; gap:8px; height:100%; min-height:0;">
+        ${storyBannerHtml}
+        <div style="flex:1; min-height:0; display:grid; grid-template-columns:1.35fr 1fr; gap:10px;">
+          <div class="sl-scroll" style="overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+            <div style="font-size:12px; font-weight:800; color:#3b2316;">Active Quests (${activeIds.length})</div>
+            <div style="display:flex; flex-direction:column; gap:6px;">${activeHtml}</div>
+          </div>
+          <div class="hud-panel-inset sl-scroll" style="padding:8px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+            <div style="font-size:12px; font-weight:800; color:#8ef5a7;">Completed Quests (${gameState.completedQuests.size}/${QUESTS.length})</div>
+            ${
+              completedList.length
+                ? `<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">${completedList
+                    .map(
+                      (q) =>
+                        `<div style="padding:5px 7px; background:rgba(20,40,28,0.55); border:1px solid #4fa86c; border-radius:4px; font-size:10px;">
+                           <strong style="color:#8ef5a7;">✓ ${q.title}</strong>
+                           <div style="font-size:9px; color:#f2d9b1;">${q.npcName} (Step ${q.step})</div>
+                         </div>`,
+                    )
+                    .join('')}</div>`
+                : `<div style="font-size:11px; color:#f2d9b1;">No completed quests yet.</div>`
+            }
+          </div>
+        </div>
       </div>
-      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">${activeHtml}</div>
-      ${
-        completedList.length
-          ? `<div style="font-size:12px; font-weight:700; color:#8ef5a7; margin-bottom:6px;">Completed Quests</div>
-             <div class="grid-2">${completedList
-               .map(
-                 (q) =>
-                   `<div class="hud-panel" style="padding:7px 9px; background:#0d1926; border-color:#2b4a3e; font-size:11px;">
-                     <strong style="color:#8ef5a7;">✓ ${q.title}</strong>
-                     <div style="font-size:10px; color:#8ca8c4;">${q.npcName} (Step ${q.step})</div>
-                   </div>`,
-               )
-               .join('')}</div>`
-          : ''
-      }
     `;
   }
 
@@ -2046,68 +2151,70 @@ export class HudController {
 
     const debugPanelHtml = gameState.debugMode
       ? `
-        <div class="hud-panel" style="padding:10px; margin-bottom:12px; background:#141b2e; border-color:#d98a3c;">
+        <div class="hud-panel" style="padding:10px; background:#1a1410;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <strong style="color:#ffbe6b; font-size:13px;">Debug Mode — Testing & Cheat Controls</strong>
-            <button class="hud-btn" data-dbg="toggle_mode" style="padding:2px 8px; font-size:11px;">Debug: ON (Turn Off)</button>
+            <strong style="color:#ffbe6b; font-size:12px;">Debug Mode — Testing & Cheat Controls</strong>
+            <button class="hud-btn" data-dbg="toggle_mode" style="padding:2px 8px; font-size:10px;">Debug: ON (Turn Off)</button>
           </div>
-          <div style="display:flex; flex-direction:column; gap:7px;">
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <button class="hud-btn primary" data-dbg="add_resources">+50 All Materials & +500g</button>
-              <button class="hud-btn primary" data-dbg="add_consumables">+10 Food, Potions & Bombs</button>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; gap:5px; flex-wrap:wrap;">
+              <button class="hud-btn primary" data-dbg="add_resources">+50 Mats & +500g</button>
+              <button class="hud-btn primary" data-dbg="add_consumables">+10 Food/Potions</button>
               <button class="hud-btn gold" data-dbg="add_coins">+1,000 Coins</button>
-              <button class="hud-btn" data-dbg="full_heal">Full Heal HP & Energy</button>
+              <button class="hud-btn" data-dbg="full_heal">Full Heal</button>
             </div>
-            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-              <button class="hud-btn gold" data-dbg="add_level_1">+1 Level (+1 SP)</button>
-              <button class="hud-btn gold" data-dbg="add_level_5">+5 Levels (+5 SP)</button>
-              <button class="hud-btn" data-dbg="unlock_all_skills">Unlock All 20 Skills</button>
-              <button class="hud-btn" data-dbg="unlock_relics">Unlock All Relic Rods & Bow</button>
+            <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
+              <button class="hud-btn gold" data-dbg="add_level_1">+1 Lv</button>
+              <button class="hud-btn gold" data-dbg="add_level_5">+5 Lv</button>
+              <button class="hud-btn" data-dbg="unlock_all_skills">Unlock 20 Skills</button>
+              <button class="hud-btn" data-dbg="unlock_relics">Unlock Relics/Bow</button>
+              <button class="hud-btn" data-dbg="unlock_all_islands">Unlock 25 Islands</button>
+              <button class="hud-btn" data-dbg="clear_dungeons">Clear 4 Dungeons</button>
             </div>
-            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-              <button class="hud-btn" data-dbg="unlock_all_islands">Unlock All 25 Islands</button>
-              <button class="hud-btn" data-dbg="clear_dungeons">Mark All 4 Dungeons Cleared</button>
-              <span style="font-size:11px; color:#9db6cf; margin-left:4px;">Teleport:</span>
-              <button class="hud-btn" data-teleport="2,2" style="padding:3px 7px; font-size:11px;">Origin</button>
-              <button class="hud-btn" data-teleport="3,3" style="padding:3px 7px; font-size:11px;">Desert</button>
-              <button class="hud-btn" data-teleport="0,2" style="padding:3px 7px; font-size:11px;">Skull Crypt</button>
-              <button class="hud-btn" data-teleport="4,2" style="padding:3px 7px; font-size:11px;">Sunken Tomb</button>
-              <button class="hud-btn" data-teleport="2,0" style="padding:3px 7px; font-size:11px;">Frost Cavern</button>
-              <button class="hud-btn" data-teleport="4,0" style="padding:3px 7px; font-size:11px;">Infernal</button>
+            <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+              <span style="font-size:10px; color:#f2d9b1;">Teleport:</span>
+              <button class="hud-btn" data-teleport="2,2" style="padding:2px 6px; font-size:10px;">Origin</button>
+              <button class="hud-btn" data-teleport="3,3" style="padding:2px 6px; font-size:10px;">Desert</button>
+              <button class="hud-btn" data-teleport="0,2" style="padding:2px 6px; font-size:10px;">Skull Crypt</button>
+              <button class="hud-btn" data-teleport="4,2" style="padding:2px 6px; font-size:10px;">Sunken Tomb</button>
+              <button class="hud-btn" data-teleport="2,0" style="padding:2px 6px; font-size:10px;">Frost</button>
+              <button class="hud-btn" data-teleport="4,0" style="padding:2px 6px; font-size:10px;">Infernal</button>
             </div>
-            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-              <span style="font-size:11px; color:#9db6cf;">Time:</span>
-              <button class="hud-btn" data-dbg-time="0.08" style="padding:3px 7px; font-size:11px;">Dawn</button>
-              <button class="hud-btn" data-dbg-time="0.35" style="padding:3px 7px; font-size:11px;">Noon</button>
-              <button class="hud-btn" data-dbg-time="0.68" style="padding:3px 7px; font-size:11px;">Dusk</button>
-              <button class="hud-btn" data-dbg-time="0.88" style="padding:3px 7px; font-size:11px;">Night</button>
-              <button class="hud-btn gold" data-dbg="next_day" style="padding:3px 7px; font-size:11px;">Next Day (Roll Wind)</button>
-              <span style="font-size:11px; color:#9db6cf; margin-left:4px;">Weather:</span>
-              <button class="hud-btn" data-dbg-weather="auto" style="padding:3px 7px; font-size:11px;">Auto</button>
-              <button class="hud-btn" data-dbg-weather="sunny" style="padding:3px 7px; font-size:11px;">Sunny</button>
-              <button class="hud-btn" data-dbg-weather="cloudy" style="padding:3px 7px; font-size:11px;">Cloudy</button>
-              <button class="hud-btn" data-dbg-weather="rain" style="padding:3px 7px; font-size:11px;">Rain</button>
-              <button class="hud-btn" data-dbg-weather="snow" style="padding:3px 7px; font-size:11px;">Snow</button>
-              <button class="hud-btn" data-dbg-weather="sandstorm" style="padding:3px 7px; font-size:11px;">Sandstorm</button>
+            <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+              <span style="font-size:10px; color:#f2d9b1;">Time:</span>
+              <button class="hud-btn" data-dbg-time="0.08" style="padding:2px 6px; font-size:10px;">Dawn</button>
+              <button class="hud-btn" data-dbg-time="0.35" style="padding:2px 6px; font-size:10px;">Noon</button>
+              <button class="hud-btn" data-dbg-time="0.68" style="padding:2px 6px; font-size:10px;">Dusk</button>
+              <button class="hud-btn" data-dbg-time="0.88" style="padding:2px 6px; font-size:10px;">Night</button>
+              <button class="hud-btn gold" data-dbg="next_day" style="padding:2px 6px; font-size:10px;">Next Day</button>
             </div>
-            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding-top:4px; border-top:1px solid #2b3c54;">
-              <span style="font-size:11px; color:#c8daeb;">Spawn Item:</span>
-              <select id="dbg-item-select" style="background:#0c1420; color:#f6eedc; border:1px solid #486485; border-radius:4px; padding:3px 6px; font-size:11px;">
+            <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+              <span style="font-size:10px; color:#f2d9b1;">Weather:</span>
+              <button class="hud-btn" data-dbg-weather="auto" style="padding:2px 6px; font-size:10px;">Auto</button>
+              <button class="hud-btn" data-dbg-weather="sunny" style="padding:2px 6px; font-size:10px;">Sunny</button>
+              <button class="hud-btn" data-dbg-weather="cloudy" style="padding:2px 6px; font-size:10px;">Cloudy</button>
+              <button class="hud-btn" data-dbg-weather="rain" style="padding:2px 6px; font-size:10px;">Rain</button>
+              <button class="hud-btn" data-dbg-weather="snow" style="padding:2px 6px; font-size:10px;">Snow</button>
+              <button class="hud-btn" data-dbg-weather="sandstorm" style="padding:2px 6px; font-size:10px;">Sand</button>
+            </div>
+            <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center; padding-top:4px; border-top:1px solid rgba(255,255,255,0.12);">
+              <span style="font-size:10px; color:#f2d9b1;">Spawn:</span>
+              <select id="dbg-item-select" style="background:#1c120c; color:#f6eedc; border:1px solid #6b4e35; border-radius:4px; padding:2px 5px; font-size:10px; max-width:160px;">
                 ${itemOptions}
               </select>
-              <input id="dbg-item-qty" type="number" value="5" min="1" max="999" style="width:54px; background:#0c1420; color:#f6eedc; border:1px solid #486485; border-radius:4px; padding:3px 6px; font-size:11px;" />
-              <button class="hud-btn primary" data-dbg="spawn_item">Grant Item</button>
+              <input id="dbg-item-qty" type="number" value="5" min="1" max="999" style="width:46px; background:#1c120c; color:#f6eedc; border:1px solid #6b4e35; border-radius:4px; padding:2px 5px; font-size:10px;" />
+              <button class="hud-btn primary" data-dbg="spawn_item" style="padding:2px 7px; font-size:10px;">Grant</button>
               <div style="flex:1;"></div>
-              <button class="hud-btn danger" data-dbg="reset_run" title="Resets current run to Level 1 New Adventure">Reset Run</button>
-              <button class="hud-btn danger" data-dbg="erase_save" title="Deletes all localStorage/sessionStorage saves and restarts">Erase Saved & Cached Data</button>
+              <button class="hud-btn danger" data-dbg="reset_run" title="Resets current run to Level 1 New Adventure" style="padding:2px 7px; font-size:10px;">Reset Run</button>
+              <button class="hud-btn danger" data-dbg="erase_save" title="Deletes all localStorage/sessionStorage saves and restarts" style="padding:2px 7px; font-size:10px;">Erase Save</button>
             </div>
           </div>
         </div>
       `
       : `
-        <div class="hud-panel" style="padding:8px 10px; margin-bottom:12px; background:#0d1522; display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:12px; color:#9db6cf;">Debug Mode is currently OFF.</span>
-          <button class="hud-btn gold" data-dbg="toggle_mode" style="padding:3px 9px; font-size:11px;">Enable Debug Mode</button>
+        <div class="hud-panel-inset" style="padding:8px 10px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:11px; color:#f2d9b1;">Debug Mode is currently OFF.</span>
+          <button class="sl-icon-btn" data-dbg="toggle_mode" title="Enable Debug Mode" style="width:44px; height:28px; background-image:url('assets/sprout_ui/controls/toggle_brown_state_1.png');"></button>
         </div>
       `;
 
@@ -2118,88 +2225,84 @@ export class HudController {
 
     const victoryBannerHtml = isGrandVictory
       ? `
-        <div class="hud-panel" style="padding:10px 14px; margin-bottom:12px; background:linear-gradient(90deg, #2b4a2f, #4c3b14); border-color:#ffe066; text-align:center;">
-          <strong style="color:#ffe596; font-size:14px;">GRAND VICTORY — ALL 25 ISLANDS, 4 DUNGEONS &amp; VOID SPIRE FINAL BOSS CONQUERED!</strong>
-          <div style="font-size:11px; color:#e6ffea; margin-top:2px;">You have defeated the Ancient Black Dragon on Floor 20 of the Void Spire and mastered Forage Ahead!</div>
+        <div class="hud-panel" style="padding:7px 12px; margin-bottom:8px; background:linear-gradient(90deg, #2b4a2f, #4c3b14); text-align:center; flex-shrink:0;">
+          <strong style="color:#ffe596; font-size:13px;">GRAND VICTORY — ALL 25 ISLANDS, 4 DUNGEONS &amp; VOID SPIRE FINAL BOSS CONQUERED!</strong>
+          <div style="font-size:10px; color:#e6ffea; margin-top:2px;">You have defeated the Ancient Black Dragon on Floor 20 of the Void Spire and mastered Forage Ahead!</div>
         </div>
       `
       : '';
 
     return `
-      ${victoryBannerHtml}
-      <!-- LIVE COMMAND CENTER TELEMETRY -->
-      <div class="hud-panel" style="padding:10px; margin-bottom:12px; background:#0d1522;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; flex-wrap:wrap; gap:8px;">
-          <div style="font-size:13px; font-weight:700; color:#ffe596;">Command Center — Live Game State</div>
-          <div style="display:flex; align-items:center; gap:8px; font-size:11px;">
-            <span style="color:#9db6cf;">Volume:</span>
-            <input id="hud-vol-slider" type="range" min="0" max="100" value="${Math.round(SFX.masterVolume * 100)}" style="width:84px; accent-color:#ffe066;" />
-            <span id="hud-vol-label">${Math.round(SFX.masterVolume * 100)}%</span>
-          </div>
-        </div>
-        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; font-size:11px;">
-          <div><span style="color:#8ca8c4;">Hero:</span> <strong>${gameState.heroClass} Lv.${gameState.level}</strong></div>
-          <div><span style="color:#8ca8c4;">HP / EN:</span> <strong>${Math.ceil(gameState.hp)}/${gameState.getMaxHp()} • ${Math.ceil(gameState.energy)}/${gameState.getMaxEnergy()}</strong></div>
-          <div><span style="color:#8ca8c4;">Coins / SP:</span> <strong style="color:#ffd95a;">${gameState.coins}g • ${gameState.skillPoints} SP</strong></div>
-          <div><span style="color:#8ca8c4;">Bag / Relics:</span> <strong>${bagUsed}/${BAG_SIZE} • ${relicsUnlocked}/4 Relics</strong></div>
-          <div><span style="color:#8ca8c4;">Islands:</span> <strong>${gameState.ownedIslands.size}/${ISLANDS.length}</strong></div>
-          <div><span style="color:#8ca8c4;">Skills:</span> <strong>${gameState.unlockedSkills.size}/${SKILLS.length}</strong></div>
-          <div><span style="color:#8ca8c4;">Dungeons / Quests:</span> <strong>${gameState.clearedDungeons.size}/4 • ${gameState.completedQuests.size}/${QUESTS.length}</strong></div>
-          <div><span style="color:#8ca8c4;">Void Spire:</span> <strong style="color:#c77dff;">Floor ${gameState.voidSpireHighestFloor}</strong> • ${gameState.finalBossDefeated ? 'Final Boss Defeated' : 'Final Boss Alive'}</div>
-          <div><span style="color:#8ca8c4;">Saved Cache:</span> <strong style="color:${worldStats?.hasSavedData ? '#8ef5a7' : '#9db6cf'};">${worldStats?.hasSavedData ? 'Saved in LocalStorage' : 'Clean / None'}</strong></div>
-          ${
-            worldStats
-              ? `<div><span style="color:#8ca8c4;">Position:</span> <strong>(${worldStats.playerTx}, ${worldStats.playerTy})</strong></div>
-                 <div><span style="color:#8ca8c4;">World Nodes:</span> <strong>${worldStats.nodesCount}</strong></div>
-                 <div><span style="color:#8ca8c4;">Active Enemies:</span> <strong>${worldStats.enemiesCount}</strong></div>
-                 <div><span style="color:#8ca8c4;">Buildings / Queued:</span> <strong>${worldStats.buildingsCount} • ${worldStats.activeCraftJobs} jobs</strong></div>`
-              : ''
-          }
-        </div>
-        <div style="margin-top:6px; padding-top:6px; border-top:1px solid #22344d; font-size:10px; color:#8ca8c4;">
-          Content Registry: <strong>${Object.keys(ITEMS).length}</strong> Items & Gear • <strong>${RECIPES.length}</strong> Recipes • <strong>${Object.keys(MONSTERS).length}</strong> Monsters & Bosses • <strong>${ISLANDS.length}</strong> Islands • <strong>${SKILLS.length}</strong> Skills
-        </div>
-      </div>
-
-      ${debugPanelHtml}
-
-      <!-- IMPLEMENTED FEATURES BREAKDOWN -->
-      <div style="font-size:13px; font-weight:700; color:#8ef5a7; margin-bottom:6px;">Implemented Features Breakdown (${IMPLEMENTED_FEATURES.length} Systems)</div>
-      <div class="grid-2" style="margin-bottom:14px;">
-        ${IMPLEMENTED_FEATURES.map(
-          (f) => `
-          <div class="hud-panel" style="padding:8px 10px; background:#0f1a29; border-color:#365e4c;">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:3px;">
-              <span style="font-size:10px; color:#7de38b; text-transform:uppercase; font-weight:700;">${f.category}</span>
-              <span style="font-size:9px; background:#235439; color:#a3f7b5; padding:1px 6px; border-radius:8px; font-weight:700;">${f.status}</span>
+      <div style="display:flex; flex-direction:column; height:100%; min-height:0; gap:8px;">
+        ${victoryBannerHtml}
+        <!-- COMPACT LIVE TELEMETRY BAR -->
+        <div class="hud-panel-inset" style="padding:8px 10px; flex-shrink:0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
+            <div style="font-size:12px; font-weight:700; color:#ffe596;">Command Center — Live Game State</div>
+            <div style="display:flex; align-items:center; gap:8px; font-size:11px;">
+              <span style="color:#f2d9b1;">Volume:</span>
+              <input id="hud-vol-slider" class="sl-range" type="range" min="0" max="100" value="${Math.round(SFX.masterVolume * 100)}" style="width:92px;" />
+              <span id="hud-vol-label">${Math.round(SFX.masterVolume * 100)}%</span>
             </div>
-            <div style="font-size:12px; font-weight:700; margin-bottom:2px;">${f.title}</div>
-            <div style="font-size:10px; color:#b8cde0;">${f.details}</div>
           </div>
-        `,
-        ).join('')}
-      </div>
+          <div style="display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:6px; font-size:10px;">
+            <div><span style="color:#d6b88c;">Hero:</span> <strong>${gameState.heroClass} Lv.${gameState.level}</strong></div>
+            <div><span style="color:#d6b88c;">Vitals:</span> <strong>${Math.ceil(gameState.hp)}/${gameState.getMaxHp()} HP • ${Math.ceil(gameState.energy)}/${gameState.getMaxEnergy()} EN</strong></div>
+            <div><span style="color:#d6b88c;">Coins/SP:</span> <strong style="color:#ffd95a;">${gameState.coins}g • ${gameState.skillPoints} SP</strong></div>
+            <div><span style="color:#d6b88c;">Bag/Relics:</span> <strong>${bagUsed}/${BAG_SIZE} • ${relicsUnlocked}/4</strong></div>
+            <div><span style="color:#d6b88c;">World:</span> <strong>${gameState.ownedIslands.size}/${ISLANDS.length} Isl • ${gameState.unlockedSkills.size}/${SKILLS.length} Sk</strong></div>
+            <div><span style="color:#d6b88c;">Void Spire:</span> <strong style="color:#e0b0ff;">Fl.${gameState.voidSpireHighestFloor}</strong> • ${gameState.clearedDungeons.size}/4 Dung</div>
+          </div>
+          <div style="margin-top:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.12); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:10px; color:#d6b88c;">
+            <span>Content: <strong>${Object.keys(ITEMS).length}</strong> Items • <strong>${RECIPES.length}</strong> Recipes • <strong>${Object.keys(MONSTERS).length}</strong> Monsters • <strong>${QUESTS.length}</strong> Quests</span>
+            <span>Save: <strong style="color:${worldStats?.hasSavedData ? '#8ef5a7' : '#f2d9b1'};">${worldStats?.hasSavedData ? 'Saved' : 'Clean'}</strong>${worldStats ? ` • Pos (${worldStats.playerTx},${worldStats.playerTy}) • Nodes ${worldStats.nodesCount} • Enemies ${worldStats.enemiesCount} • Bldgs ${worldStats.buildingsCount} (${worldStats.activeCraftJobs} jobs)` : ''}</span>
+          </div>
+        </div>
 
-      <!-- NEXT / OUTSTANDING ITEMS -->
-      <div style="font-size:13px; font-weight:700; color:#ffe596; margin-bottom:6px;">Next / Outstanding Items To Complete (${OUTSTANDING_ITEMS.length})</div>
-      <div style="display:flex; flex-direction:column; gap:6px;">
-        ${
-          OUTSTANDING_ITEMS.length === 0
-            ? `<div class="hud-panel" style="padding:10px; background:#0f1f19; border-color:#4ba872; font-size:12px; color:#a3f7b5;">All planned roadmap items are complete and verified!</div>`
-            : OUTSTANDING_ITEMS.map((item) => {
-                const prioColor =
-                  item.priority === 'High' ? '#ff8a93' : item.priority === 'Medium' ? '#ffe066' : '#8cc8ff';
-                return `
-                  <div class="hud-panel" style="padding:8px 10px; background:#0d1522; border-color:#3a4d66; display:flex; align-items:flex-start; gap:10px;">
-                    <span style="font-size:10px; font-weight:700; color:${prioColor}; border:1px solid ${prioColor}; padding:1px 6px; border-radius:4px; min-width:54px; text-align:center;">${item.priority}</span>
-                    <div>
-                      <div style="font-size:12px; font-weight:700;">${item.title}</div>
-                      <div style="font-size:10px; color:#b8cde0;">${item.details}</div>
-                    </div>
+        <!-- 2-COLUMN SPLIT: DEBUG & ROADMAP | IMPLEMENTED SYSTEMS -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; flex:1; min-height:0;">
+          <div class="sl-scroll" style="display:flex; flex-direction:column; gap:8px; padding-right:4px;">
+            ${debugPanelHtml}
+            <div style="font-size:12px; font-weight:700; color:#ffe596;">Outstanding Roadmap (${OUTSTANDING_ITEMS.length})</div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              ${
+                OUTSTANDING_ITEMS.length === 0
+                  ? `<div class="hud-panel-inset" style="padding:8px 10px; font-size:11px; color:#a3f7b5;">All planned roadmap items are complete and verified!</div>`
+                  : OUTSTANDING_ITEMS.map((item) => {
+                      const prioColor =
+                        item.priority === 'High' ? '#ff8a93' : item.priority === 'Medium' ? '#ffe066' : '#8cc8ff';
+                      return `
+                        <div class="hud-panel-inset" style="padding:7px 9px; display:flex; align-items:flex-start; gap:8px;">
+                          <span style="font-size:9px; font-weight:700; color:${prioColor}; border:1px solid ${prioColor}; padding:1px 5px; border-radius:4px; min-width:48px; text-align:center;">${item.priority}</span>
+                          <div>
+                            <div style="font-size:11px; font-weight:700;">${item.title}</div>
+                            <div style="font-size:10px; color:#e6d5b8;">${item.details}</div>
+                          </div>
+                        </div>
+                      `;
+                    }).join('')
+              }
+            </div>
+          </div>
+
+          <div class="sl-scroll" style="padding-right:4px;">
+            <div style="font-size:12px; font-weight:700; color:#8ef5a7; margin-bottom:6px;">Implemented Features Breakdown (${IMPLEMENTED_FEATURES.length} Systems)</div>
+            <div class="grid-2" style="gap:6px;">
+              ${IMPLEMENTED_FEATURES.map(
+                (f) => `
+                <div class="hud-panel-inset" style="padding:7px 9px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:2px;">
+                    <span style="font-size:9px; color:#8ef5a7; text-transform:uppercase; font-weight:700;">${f.category}</span>
+                    <span style="font-size:8px; background:#235439; color:#a3f7b5; padding:1px 5px; border-radius:6px; font-weight:700;">${f.status}</span>
                   </div>
-                `;
-              }).join('')
-        }
+                  <div style="font-size:11px; font-weight:700; margin-bottom:2px;">${f.title}</div>
+                  <div style="font-size:10px; color:#e6d5b8;">${f.details}</div>
+                </div>
+              `,
+              ).join('')}
+            </div>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -2221,6 +2324,17 @@ export class HudController {
         this.activeModal = tab;
         this.render();
       };
+    });
+    this.modalLayer.querySelector<HTMLElement>('[data-modal-action="save"]')?.addEventListener('click', () => {
+      this.callbacks.onSave();
+    });
+    this.modalLayer.querySelector<HTMLElement>('[data-modal-action="music"]')?.addEventListener('click', () => {
+      SFX.setMusicEnabled(!SFX.musicEnabled);
+      this.render();
+    });
+    this.modalLayer.querySelector<HTMLElement>('[data-modal-action="mute"]')?.addEventListener('click', () => {
+      SFX.setMuted(!SFX.muted);
+      this.render();
     });
 
     const applyDropOnElement = (target: HTMLElement | null) => {

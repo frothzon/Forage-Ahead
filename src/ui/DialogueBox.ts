@@ -112,6 +112,21 @@ class DialogueBoxManager {
       .dlg-char-bounce { display: inline-block; animation: dlgBounce 0.65s ease-in-out infinite; }
       .dlg-char-jiggle { display: inline-block; animation: dlgJiggle 0.14s linear infinite; }
       .dlg-char-roll { display: inline-block; animation: dlgRoll 0.9s ease-in-out infinite; }
+      @keyframes dlgContinueAnim {
+        0% { background-position: 0px 0px; }
+        100% { background-position: -168px 0px; }
+      }
+      .dlg-continue-sprite {
+        width: 24px;
+        height: 24px;
+        background-image: url('assets/sprout_ui/dialogue/continue_indicator.png');
+        background-size: 168px 24px;
+        background-repeat: no-repeat;
+        image-rendering: pixelated;
+        animation: dlgContinueAnim 0.85s steps(7) infinite;
+        display: inline-block;
+        flex-shrink: 0;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -135,21 +150,23 @@ class DialogueBoxManager {
     `;
 
     const panel = document.createElement('div');
+    panel.className = 'hud-panel';
     panel.style.cssText = `
-      width: min(680px, 96vw); min-height: 148px;
-      background: linear-gradient(180deg, rgba(22, 31, 52, 0.97) 0%, rgba(13, 19, 34, 0.98) 100%);
-      border: 2px solid #ffe066; border-radius: 12px;
-      box-shadow: 0 12px 38px rgba(0,0,0,0.75), inset 0 0 0 1px rgba(255,255,255,0.08);
-      display: flex; gap: 16px; padding: 14px 16px; align-items: stretch;
+      width: min(700px, 96vw); min-height: 152px;
+      display: flex; gap: 14px; padding: 8px 10px; align-items: stretch;
       animation: dlgSlideUp 0.22s ease-out forwards;
     `;
 
     if (cfg.portraitKey) {
       const portBox = document.createElement('div');
       portBox.style.cssText = `
-        width: 88px; min-width: 88px; height: 96px; align-self: center;
-        background: radial-gradient(circle, #2a3a61 0%, #141c30 100%);
-        border: 2px solid #6b88b8; border-radius: 10px;
+        width: 96px; min-width: 96px; height: 102px; align-self: center;
+        border-style: solid;
+        border-image-source: url('assets/sprout_ui/frames/backdrop_c4.png');
+        border-image-slice: 8 8 8 8 fill;
+        border-image-width: 16px;
+        border-width: 8px;
+        image-rendering: pixelated;
         display: flex; align-items: center; justify-content: center; overflow: hidden;
       `;
       const canvas = document.createElement('canvas');
@@ -179,36 +196,58 @@ class DialogueBoxManager {
     }
 
     const body = document.createElement('div');
-    body.style.cssText = 'flex: 1; display: flex; flex-direction: column; justify-content: space-between; min-width: 0;';
+    body.style.cssText = `
+      flex: 1; display: flex; flex-direction: column; justify-content: space-between; min-width: 0;
+      position: relative; padding: 6px 10px;
+      border-style: solid;
+      border-image-source: url('assets/sprout_ui/dialogue/dialog_box_frame.png');
+      border-image-slice: 4 4 6 4 fill;
+      border-image-width: 8px 8px 12px 8px;
+      border-width: 6px 8px 10px 8px;
+      image-rendering: pixelated;
+    `;
+
+    if (cfg.portraitKey) {
+      const tail = document.createElement('img');
+      tail.src = 'assets/sprout_ui/dialogue/dialog_tail_left.png';
+      tail.style.cssText = 'position:absolute; left:-14px; top:50%; transform:translateY(-50%); width:12px; height:22px; image-rendering:pixelated; pointer-events:none;';
+      body.appendChild(tail);
+    }
 
     const header = document.createElement('div');
     header.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;';
     const speakerEl = document.createElement('div');
-    speakerEl.style.cssText = 'font-size: 15px; font-weight: 800; color: #ffe066; letter-spacing: 0.4px;';
+    speakerEl.style.cssText = 'font-size: 14px; font-weight: 800; color: #3b2316; letter-spacing: 0.4px; font-family: SproutLandsDisplay, SproutLandsUI, monospace;';
     speakerEl.textContent = cfg.speaker;
     header.appendChild(speakerEl);
 
     if (cfg.subtitle) {
       const subEl = document.createElement('div');
-      subEl.style.cssText = 'font-size: 11px; font-weight: 700; color: #9ec5ff; background: rgba(122,199,255,0.14); padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(122,199,255,0.3);';
+      subEl.style.cssText = 'font-size: 10px; font-weight: 700; color: #fff6e5; background: #7a5438; padding: 2px 8px; border-radius: 4px; border: 1px solid #4a2e1b;';
       subEl.textContent = cfg.subtitle;
       header.appendChild(subEl);
     }
 
     const textEl = document.createElement('div');
-    textEl.style.cssText = 'font-size: 14px; line-height: 1.52; color: #e8f0f8; min-height: 54px; word-break: break-word;';
+    textEl.style.cssText = 'font-size: 13px; line-height: 1.5; color: #3b2316; font-weight: 600; min-height: 50px; word-break: break-word;';
 
     const footer = document.createElement('div');
-    footer.style.cssText = 'display: flex; align-items: center; justify-content: space-between; margin-top: 10px; gap: 8px;';
+    footer.style.cssText = 'display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 8px;';
 
+    const hintWrap = document.createElement('div');
+    hintWrap.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+    const continueSprite = document.createElement('span');
+    continueSprite.className = 'dlg-continue-sprite';
     const hintEl = document.createElement('div');
-    hintEl.style.cssText = 'font-size: 11px; color: #95abc4; font-family: monospace;';
+    hintEl.style.cssText = 'font-size: 10px; color: #7a5438; font-weight: 700;';
     hintEl.textContent = 'Click or [Space]';
+    hintWrap.appendChild(continueSprite);
+    hintWrap.appendChild(hintEl);
 
     const actionsEl = document.createElement('div');
     actionsEl.style.cssText = 'display: flex; gap: 8px; flex-wrap: wrap;';
 
-    footer.appendChild(hintEl);
+    footer.appendChild(hintWrap);
     footer.appendChild(actionsEl);
     body.appendChild(header);
     body.appendChild(textEl);
@@ -325,10 +364,9 @@ class DialogueBoxManager {
 
   private makeBtn(label: string, primary: boolean, onClick: () => void): HTMLButtonElement {
     const btn = document.createElement('button');
+    btn.className = primary ? 'hud-btn primary' : 'hud-btn';
     btn.textContent = label;
-    btn.style.cssText = primary
-      ? 'padding: 6px 14px; border-radius: 7px; border: 1px solid #ffe066; background: #ffe066; color: #12192b; font-weight: 800; font-size: 12px; cursor: pointer;'
-      : 'padding: 6px 12px; border-radius: 7px; border: 1px solid #556c91; background: rgba(34,47,74,0.9); color: #dce7f5; font-weight: 700; font-size: 12px; cursor: pointer;';
+    btn.style.cssText = 'padding: 3px 12px; font-size: 12px;';
     btn.onclick = onClick;
     return btn;
   }

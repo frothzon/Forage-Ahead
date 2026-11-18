@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { gameState, type RanchCreatureSave } from '../core/GameState';
+import { computeResponsiveZoom } from '../core/ViewportScaler';
 import { getSpeciesByEgg, getSpeciesById, RANCH_SPECIES } from '../data/ranchCreatures';
 import { SFX } from '../core/SoundFX';
 import { ITEMS } from '../data/items';
@@ -269,9 +270,30 @@ export class OverworldScene extends Phaser.Scene {
 
     const worldPx = WORLD_TILES * TILE_PX;
     this.cameras.main.setBounds(0, 0, worldPx, worldPx);
-    this.cameras.main.setZoom(3);
+    this.cameras.main.setZoom(
+      computeResponsiveZoom(this.scale.width, this.scale.height, {
+        worldWidthPx: worldPx,
+        worldHeightPx: worldPx,
+        minZoom: 3,
+      }),
+    );
     this.cameras.main.startFollow(this.player, true, 0.14, 0.14);
     this.cameras.main.roundPixels = true;
+
+    const onResize = (gameSize: Phaser.Structs.Size) => {
+      this.cameras.main.setSize(gameSize.width, gameSize.height);
+      const isMobBuild = Boolean(
+        this.hud?.isTouchEnabled() && gameState.pendingBuildRecipeId && this.hud.activeModal === 'none',
+      );
+      this.cameras.main.setZoom(
+        computeResponsiveZoom(gameSize.width, gameSize.height, {
+          worldWidthPx: worldPx,
+          worldHeightPx: worldPx,
+          minZoom: isMobBuild ? 1.85 : 3,
+        }),
+      );
+    };
+    this.scale.on('resize', onResize);
 
     this.lighting = new LightingSystem(this);
     this.weather = new WeatherSystem(this);
@@ -284,6 +306,7 @@ export class OverworldScene extends Phaser.Scene {
     SFX.setMusicSituation('overworld');
 
     this.events.once('shutdown', () => {
+      this.scale.off('resize', onResize);
       this.fishingMinigame.finish(false);
       this.lighting.destroy();
       this.weather.destroy();
@@ -2426,7 +2449,12 @@ export class OverworldScene extends Phaser.Scene {
       this.hud.isTouchEnabled() && gameState.pendingBuildRecipeId && this.hud.activeModal === 'none',
     );
     const cam = this.cameras.main;
-    const targetZoom = isMobileBuild ? 1.85 : 3;
+    const worldPx = WORLD_TILES * TILE_PX;
+    const targetZoom = computeResponsiveZoom(this.scale.width, this.scale.height, {
+      worldWidthPx: worldPx,
+      worldHeightPx: worldPx,
+      minZoom: isMobileBuild ? 1.85 : 3,
+    });
     if (Math.abs(cam.zoom - targetZoom) > 0.005) {
       cam.setZoom(Phaser.Math.Linear(cam.zoom, targetZoom, Math.min(1, dt * 0.012)));
     } else if (cam.zoom !== targetZoom) {

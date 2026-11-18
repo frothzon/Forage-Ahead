@@ -118,53 +118,57 @@ class RevealSequenceManager {
     `;
 
     const itemWrap = document.createElement('div');
+    itemWrap.className = 'sl-frame-big';
     itemWrap.style.cssText = `
-      position: relative; z-index: 2; width: 88px; height: 88px;
+      position: relative; z-index: 2; width: 104px; height: 104px;
       display: flex; align-items: center; justify-content: center;
-      border-radius: 16px;
-      background: radial-gradient(circle, ${accent}44 0%, rgba(20,28,46,0.92) 72%);
-      border: 3px solid ${accent};
-      box-shadow: 0 0 28px ${accent}88, inset 0 0 16px ${accent}44;
+      box-shadow: 0 0 28px ${accent}88;
       animation: revealGrowPop 1.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     `;
 
     if (opts.iconKey) {
       const img = document.createElement('img');
       img.src = `assets/${opts.iconKey}.png`;
-      img.style.cssText = 'width: 58px; height: 58px; image-rendering: pixelated; object-fit: contain;';
+      img.style.cssText = 'width: 56px; height: 56px; image-rendering: pixelated; object-fit: contain;';
       img.onerror = () => {
         img.style.display = 'none';
       };
       itemWrap.appendChild(img);
-    } else {
+    } else if (opts.badgeText && opts.badgeText.length > 2) {
       const badge = document.createElement('div');
       badge.style.cssText = `
-        font-size: 28px; font-weight: 900; color: ${accent};
-        text-shadow: 0 2px 10px rgba(0,0,0,0.8); font-family: Georgia, serif;
+        font-size: 20px; font-weight: 900; color: #3b2316;
+        font-family: SproutLandsDisplay, SproutLandsUI, monospace;
       `;
-      badge.textContent = opts.badgeText ?? '★';
+      badge.textContent = opts.badgeText;
       itemWrap.appendChild(badge);
+    } else {
+      const star = document.createElement('img');
+      star.src = 'assets/sprout_ui/vitals/star_wood_full.png';
+      star.style.cssText = 'width: 56px; height: 56px; image-rendering: pixelated; object-fit: contain;';
+      itemWrap.appendChild(star);
     }
 
     const sparkLayer = document.createElement('div');
     sparkLayer.style.cssText = 'position: absolute; left: 50%; top: 50%; width: 0; height: 0; z-index: 3; pointer-events: none;';
 
     const textBox = document.createElement('div');
+    textBox.className = 'hud-dock-light';
     textBox.style.cssText = `
-      margin-top: 14px; text-align: center; opacity: 0; z-index: 4;
+      margin-top: 14px; text-align: center; opacity: 0; z-index: 4; padding: 6px 20px;
       animation: revealTextIn 0.35s ease-out 0.88s forwards;
     `;
     const titleEl = document.createElement('div');
     titleEl.style.cssText = `
-      font-size: 26px; font-weight: 900; color: ${accent}; letter-spacing: 1.5px;
-      text-shadow: 0 3px 12px rgba(0,0,0,0.9), 0 0 18px ${accent}66;
+      font-size: 24px; font-weight: 900; color: #3b2316; letter-spacing: 1.5px;
+      font-family: SproutLandsDisplay, SproutLandsUI, monospace;
     `;
     titleEl.textContent = opts.title;
     textBox.appendChild(titleEl);
 
     if (opts.subtitle) {
       const subEl = document.createElement('div');
-      subEl.style.cssText = 'margin-top: 6px; font-size: 14px; font-weight: 600; color: #e6f0fa; text-shadow: 0 2px 6px rgba(0,0,0,0.9);';
+      subEl.style.cssText = 'margin-top: 4px; font-size: 13px; font-weight: 700; color: #5c3a24;';
       subEl.textContent = opts.subtitle;
       textBox.appendChild(subEl);
     }

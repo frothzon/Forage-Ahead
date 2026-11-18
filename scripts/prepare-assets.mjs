@@ -3,6 +3,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import AdmZip from 'adm-zip';
 import { encodePng, generatePixelArtIcons } from './pixelArtIcons.mjs';
+import { extractSproutLandsUi } from './sproutUiExtractor.mjs';
 
 function computeFrameFeetOffset(buf, fw, fh) {
   if (buf.length < 33 || buf.toString('ascii', 1, 4) !== 'PNG') return Math.round(fh * 0.2);
@@ -303,6 +304,13 @@ function main() {
 
   generatePixelArtIcons(path.join(OUT_DIR, 'ui_icons'), manifest);
   extractSproutLands(manifest);
+  extractSproutLandsUi({
+    root: ROOT,
+    outDir: OUT_DIR,
+    manifest,
+    decodePngRgba,
+    readPngDimensions,
+  });
 
   fs.writeFileSync(MANIFEST_OUT, JSON.stringify(manifest, null, 2));
   console.log(

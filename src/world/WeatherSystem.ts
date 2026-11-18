@@ -241,14 +241,16 @@ export class WeatherSystem {
     }
     this.hazeAlpha += (targetHazeAlpha - this.hazeAlpha) * Math.min(1, dt * 2.5);
     this.hazeColor = targetHazeColor;
+    this.hazeGfx.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
     this.hazeGfx.clear();
     if (this.hazeAlpha > 0.01) {
       const shimmer = 1 + Math.sin(this.scene.time.now * 0.0022) * 0.08;
       this.hazeGfx.fillStyle(this.hazeColor, this.hazeAlpha * shimmer);
-      this.hazeGfx.fillRect(0, 0, vw, vh);
+      this.hazeGfx.fillRect(-vw / 2, -vh / 2, vw, vh);
     }
 
     // 3. Precipitation (Rain, Snow, Light Sandstorm Grains)
+    this.precipGfx.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
     this.precipGfx.clear();
     if (this.weather !== 'rain' && this.weather !== 'snow' && this.weather !== 'sandstorm') return;
 
@@ -265,17 +267,19 @@ export class WeatherSystem {
         p.y = (p.y + vy * dt + vh) % vh;
 
         const norm = Math.hypot(vx, vy) || 1;
-        const sx = p.x - (vx / norm) * p.len;
-        const sy = p.y - (vy / norm) * p.len;
+        const px = p.x - vw / 2;
+        const py = p.y - vh / 2;
+        const sx = px - (vx / norm) * p.len;
+        const sy = py - (vy / norm) * p.len;
         this.precipGfx.lineStyle(1.3, 0xa8d8ff, p.alpha * 0.72);
-        this.precipGfx.lineBetween(sx, sy, p.x, p.y);
+        this.precipGfx.lineBetween(sx, sy, px, py);
       } else if (this.weather === 'snow') {
         const vx = (this.wind.dirX * 52 * this.wind.strength) + Math.sin(tSec * 2 + p.phase) * 18;
         const vy = 48 * p.speed;
         p.x = (p.x + vx * dt + vw) % vw;
         p.y = (p.y + vy * dt + vh) % vh;
         this.precipGfx.fillStyle(0xf5f9ff, p.alpha * 0.88);
-        this.precipGfx.fillCircle(p.x, p.y, p.size * 0.85);
+        this.precipGfx.fillCircle(p.x - vw / 2, p.y - vh / 2, p.size * 0.85);
       } else {
         const wx = this.wind.dirX || 0.9;
         const wy = this.wind.dirY * 0.45 + 0.15;
@@ -283,10 +287,12 @@ export class WeatherSystem {
         p.x = (p.x + wx * spd * dt + vw) % vw;
         p.y = (p.y + wy * spd * dt + vh) % vh;
 
+        const px = p.x - vw / 2;
+        const py = p.y - vh / 2;
         this.precipGfx.lineStyle(1.4, 0xf2d194, p.alpha * 0.55);
-        this.precipGfx.lineBetween(p.x - wx * p.len * 1.4, p.y - wy * p.len * 1.4, p.x, p.y);
+        this.precipGfx.lineBetween(px - wx * p.len * 1.4, py - wy * p.len * 1.4, px, py);
         this.precipGfx.fillStyle(0xf7dfb0, p.alpha * 0.75);
-        this.precipGfx.fillCircle(p.x, p.y, 1.1);
+        this.precipGfx.fillCircle(px, py, 1.1);
       }
     }
   }

@@ -109,11 +109,12 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
   private auraCircle?: Phaser.GameObjects.Arc;
   private progressText?: Phaser.GameObjects.Text;
 
-  // Floating glowing craft preview + bar
+  // Floating glowing craft preview + bar + radial gauge
   private craftGlow?: Phaser.GameObjects.Arc;
   private craftIcon?: Phaser.GameObjects.Image;
   private craftBarBg?: Phaser.GameObjects.Rectangle;
   private craftBarFill?: Phaser.GameObjects.Rectangle;
+  private craftRadial?: Phaser.GameObjects.Sprite;
 
   constructor(
     scene: Phaser.Scene,
@@ -312,7 +313,12 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       this.craftIcon = scene.add.image(0, -19, 'ui_icons/coin').setScale(0.8).setVisible(false);
       this.craftBarBg = scene.add.rectangle(0, -10, 16, 2.5, 0x101824).setOrigin(0.5).setVisible(false);
       this.craftBarFill = scene.add.rectangle(-7.5, -10, 0, 1.5, 0x7ae398).setOrigin(0, 0.5).setVisible(false);
-      this.add([this.craftGlow, this.craftIcon, this.craftBarBg, this.craftBarFill]);
+      const children: Phaser.GameObjects.GameObject[] = [this.craftGlow, this.craftIcon, this.craftBarBg, this.craftBarFill];
+      if (scene.textures.exists('sprout_ui/bars/stamina_circle_black')) {
+        this.craftRadial = scene.add.sprite(10, -19, 'sprout_ui/bars/stamina_circle_black', 0).setScale(0.65).setVisible(false);
+        children.push(this.craftRadial);
+      }
+      this.add(children);
     }
 
     if (this.interactStation) {
@@ -394,6 +400,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       this.craftIcon.setVisible(false);
       this.craftBarBg.setVisible(false);
       this.craftBarFill.setVisible(false);
+      this.craftRadial?.setVisible(false);
       return;
     }
     const def = ITEMS[activeJob.outputItemId];
@@ -404,6 +411,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     this.craftIcon.setVisible(true);
     this.craftBarBg.setVisible(true);
     this.craftBarFill.setVisible(true);
+    this.craftRadial?.setVisible(true);
   }
 
   public setPromptVisible(visible: boolean): void {
@@ -524,6 +532,9 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         this.craftIcon.setPosition(0, bobY);
         const pct = Math.max(0, Math.min(1, 1 - job.remainingMs / job.totalMs));
         this.craftBarFill.width = Math.max(1, 15 * pct);
+        if (this.craftRadial) {
+          this.craftRadial.setFrame(Math.min(36, Math.max(0, Math.floor(pct * 36))));
+        }
       }
 
       if (job.remainingMs <= 0) {

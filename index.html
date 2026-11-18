@@ -5,6 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Forage Ahead — 2D Fantasy Action RPG</title>
     <style>
+      @font-face {
+        font-family: 'SproutLandsDisplay';
+        src: url('/assets/fonts/pixelFont-7-8x14-sproutLands.ttf') format('truetype');
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'SproutLandsUI';
+        src: url('/assets/fonts/pixelFont-4-7x7-sproutLands.ttf') format('truetype');
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'SproutLandsCompact';
+        src: url('/assets/fonts/pixelFont-3-7x5-sproutLands.ttf') format('truetype');
+        font-display: swap;
+      }
       * {
         box-sizing: border-box;
         user-select: none;
@@ -19,18 +34,31 @@
         background: #0d1624;
         touch-action: none;
         -webkit-tap-highlight-color: transparent;
-        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-        color: #f6eedc;
+        font-family: 'SproutLandsUI', 'Segoe UI', system-ui, -apple-system, sans-serif;
+        color: #3b2316;
       }
       #app {
         position: relative;
         width: 100vw;
         height: 100vh;
         overflow: hidden;
+        cursor: url('/assets/sprout_ui/cursors/cursor_arrow_2_2x.png') 4 4, auto;
+      }
+      .hud-interactive button,
+      .hud-interactive [data-bag-idx],
+      .hud-interactive [data-equip-slot],
+      .hud-interactive [data-hotbar],
+      .hud-interactive [data-tab],
+      .hud-interactive [data-station] {
+        cursor: url('/assets/sprout_ui/cursors/cursor_catpaw_pointing_2x.png') 8 4, pointer;
       }
       #game-container {
         width: 100%;
         height: 100%;
+      }
+      #game-container > canvas {
+        width: 100vw !important;
+        height: 100vh !important;
       }
       canvas {
         image-rendering: pixelated;

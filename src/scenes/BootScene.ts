@@ -9,13 +9,14 @@ export class BootScene extends Phaser.Scene {
 
   preload(): void {
     const { width, height } = this.scale;
-    const barBg = this.add.rectangle(width / 2, height / 2, 320, 18, 0x1d2b3a);
-    barBg.setStrokeStyle(2, 0x5c7a99);
-    const barFill = this.add.rectangle(width / 2 - 156, height / 2, 0, 12, 0x6ce08a).setOrigin(0, 0.5);
+    const barBg = this.add.rectangle(width / 2, height / 2, 320, 18, 0x3b2316);
+    barBg.setStrokeStyle(2, 0xdcb98a);
+    const barFill = this.add.rectangle(width / 2 - 156, height / 2, 0, 12, 0x7ae398).setOrigin(0, 0.5);
     const label = this.add
-      .text(width / 2, height / 2 - 26, 'Loading Fantasy RPG Assets...', {
+      .text(width / 2, height / 2 - 26, 'Loading Forage Ahead Assets...', {
+        fontFamily: 'SproutLandsDisplay, monospace, sans-serif',
         fontSize: '14px',
-        color: '#f6eedc',
+        color: '#ffe596',
       })
       .setOrigin(0.5);
 
@@ -103,7 +104,18 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
-    // 5. Static World Props, Portraits, Projectiles, Particles, Icons
+    // 5. Static World Props, Portraits, Projectiles, Particles, Icons, Sprout UI
+    const uiSheets = (manifest as { uiSpritesheets?: Record<string, { key: string; frameWidth: number; frameHeight: number }> }).uiSpritesheets ?? {};
+    for (const uis of Object.values(uiSheets)) {
+      const img = images[uis.key];
+      if (img) {
+        this.load.spritesheet(uis.key, img.path, {
+          frameWidth: uis.frameWidth,
+          frameHeight: uis.frameHeight,
+        });
+      }
+    }
+
     for (const [key, img] of Object.entries(images)) {
       if (
         key.startsWith('tileset/') ||
@@ -114,9 +126,10 @@ export class BootScene extends Phaser.Scene {
         key.startsWith('monster_projectiles/') ||
         key.startsWith('icons/') ||
         key.startsWith('extras/') ||
-        key.startsWith('ui_icons/')
+        key.startsWith('ui_icons/') ||
+        key.startsWith('sprout_ui/')
       ) {
-        if (!this.textures.exists(key) && !sheetLoads.some((s) => s.key === key)) {
+        if (!this.textures.exists(key) && !sheetLoads.some((s) => s.key === key) && !uiSheets[key]) {
           this.load.image(key, img.path);
         }
       }

@@ -5504,6 +5504,3571 @@
       "path": "assets/ui_icons/ember_koi.png",
       "width": 16,
       "height": 16
+    },
+    "sprout_ui/panels/panel_wood_tan": {
+      "path": "assets/sprout_ui/panels/panel_wood_tan.png",
+      "width": 106,
+      "height": 122
+    },
+    "sprout_ui/panels/panel_settings_titled": {
+      "path": "assets/sprout_ui/panels/panel_settings_titled.png",
+      "width": 106,
+      "height": 122
+    },
+    "sprout_ui/docks/dock_bar_light_sm": {
+      "path": "assets/sprout_ui/docks/dock_bar_light_sm.png",
+      "width": 95,
+      "height": 23
+    },
+    "sprout_ui/docks/dock_bar_dark_sm": {
+      "path": "assets/sprout_ui/docks/dock_bar_dark_sm.png",
+      "width": 95,
+      "height": 23
+    },
+    "sprout_ui/docks/dock_bar_light_md": {
+      "path": "assets/sprout_ui/docks/dock_bar_light_md.png",
+      "width": 100,
+      "height": 23
+    },
+    "sprout_ui/docks/dock_bar_dark_md": {
+      "path": "assets/sprout_ui/docks/dock_bar_dark_md.png",
+      "width": 100,
+      "height": 23
+    },
+    "sprout_ui/docks/dock_bar_light_lg": {
+      "path": "assets/sprout_ui/docks/dock_bar_light_lg.png",
+      "width": 110,
+      "height": 25
+    },
+    "sprout_ui/docks/dock_bar_dark_lg": {
+      "path": "assets/sprout_ui/docks/dock_bar_dark_lg.png",
+      "width": 110,
+      "height": 25
+    },
+    "sprout_ui/docks/dock_bar_light_xl": {
+      "path": "assets/sprout_ui/docks/dock_bar_light_xl.png",
+      "width": 110,
+      "height": 29
+    },
+    "sprout_ui/docks/dock_bar_dark_xl": {
+      "path": "assets/sprout_ui/docks/dock_bar_dark_xl.png",
+      "width": 110,
+      "height": 29
+    },
+    "sprout_ui/docks/heart_tab_light_sm": {
+      "path": "assets/sprout_ui/docks/heart_tab_light_sm.png",
+      "width": 95,
+      "height": 23
+    },
+    "sprout_ui/docks/heart_tab_dark_sm": {
+      "path": "assets/sprout_ui/docks/heart_tab_dark_sm.png",
+      "width": 95,
+      "height": 23
+    },
+    "sprout_ui/docks/heart_tab_light_md": {
+      "path": "assets/sprout_ui/docks/heart_tab_light_md.png",
+      "width": 100,
+      "height": 23
+    },
+    "sprout_ui/docks/heart_tab_dark_md": {
+      "path": "assets/sprout_ui/docks/heart_tab_dark_md.png",
+      "width": 100,
+      "height": 23
+    },
+    "sprout_ui/docks/heart_tab_light_lg": {
+      "path": "assets/sprout_ui/docks/heart_tab_light_lg.png",
+      "width": 110,
+      "height": 25
+    },
+    "sprout_ui/docks/heart_tab_dark_lg": {
+      "path": "assets/sprout_ui/docks/heart_tab_dark_lg.png",
+      "width": 110,
+      "height": 25
+    },
+    "sprout_ui/docks/heart_tab_light_xl": {
+      "path": "assets/sprout_ui/docks/heart_tab_light_xl.png",
+      "width": 110,
+      "height": 29
+    },
+    "sprout_ui/docks/heart_tab_dark_xl": {
+      "path": "assets/sprout_ui/docks/heart_tab_dark_xl.png",
+      "width": 110,
+      "height": 29
+    },
+    "sprout_ui/vitals/heart_sm_cream_full": {
+      "path": "assets/sprout_ui/vitals/heart_sm_cream_full.png",
+      "width": 15,
+      "height": 14
+    },
+    "sprout_ui/vitals/heart_sm_brown_full": {
+      "path": "assets/sprout_ui/vitals/heart_sm_brown_full.png",
+      "width": 15,
+      "height": 14
+    },
+    "sprout_ui/vitals/heart_sm_cream_half": {
+      "path": "assets/sprout_ui/vitals/heart_sm_cream_half.png",
+      "width": 15,
+      "height": 14
+    },
+    "sprout_ui/vitals/heart_sm_brown_half": {
+      "path": "assets/sprout_ui/vitals/heart_sm_brown_half.png",
+      "width": 15,
+      "height": 14
+    },
+    "sprout_ui/vitals/heart_sm_cream_empty": {
+      "path": "assets/sprout_ui/vitals/heart_sm_cream_empty.png",
+      "width": 15,
+      "height": 14
+    },
+    "sprout_ui/vitals/heart_sm_brown_empty": {
+      "path": "assets/sprout_ui/vitals/heart_sm_brown_empty.png",
+      "width": 15,
+      "height": 14
+    },
+    "sprout_ui/vitals/heart_md_cream_full": {
+      "path": "assets/sprout_ui/vitals/heart_md_cream_full.png",
+      "width": 18,
+      "height": 16
+    },
+    "sprout_ui/vitals/heart_md_brown_full": {
+      "path": "assets/sprout_ui/vitals/heart_md_brown_full.png",
+      "width": 18,
+      "height": 16
+    },
+    "sprout_ui/vitals/heart_md_cream_half": {
+      "path": "assets/sprout_ui/vitals/heart_md_cream_half.png",
+      "width": 18,
+      "height": 16
+    },
+    "sprout_ui/vitals/heart_md_brown_half": {
+      "path": "assets/sprout_ui/vitals/heart_md_brown_half.png",
+      "width": 18,
+      "height": 16
+    },
+    "sprout_ui/vitals/heart_md_cream_empty": {
+      "path": "assets/sprout_ui/vitals/heart_md_cream_empty.png",
+      "width": 18,
+      "height": 16
+    },
+    "sprout_ui/vitals/heart_md_brown_empty": {
+      "path": "assets/sprout_ui/vitals/heart_md_brown_empty.png",
+      "width": 18,
+      "height": 16
+    },
+    "sprout_ui/vitals/heart_lg_cream_full": {
+      "path": "assets/sprout_ui/vitals/heart_lg_cream_full.png",
+      "width": 23,
+      "height": 20
+    },
+    "sprout_ui/vitals/heart_lg_brown_full": {
+      "path": "assets/sprout_ui/vitals/heart_lg_brown_full.png",
+      "width": 23,
+      "height": 20
+    },
+    "sprout_ui/vitals/heart_lg_cream_half": {
+      "path": "assets/sprout_ui/vitals/heart_lg_cream_half.png",
+      "width": 23,
+      "height": 20
+    },
+    "sprout_ui/vitals/heart_lg_brown_half": {
+      "path": "assets/sprout_ui/vitals/heart_lg_brown_half.png",
+      "width": 23,
+      "height": 20
+    },
+    "sprout_ui/vitals/heart_lg_cream_empty": {
+      "path": "assets/sprout_ui/vitals/heart_lg_cream_empty.png",
+      "width": 23,
+      "height": 20
+    },
+    "sprout_ui/vitals/heart_lg_brown_empty": {
+      "path": "assets/sprout_ui/vitals/heart_lg_brown_empty.png",
+      "width": 23,
+      "height": 20
+    },
+    "sprout_ui/slots/slot_oct_light": {
+      "path": "assets/sprout_ui/slots/slot_oct_light.png",
+      "width": 30,
+      "height": 32
+    },
+    "sprout_ui/slots/slot_round_light": {
+      "path": "assets/sprout_ui/slots/slot_round_light.png",
+      "width": 30,
+      "height": 32
+    },
+    "sprout_ui/slots/slot_large_light": {
+      "path": "assets/sprout_ui/slots/slot_large_light.png",
+      "width": 42,
+      "height": 44
+    },
+    "sprout_ui/docks/tray_light_enclosed": {
+      "path": "assets/sprout_ui/docks/tray_light_enclosed.png",
+      "width": 42,
+      "height": 44
+    },
+    "sprout_ui/slots/slot_oct_med": {
+      "path": "assets/sprout_ui/slots/slot_oct_med.png",
+      "width": 30,
+      "height": 32
+    },
+    "sprout_ui/slots/slot_round_med": {
+      "path": "assets/sprout_ui/slots/slot_round_med.png",
+      "width": 30,
+      "height": 32
+    },
+    "sprout_ui/slots/slot_large_med": {
+      "path": "assets/sprout_ui/slots/slot_large_med.png",
+      "width": 42,
+      "height": 44
+    },
+    "sprout_ui/docks/tray_med_enclosed": {
+      "path": "assets/sprout_ui/docks/tray_med_enclosed.png",
+      "width": 42,
+      "height": 44
+    },
+    "sprout_ui/slots/slot_oct_dark": {
+      "path": "assets/sprout_ui/slots/slot_oct_dark.png",
+      "width": 30,
+      "height": 32
+    },
+    "sprout_ui/slots/slot_round_dark": {
+      "path": "assets/sprout_ui/slots/slot_round_dark.png",
+      "width": 30,
+      "height": 32
+    },
+    "sprout_ui/slots/slot_large_dark": {
+      "path": "assets/sprout_ui/slots/slot_large_dark.png",
+      "width": 42,
+      "height": 44
+    },
+    "sprout_ui/docks/tray_dark_enclosed": {
+      "path": "assets/sprout_ui/docks/tray_dark_enclosed.png",
+      "width": 42,
+      "height": 44
+    },
+    "sprout_ui/frames/backdrop_a1": {
+      "path": "assets/sprout_ui/frames/backdrop_a1.png",
+      "width": 30,
+      "height": 30
+    },
+    "sprout_ui/frames/backdrop_a2": {
+      "path": "assets/sprout_ui/frames/backdrop_a2.png",
+      "width": 30,
+      "height": 30
+    },
+    "sprout_ui/frames/backdrop_a3": {
+      "path": "assets/sprout_ui/frames/backdrop_a3.png",
+      "width": 26,
+      "height": 26
+    },
+    "sprout_ui/frames/backdrop_a4": {
+      "path": "assets/sprout_ui/frames/backdrop_a4.png",
+      "width": 30,
+      "height": 35
+    },
+    "sprout_ui/frames/backdrop_a5": {
+      "path": "assets/sprout_ui/frames/backdrop_a5.png",
+      "width": 32,
+      "height": 35
+    },
+    "sprout_ui/frames/backdrop_a_stick": {
+      "path": "assets/sprout_ui/frames/backdrop_a_stick.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/frames/backdrop_b1": {
+      "path": "assets/sprout_ui/frames/backdrop_b1.png",
+      "width": 30,
+      "height": 30
+    },
+    "sprout_ui/frames/backdrop_b2": {
+      "path": "assets/sprout_ui/frames/backdrop_b2.png",
+      "width": 30,
+      "height": 30
+    },
+    "sprout_ui/frames/backdrop_b3": {
+      "path": "assets/sprout_ui/frames/backdrop_b3.png",
+      "width": 26,
+      "height": 26
+    },
+    "sprout_ui/frames/backdrop_b4": {
+      "path": "assets/sprout_ui/frames/backdrop_b4.png",
+      "width": 30,
+      "height": 35
+    },
+    "sprout_ui/frames/backdrop_b5": {
+      "path": "assets/sprout_ui/frames/backdrop_b5.png",
+      "width": 32,
+      "height": 35
+    },
+    "sprout_ui/frames/backdrop_b_stick": {
+      "path": "assets/sprout_ui/frames/backdrop_b_stick.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/frames/backdrop_c1": {
+      "path": "assets/sprout_ui/frames/backdrop_c1.png",
+      "width": 30,
+      "height": 30
+    },
+    "sprout_ui/frames/backdrop_c2": {
+      "path": "assets/sprout_ui/frames/backdrop_c2.png",
+      "width": 30,
+      "height": 30
+    },
+    "sprout_ui/frames/backdrop_c3": {
+      "path": "assets/sprout_ui/frames/backdrop_c3.png",
+      "width": 26,
+      "height": 26
+    },
+    "sprout_ui/frames/backdrop_c4": {
+      "path": "assets/sprout_ui/frames/backdrop_c4.png",
+      "width": 30,
+      "height": 35
+    },
+    "sprout_ui/frames/backdrop_c5": {
+      "path": "assets/sprout_ui/frames/backdrop_c5.png",
+      "width": 32,
+      "height": 35
+    },
+    "sprout_ui/frames/backdrop_c_stick": {
+      "path": "assets/sprout_ui/frames/backdrop_c_stick.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/frames/backdrop_big1": {
+      "path": "assets/sprout_ui/frames/backdrop_big1.png",
+      "width": 58,
+      "height": 57
+    },
+    "sprout_ui/frames/backdrop_big2": {
+      "path": "assets/sprout_ui/frames/backdrop_big2.png",
+      "width": 58,
+      "height": 57
+    },
+    "sprout_ui/buttons/btn_wide_blank_normal": {
+      "path": "assets/sprout_ui/buttons/btn_wide_blank_normal.png",
+      "width": 90,
+      "height": 27
+    },
+    "sprout_ui/buttons/btn_wide_blank_pressed": {
+      "path": "assets/sprout_ui/buttons/btn_wide_blank_pressed.png",
+      "width": 90,
+      "height": 25
+    },
+    "sprout_ui/buttons/btn_wide_play_normal": {
+      "path": "assets/sprout_ui/buttons/btn_wide_play_normal.png",
+      "width": 90,
+      "height": 27
+    },
+    "sprout_ui/buttons/btn_wide_play_pressed": {
+      "path": "assets/sprout_ui/buttons/btn_wide_play_pressed.png",
+      "width": 90,
+      "height": 25
+    },
+    "sprout_ui/buttons/sq_sm_white_oct_normal": {
+      "path": "assets/sprout_ui/buttons/sq_sm_white_oct_normal.png",
+      "width": 14,
+      "height": 16
+    },
+    "sprout_ui/buttons/sq_sm_white_oct_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_sm_white_oct_pressed.png",
+      "width": 14,
+      "height": 14
+    },
+    "sprout_ui/buttons/sq_sm_white_round_normal": {
+      "path": "assets/sprout_ui/buttons/sq_sm_white_round_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/sq_sm_white_round_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_sm_white_round_pressed.png",
+      "width": 16,
+      "height": 14
+    },
+    "sprout_ui/buttons/sq_sm_light_oct_normal": {
+      "path": "assets/sprout_ui/buttons/sq_sm_light_oct_normal.png",
+      "width": 14,
+      "height": 16
+    },
+    "sprout_ui/buttons/sq_sm_light_oct_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_sm_light_oct_pressed.png",
+      "width": 14,
+      "height": 14
+    },
+    "sprout_ui/buttons/sq_sm_light_round_normal": {
+      "path": "assets/sprout_ui/buttons/sq_sm_light_round_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/sq_sm_light_round_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_sm_light_round_pressed.png",
+      "width": 16,
+      "height": 14
+    },
+    "sprout_ui/buttons/sq_sm_tan_oct_normal": {
+      "path": "assets/sprout_ui/buttons/sq_sm_tan_oct_normal.png",
+      "width": 14,
+      "height": 16
+    },
+    "sprout_ui/buttons/sq_sm_tan_oct_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_sm_tan_oct_pressed.png",
+      "width": 14,
+      "height": 14
+    },
+    "sprout_ui/buttons/sq_sm_tan_round_normal": {
+      "path": "assets/sprout_ui/buttons/sq_sm_tan_round_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/sq_sm_tan_round_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_sm_tan_round_pressed.png",
+      "width": 16,
+      "height": 14
+    },
+    "sprout_ui/buttons/sq_sm_dark_oct_normal": {
+      "path": "assets/sprout_ui/buttons/sq_sm_dark_oct_normal.png",
+      "width": 14,
+      "height": 16
+    },
+    "sprout_ui/buttons/sq_sm_dark_oct_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_sm_dark_oct_pressed.png",
+      "width": 14,
+      "height": 14
+    },
+    "sprout_ui/buttons/sq_sm_dark_round_normal": {
+      "path": "assets/sprout_ui/buttons/sq_sm_dark_round_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/sq_sm_dark_round_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_sm_dark_round_pressed.png",
+      "width": 16,
+      "height": 14
+    },
+    "sprout_ui/buttons/rect_tall_white_normal": {
+      "path": "assets/sprout_ui/buttons/rect_tall_white_normal.png",
+      "width": 18,
+      "height": 28
+    },
+    "sprout_ui/buttons/rect_tall_white_pressed": {
+      "path": "assets/sprout_ui/buttons/rect_tall_white_pressed.png",
+      "width": 18,
+      "height": 26
+    },
+    "sprout_ui/buttons/rect_tall_tan_normal": {
+      "path": "assets/sprout_ui/buttons/rect_tall_tan_normal.png",
+      "width": 18,
+      "height": 28
+    },
+    "sprout_ui/buttons/rect_tall_tan_pressed": {
+      "path": "assets/sprout_ui/buttons/rect_tall_tan_pressed.png",
+      "width": 18,
+      "height": 26
+    },
+    "sprout_ui/buttons/rect_tall_light_normal": {
+      "path": "assets/sprout_ui/buttons/rect_tall_light_normal.png",
+      "width": 18,
+      "height": 28
+    },
+    "sprout_ui/buttons/rect_tall_light_pressed": {
+      "path": "assets/sprout_ui/buttons/rect_tall_light_pressed.png",
+      "width": 18,
+      "height": 26
+    },
+    "sprout_ui/buttons/rect_tall_dark_normal": {
+      "path": "assets/sprout_ui/buttons/rect_tall_dark_normal.png",
+      "width": 18,
+      "height": 28
+    },
+    "sprout_ui/buttons/rect_tall_dark_pressed": {
+      "path": "assets/sprout_ui/buttons/rect_tall_dark_pressed.png",
+      "width": 18,
+      "height": 26
+    },
+    "sprout_ui/buttons/rect_wide_white_normal": {
+      "path": "assets/sprout_ui/buttons/rect_wide_white_normal.png",
+      "width": 26,
+      "height": 19
+    },
+    "sprout_ui/buttons/rect_wide_white_pressed": {
+      "path": "assets/sprout_ui/buttons/rect_wide_white_pressed.png",
+      "width": 26,
+      "height": 18
+    },
+    "sprout_ui/buttons/rect_wide_light_normal": {
+      "path": "assets/sprout_ui/buttons/rect_wide_light_normal.png",
+      "width": 26,
+      "height": 19
+    },
+    "sprout_ui/buttons/rect_wide_light_pressed": {
+      "path": "assets/sprout_ui/buttons/rect_wide_light_pressed.png",
+      "width": 26,
+      "height": 18
+    },
+    "sprout_ui/buttons/rect_wide_tan_normal": {
+      "path": "assets/sprout_ui/buttons/rect_wide_tan_normal.png",
+      "width": 26,
+      "height": 19
+    },
+    "sprout_ui/buttons/rect_wide_tan_pressed": {
+      "path": "assets/sprout_ui/buttons/rect_wide_tan_pressed.png",
+      "width": 26,
+      "height": 18
+    },
+    "sprout_ui/buttons/rect_wide_dark_normal": {
+      "path": "assets/sprout_ui/buttons/rect_wide_dark_normal.png",
+      "width": 26,
+      "height": 19
+    },
+    "sprout_ui/buttons/rect_wide_dark_pressed": {
+      "path": "assets/sprout_ui/buttons/rect_wide_dark_pressed.png",
+      "width": 26,
+      "height": 18
+    },
+    "sprout_ui/buttons/sq_lg_white_normal": {
+      "path": "assets/sprout_ui/buttons/sq_lg_white_normal.png",
+      "width": 26,
+      "height": 28
+    },
+    "sprout_ui/buttons/sq_lg_white_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_lg_white_pressed.png",
+      "width": 26,
+      "height": 25
+    },
+    "sprout_ui/buttons/sq_lg_light_normal": {
+      "path": "assets/sprout_ui/buttons/sq_lg_light_normal.png",
+      "width": 26,
+      "height": 28
+    },
+    "sprout_ui/buttons/sq_lg_light_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_lg_light_pressed.png",
+      "width": 26,
+      "height": 25
+    },
+    "sprout_ui/buttons/sq_lg_tan_normal": {
+      "path": "assets/sprout_ui/buttons/sq_lg_tan_normal.png",
+      "width": 26,
+      "height": 28
+    },
+    "sprout_ui/buttons/sq_lg_tan_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_lg_tan_pressed.png",
+      "width": 26,
+      "height": 25
+    },
+    "sprout_ui/buttons/sq_lg_dark_normal": {
+      "path": "assets/sprout_ui/buttons/sq_lg_dark_normal.png",
+      "width": 26,
+      "height": 28
+    },
+    "sprout_ui/buttons/sq_lg_dark_pressed": {
+      "path": "assets/sprout_ui/buttons/sq_lg_dark_pressed.png",
+      "width": 26,
+      "height": 25
+    },
+    "sprout_ui/buttons/round_md_white_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_white_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_white_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_white_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_white_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_white_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_white_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_white_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_white_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_white_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_cream_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_cream_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_cream_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_cream_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_cream_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_cream_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_cream_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_cream_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_cream_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_cream_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_tan_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_tan_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_tan_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_tan_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_tan_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_tan_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_tan_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_tan_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_tan_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_tan_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_brown_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_brown_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_brown_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_brown_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_brown_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_brown_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_brown_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_brown_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_brown_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_brown_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_indigo_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_indigo_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_indigo_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_indigo_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_indigo_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_indigo_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_indigo_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_indigo_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_indigo_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_indigo_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_blue_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_blue_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_blue_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_blue_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_blue_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_blue_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_blue_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_blue_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_blue_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_blue_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_teal_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_teal_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_teal_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_teal_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_teal_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_teal_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_teal_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_teal_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_teal_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_teal_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_green_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_green_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_green_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_green_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_green_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_green_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_green_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_green_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_green_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_green_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_lime_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_lime_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_lime_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_lime_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_lime_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_lime_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_lime_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_lime_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_lime_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_lime_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_yellow_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_yellow_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_yellow_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_yellow_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_yellow_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_yellow_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_yellow_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_yellow_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_yellow_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_yellow_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_orange_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_orange_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_orange_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_orange_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_orange_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_orange_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_orange_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_orange_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_orange_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_orange_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_red_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_red_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_red_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_red_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_red_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_red_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_red_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_red_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_red_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_red_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_md_pink_normal": {
+      "path": "assets/sprout_ui/buttons/round_md_pink_normal.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_pink_hover": {
+      "path": "assets/sprout_ui/buttons/round_md_pink_hover.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_md_pink_pressed": {
+      "path": "assets/sprout_ui/buttons/round_md_pink_pressed.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/buttons/round_sm_pink_normal": {
+      "path": "assets/sprout_ui/buttons/round_sm_pink_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/round_sm_pink_pressed": {
+      "path": "assets/sprout_ui/buttons/round_sm_pink_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/buttons/ic_btn_blank_sm_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_blank_sm_normal.png",
+      "width": 18,
+      "height": 20
+    },
+    "sprout_ui/buttons/ic_btn_blank_sm_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_blank_sm_pressed.png",
+      "width": 18,
+      "height": 18
+    },
+    "sprout_ui/buttons/ic_btn_check_sm_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_check_sm_normal.png",
+      "width": 18,
+      "height": 20
+    },
+    "sprout_ui/buttons/ic_btn_check_sm_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_check_sm_pressed.png",
+      "width": 18,
+      "height": 18
+    },
+    "sprout_ui/buttons/ic_btn_close_sm_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_close_sm_normal.png",
+      "width": 18,
+      "height": 20
+    },
+    "sprout_ui/buttons/ic_btn_close_sm_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_close_sm_pressed.png",
+      "width": 18,
+      "height": 18
+    },
+    "sprout_ui/buttons/ic_btn_arrow_down_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_arrow_down_normal.png",
+      "width": 20,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_arrow_down_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_arrow_down_pressed.png",
+      "width": 20,
+      "height": 20
+    },
+    "sprout_ui/buttons/ic_btn_arrow_up_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_arrow_up_normal.png",
+      "width": 20,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_arrow_up_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_arrow_up_pressed.png",
+      "width": 20,
+      "height": 20
+    },
+    "sprout_ui/buttons/ic_btn_arrow_right_sm_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_arrow_right_sm_normal.png",
+      "width": 20,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_arrow_right_sm_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_arrow_right_sm_pressed.png",
+      "width": 20,
+      "height": 20
+    },
+    "sprout_ui/buttons/ic_btn_arrow_left_sm_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_arrow_left_sm_normal.png",
+      "width": 20,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_arrow_left_sm_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_arrow_left_sm_pressed.png",
+      "width": 20,
+      "height": 20
+    },
+    "sprout_ui/buttons/ic_btn_pause_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_pause_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_pause_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_pause_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_play_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_play_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_play_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_play_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_blank_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_blank_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_blank_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_blank_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_fast_forward_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_fast_forward_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_fast_forward_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_fast_forward_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_plus_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_plus_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_plus_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_plus_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_settings_gear_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_settings_gear_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_settings_gear_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_settings_gear_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_help_question_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_help_question_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_help_question_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_help_question_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_minus_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_minus_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_minus_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_minus_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_alert_exclaim_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_alert_exclaim_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_alert_exclaim_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_alert_exclaim_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_heart_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_heart_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_heart_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_heart_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_home_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_home_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_home_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_home_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_leaderboard_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_leaderboard_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_leaderboard_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_leaderboard_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_star_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_star_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_star_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_star_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_login_enter_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_login_enter_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_login_enter_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_login_enter_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_trophy_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_trophy_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_trophy_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_trophy_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_gamepad_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_gamepad_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_gamepad_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_gamepad_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_power_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_power_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_power_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_power_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_crown_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_crown_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_crown_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_crown_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_chat_dots_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_chat_dots_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_chat_dots_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_chat_dots_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_logout_exit_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_logout_exit_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_logout_exit_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_logout_exit_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_check_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_check_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_check_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_check_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_skull_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_skull_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_skull_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_skull_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_music_double_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_music_double_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_music_double_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_music_double_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_close_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_close_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_close_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_close_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_cart_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_cart_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_cart_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_cart_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_music_off_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_music_off_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_music_off_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_music_off_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_ban_cancel_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_ban_cancel_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_ban_cancel_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_ban_cancel_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_dollar_coin_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_dollar_coin_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_dollar_coin_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_dollar_coin_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_paw_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_paw_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_paw_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_paw_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_sprout_1_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_sprout_1_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_sprout_1_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_sprout_1_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_music_single_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_music_single_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_music_single_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_music_single_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_music_single_off_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_music_single_off_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_music_single_off_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_music_single_off_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_sprout_2_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_sprout_2_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_sprout_2_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_sprout_2_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_sfx_off_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_sfx_off_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_sfx_off_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_sfx_off_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_vol_down_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_vol_down_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_vol_down_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_vol_down_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_sfx_on_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_sfx_on_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_sfx_on_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_sfx_on_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_slash_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_slash_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_slash_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_slash_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/buttons/ic_btn_vol_up_normal": {
+      "path": "assets/sprout_ui/buttons/ic_btn_vol_up_normal.png",
+      "width": 22,
+      "height": 24
+    },
+    "sprout_ui/buttons/ic_btn_vol_up_pressed": {
+      "path": "assets/sprout_ui/buttons/ic_btn_vol_up_pressed.png",
+      "width": 22,
+      "height": 22
+    },
+    "sprout_ui/dialogue/dialog_box_mini": {
+      "path": "assets/sprout_ui/dialogue/dialog_box_mini.png",
+      "width": 30,
+      "height": 28
+    },
+    "sprout_ui/dialogue/dialog_box_small": {
+      "path": "assets/sprout_ui/dialogue/dialog_box_small.png",
+      "width": 108,
+      "height": 35
+    },
+    "sprout_ui/dialogue/dialog_box_medium": {
+      "path": "assets/sprout_ui/dialogue/dialog_box_medium.png",
+      "width": 124,
+      "height": 35
+    },
+    "sprout_ui/dialogue/dialog_box_big": {
+      "path": "assets/sprout_ui/dialogue/dialog_box_big.png",
+      "width": 172,
+      "height": 35
+    },
+    "sprout_ui/dialogue/dialog_box_frame": {
+      "path": "assets/sprout_ui/dialogue/dialog_box_frame.png",
+      "width": 168,
+      "height": 35
+    },
+    "sprout_ui/dialogue/dialog_tail_left": {
+      "path": "assets/sprout_ui/dialogue/dialog_tail_left.png",
+      "width": 7,
+      "height": 12
+    },
+    "sprout_ui/dialogue/premade_dialog_small": {
+      "path": "assets/sprout_ui/dialogue/premade_dialog_small.png",
+      "width": 170,
+      "height": 60
+    },
+    "sprout_ui/dialogue/premade_dialog_medium": {
+      "path": "assets/sprout_ui/dialogue/premade_dialog_medium.png",
+      "width": 234,
+      "height": 60
+    },
+    "sprout_ui/dialogue/premade_dialog_big": {
+      "path": "assets/sprout_ui/dialogue/premade_dialog_big.png",
+      "width": 298,
+      "height": 60
+    },
+    "sprout_ui/dialogue/continue_indicator": {
+      "path": "assets/sprout_ui/dialogue/continue_indicator.png",
+      "width": 112,
+      "height": 16
+    },
+    "sprout_ui/dialogue/speech_bubble_blue_static": {
+      "path": "assets/sprout_ui/dialogue/speech_bubble_blue_static.png",
+      "width": 41,
+      "height": 45
+    },
+    "sprout_ui/dialogue/speech_bubble_green_static": {
+      "path": "assets/sprout_ui/dialogue/speech_bubble_green_static.png",
+      "width": 41,
+      "height": 45
+    },
+    "sprout_ui/dialogue/speech_bubble_grey_static": {
+      "path": "assets/sprout_ui/dialogue/speech_bubble_grey_static.png",
+      "width": 41,
+      "height": 45
+    },
+    "sprout_ui/dialogue/speech_bubble_pink_static": {
+      "path": "assets/sprout_ui/dialogue/speech_bubble_pink_static.png",
+      "width": 41,
+      "height": 45
+    },
+    "sprout_ui/dialogue/speech_bubble_purple_static": {
+      "path": "assets/sprout_ui/dialogue/speech_bubble_purple_static.png",
+      "width": 41,
+      "height": 45
+    },
+    "sprout_ui/dialogue/speech_bubble_yellow_static": {
+      "path": "assets/sprout_ui/dialogue/speech_bubble_yellow_static.png",
+      "width": 41,
+      "height": 45
+    },
+    "sprout_ui/emotes/tiny_very_happy": {
+      "path": "assets/sprout_ui/emotes/tiny_very_happy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/emotes/tiny_happy": {
+      "path": "assets/sprout_ui/emotes/tiny_happy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/emotes/tiny_neutral": {
+      "path": "assets/sprout_ui/emotes/tiny_neutral.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/emotes/tiny_sad": {
+      "path": "assets/sprout_ui/emotes/tiny_sad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/emotes/tiny_angry": {
+      "path": "assets/sprout_ui/emotes/tiny_angry.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/emotes/tiny_crying": {
+      "path": "assets/sprout_ui/emotes/tiny_crying.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/emotes/tiny_skull": {
+      "path": "assets/sprout_ui/emotes/tiny_skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_a_1": {
+      "path": "assets/sprout_ui/controls/slider_a_1.png",
+      "width": 32,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_a_2": {
+      "path": "assets/sprout_ui/controls/slider_a_2.png",
+      "width": 32,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_a_3": {
+      "path": "assets/sprout_ui/controls/slider_a_3.png",
+      "width": 32,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_a_4": {
+      "path": "assets/sprout_ui/controls/slider_a_4.png",
+      "width": 16,
+      "height": 32
+    },
+    "sprout_ui/controls/slider_a_5": {
+      "path": "assets/sprout_ui/controls/slider_a_5.png",
+      "width": 16,
+      "height": 32
+    },
+    "sprout_ui/controls/slider_a_6": {
+      "path": "assets/sprout_ui/controls/slider_a_6.png",
+      "width": 16,
+      "height": 32
+    },
+    "sprout_ui/controls/slider_a_start": {
+      "path": "assets/sprout_ui/controls/slider_a_start.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_b_start": {
+      "path": "assets/sprout_ui/controls/slider_b_start.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_a_mid": {
+      "path": "assets/sprout_ui/controls/slider_a_mid.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_b_mid": {
+      "path": "assets/sprout_ui/controls/slider_b_mid.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_a_end": {
+      "path": "assets/sprout_ui/controls/slider_a_end.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_b_end": {
+      "path": "assets/sprout_ui/controls/slider_b_end.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_a_start2": {
+      "path": "assets/sprout_ui/controls/slider_a_start2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_b_start2": {
+      "path": "assets/sprout_ui/controls/slider_b_start2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_a_mid2": {
+      "path": "assets/sprout_ui/controls/slider_a_mid2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_b_mid2": {
+      "path": "assets/sprout_ui/controls/slider_b_mid2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_a_end2": {
+      "path": "assets/sprout_ui/controls/slider_a_end2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_b_end2": {
+      "path": "assets/sprout_ui/controls/slider_b_end2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_b_1": {
+      "path": "assets/sprout_ui/controls/slider_b_1.png",
+      "width": 32,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_b_2": {
+      "path": "assets/sprout_ui/controls/slider_b_2.png",
+      "width": 32,
+      "height": 16
+    },
+    "sprout_ui/controls/slider_b_3": {
+      "path": "assets/sprout_ui/controls/slider_b_3.png",
+      "width": 32,
+      "height": 16
+    },
+    "sprout_ui/controls/scrollbar_v_track_thick": {
+      "path": "assets/sprout_ui/controls/scrollbar_v_track_thick.png",
+      "width": 7,
+      "height": 40
+    },
+    "sprout_ui/controls/scrollbar_v_track_slim": {
+      "path": "assets/sprout_ui/controls/scrollbar_v_track_slim.png",
+      "width": 4,
+      "height": 38
+    },
+    "sprout_ui/controls/scrollbar_v_thumb_dark": {
+      "path": "assets/sprout_ui/controls/scrollbar_v_thumb_dark.png",
+      "width": 11,
+      "height": 21
+    },
+    "sprout_ui/controls/scrollbar_v_thumb_med": {
+      "path": "assets/sprout_ui/controls/scrollbar_v_thumb_med.png",
+      "width": 11,
+      "height": 21
+    },
+    "sprout_ui/controls/scrollbar_v_thumb_light": {
+      "path": "assets/sprout_ui/controls/scrollbar_v_thumb_light.png",
+      "width": 11,
+      "height": 21
+    },
+    "sprout_ui/controls/scrollbar_v_thumb_slim_dark": {
+      "path": "assets/sprout_ui/controls/scrollbar_v_thumb_slim_dark.png",
+      "width": 7,
+      "height": 18
+    },
+    "sprout_ui/controls/scrollbar_v_thumb_slim_med": {
+      "path": "assets/sprout_ui/controls/scrollbar_v_thumb_slim_med.png",
+      "width": 7,
+      "height": 18
+    },
+    "sprout_ui/controls/scrollbar_v_thumb_slim_light": {
+      "path": "assets/sprout_ui/controls/scrollbar_v_thumb_slim_light.png",
+      "width": 7,
+      "height": 18
+    },
+    "sprout_ui/controls/slider_h_track_thick": {
+      "path": "assets/sprout_ui/controls/slider_h_track_thick.png",
+      "width": 40,
+      "height": 7
+    },
+    "sprout_ui/controls/slider_h_thumb_light": {
+      "path": "assets/sprout_ui/controls/slider_h_thumb_light.png",
+      "width": 20,
+      "height": 12
+    },
+    "sprout_ui/controls/slider_h_thumb_med": {
+      "path": "assets/sprout_ui/controls/slider_h_thumb_med.png",
+      "width": 20,
+      "height": 12
+    },
+    "sprout_ui/controls/slider_h_thumb_dark": {
+      "path": "assets/sprout_ui/controls/slider_h_thumb_dark.png",
+      "width": 20,
+      "height": 12
+    },
+    "sprout_ui/frames/hud_heart_plate_3": {
+      "path": "assets/sprout_ui/frames/hud_heart_plate_3.png",
+      "width": 71,
+      "height": 32
+    },
+    "sprout_ui/frames/hud_sign_hanging_blank": {
+      "path": "assets/sprout_ui/frames/hud_sign_hanging_blank.png",
+      "width": 71,
+      "height": 54
+    },
+    "sprout_ui/frames/hud_sign_hanging_hearts": {
+      "path": "assets/sprout_ui/frames/hud_sign_hanging_hearts.png",
+      "width": 71,
+      "height": 54
+    },
+    "sprout_ui/frames/hud_sign_hanging_sm": {
+      "path": "assets/sprout_ui/frames/hud_sign_hanging_sm.png",
+      "width": 35,
+      "height": 41
+    },
+    "sprout_ui/frames/coin_plate_100": {
+      "path": "assets/sprout_ui/frames/coin_plate_100.png",
+      "width": 34,
+      "height": 17
+    },
+    "sprout_ui/frames/coin_plate_sm": {
+      "path": "assets/sprout_ui/frames/coin_plate_sm.png",
+      "width": 34,
+      "height": 17
+    },
+    "sprout_ui/frames/coin_plate_md": {
+      "path": "assets/sprout_ui/frames/coin_plate_md.png",
+      "width": 41,
+      "height": 17
+    },
+    "sprout_ui/bars/bar_frame_green_lg": {
+      "path": "assets/sprout_ui/bars/bar_frame_green_lg.png",
+      "width": 99,
+      "height": 13
+    },
+    "sprout_ui/bars/bar_frame_empty_lg": {
+      "path": "assets/sprout_ui/bars/bar_frame_empty_lg.png",
+      "width": 99,
+      "height": 13
+    },
+    "sprout_ui/bars/bar_frame_empty_sm": {
+      "path": "assets/sprout_ui/bars/bar_frame_empty_sm.png",
+      "width": 35,
+      "height": 13
+    },
+    "sprout_ui/bars/bar_fill_green": {
+      "path": "assets/sprout_ui/bars/bar_fill_green.png",
+      "width": 30,
+      "height": 8
+    },
+    "sprout_ui/bars/bar_fill_red": {
+      "path": "assets/sprout_ui/bars/bar_fill_red.png",
+      "width": 30,
+      "height": 8
+    },
+    "sprout_ui/bars/bar_fill_blue": {
+      "path": "assets/sprout_ui/bars/bar_fill_blue.png",
+      "width": 30,
+      "height": 8
+    },
+    "sprout_ui/bars/bar_segmented_blue": {
+      "path": "assets/sprout_ui/bars/bar_segmented_blue.png",
+      "width": 112,
+      "height": 7
+    },
+    "sprout_ui/bars/bar_segmented_green": {
+      "path": "assets/sprout_ui/bars/bar_segmented_green.png",
+      "width": 112,
+      "height": 7
+    },
+    "sprout_ui/bars/bar_segmented_red": {
+      "path": "assets/sprout_ui/bars/bar_segmented_red.png",
+      "width": 112,
+      "height": 7
+    },
+    "sprout_ui/controls/toggle_track_brown_raised": {
+      "path": "assets/sprout_ui/controls/toggle_track_brown_raised.png",
+      "width": 28,
+      "height": 14
+    },
+    "sprout_ui/controls/toggle_track_brown_flat": {
+      "path": "assets/sprout_ui/controls/toggle_track_brown_flat.png",
+      "width": 28,
+      "height": 14
+    },
+    "sprout_ui/controls/toggle_brown_state_1": {
+      "path": "assets/sprout_ui/controls/toggle_brown_state_1.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_brown_state_2": {
+      "path": "assets/sprout_ui/controls/toggle_brown_state_2.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_brown_state_3": {
+      "path": "assets/sprout_ui/controls/toggle_brown_state_3.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_brown_state_4": {
+      "path": "assets/sprout_ui/controls/toggle_brown_state_4.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_brown_state_5": {
+      "path": "assets/sprout_ui/controls/toggle_brown_state_5.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_brown_state_6": {
+      "path": "assets/sprout_ui/controls/toggle_brown_state_6.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_track_green_raised": {
+      "path": "assets/sprout_ui/controls/toggle_track_green_raised.png",
+      "width": 28,
+      "height": 14
+    },
+    "sprout_ui/controls/toggle_track_green_flat": {
+      "path": "assets/sprout_ui/controls/toggle_track_green_flat.png",
+      "width": 28,
+      "height": 14
+    },
+    "sprout_ui/controls/toggle_green_state_1": {
+      "path": "assets/sprout_ui/controls/toggle_green_state_1.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_green_state_2": {
+      "path": "assets/sprout_ui/controls/toggle_green_state_2.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_green_state_3": {
+      "path": "assets/sprout_ui/controls/toggle_green_state_3.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_green_state_4": {
+      "path": "assets/sprout_ui/controls/toggle_green_state_4.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_green_state_5": {
+      "path": "assets/sprout_ui/controls/toggle_green_state_5.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_green_state_6": {
+      "path": "assets/sprout_ui/controls/toggle_green_state_6.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_track_red_raised": {
+      "path": "assets/sprout_ui/controls/toggle_track_red_raised.png",
+      "width": 28,
+      "height": 14
+    },
+    "sprout_ui/controls/toggle_track_red_flat": {
+      "path": "assets/sprout_ui/controls/toggle_track_red_flat.png",
+      "width": 28,
+      "height": 14
+    },
+    "sprout_ui/controls/toggle_red_state_1": {
+      "path": "assets/sprout_ui/controls/toggle_red_state_1.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_red_state_2": {
+      "path": "assets/sprout_ui/controls/toggle_red_state_2.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_red_state_3": {
+      "path": "assets/sprout_ui/controls/toggle_red_state_3.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_red_state_4": {
+      "path": "assets/sprout_ui/controls/toggle_red_state_4.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_red_state_5": {
+      "path": "assets/sprout_ui/controls/toggle_red_state_5.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/controls/toggle_red_state_6": {
+      "path": "assets/sprout_ui/controls/toggle_red_state_6.png",
+      "width": 28,
+      "height": 18
+    },
+    "sprout_ui/bars/stamina_circle_black": {
+      "path": "assets/sprout_ui/bars/stamina_circle_black.png",
+      "width": 592,
+      "height": 16
+    },
+    "sprout_ui/bars/stamina_circle_white": {
+      "path": "assets/sprout_ui/bars/stamina_circle_white.png",
+      "width": 592,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_a_tl": {
+      "path": "assets/sprout_ui/selectors/selector_a_tl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_a_tr": {
+      "path": "assets/sprout_ui/selectors/selector_a_tr.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_a_bl": {
+      "path": "assets/sprout_ui/selectors/selector_a_bl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_a_br": {
+      "path": "assets/sprout_ui/selectors/selector_a_br.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_b_tl": {
+      "path": "assets/sprout_ui/selectors/selector_b_tl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_b_tr": {
+      "path": "assets/sprout_ui/selectors/selector_b_tr.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_b_bl": {
+      "path": "assets/sprout_ui/selectors/selector_b_bl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_b_br": {
+      "path": "assets/sprout_ui/selectors/selector_b_br.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_c_tl": {
+      "path": "assets/sprout_ui/selectors/selector_c_tl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_c_tr": {
+      "path": "assets/sprout_ui/selectors/selector_c_tr.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_c_bl": {
+      "path": "assets/sprout_ui/selectors/selector_c_bl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_c_br": {
+      "path": "assets/sprout_ui/selectors/selector_c_br.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_d_tl": {
+      "path": "assets/sprout_ui/selectors/selector_d_tl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_d_tr": {
+      "path": "assets/sprout_ui/selectors/selector_d_tr.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_d_bl": {
+      "path": "assets/sprout_ui/selectors/selector_d_bl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_d_br": {
+      "path": "assets/sprout_ui/selectors/selector_d_br.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_e_tl": {
+      "path": "assets/sprout_ui/selectors/selector_e_tl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_e_tr": {
+      "path": "assets/sprout_ui/selectors/selector_e_tr.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_e_bl": {
+      "path": "assets/sprout_ui/selectors/selector_e_bl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_e_br": {
+      "path": "assets/sprout_ui/selectors/selector_e_br.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_f_tl": {
+      "path": "assets/sprout_ui/selectors/selector_f_tl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_f_tr": {
+      "path": "assets/sprout_ui/selectors/selector_f_tr.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_f_bl": {
+      "path": "assets/sprout_ui/selectors/selector_f_bl.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/selector_f_br": {
+      "path": "assets/sprout_ui/selectors/selector_f_br.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/dot_1": {
+      "path": "assets/sprout_ui/selectors/dot_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/dot_2": {
+      "path": "assets/sprout_ui/selectors/dot_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/dot_3": {
+      "path": "assets/sprout_ui/selectors/dot_3.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/dot_4": {
+      "path": "assets/sprout_ui/selectors/dot_4.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/dot_5": {
+      "path": "assets/sprout_ui/selectors/dot_5.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/selectors/dot_6": {
+      "path": "assets/sprout_ui/selectors/dot_6.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/cursors/cursor_arrow_1": {
+      "path": "assets/sprout_ui/cursors/cursor_arrow_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/cursors/cursor_arrow_1_2x": {
+      "path": "assets/sprout_ui/cursors/cursor_arrow_1_2x.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/cursors/cursor_arrow_2": {
+      "path": "assets/sprout_ui/cursors/cursor_arrow_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/cursors/cursor_arrow_2_2x": {
+      "path": "assets/sprout_ui/cursors/cursor_arrow_2_2x.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/cursors/cursor_arrow_3": {
+      "path": "assets/sprout_ui/cursors/cursor_arrow_3.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/cursors/cursor_arrow_3_2x": {
+      "path": "assets/sprout_ui/cursors/cursor_arrow_3_2x.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/cursors/cursor_catpaw": {
+      "path": "assets/sprout_ui/cursors/cursor_catpaw.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/cursors/cursor_catpaw_2x": {
+      "path": "assets/sprout_ui/cursors/cursor_catpaw_2x.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/cursors/cursor_catpaw_holding": {
+      "path": "assets/sprout_ui/cursors/cursor_catpaw_holding.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/cursors/cursor_catpaw_holding_2x": {
+      "path": "assets/sprout_ui/cursors/cursor_catpaw_holding_2x.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/cursors/cursor_catpaw_pointing": {
+      "path": "assets/sprout_ui/cursors/cursor_catpaw_pointing.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/cursors/cursor_catpaw_pointing_2x": {
+      "path": "assets/sprout_ui/cursors/cursor_catpaw_pointing_2x.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/cursors/cursor_triangle_1": {
+      "path": "assets/sprout_ui/cursors/cursor_triangle_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/cursors/cursor_triangle_1_2x": {
+      "path": "assets/sprout_ui/cursors/cursor_triangle_1_2x.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/cursors/cursor_triangle_2": {
+      "path": "assets/sprout_ui/cursors/cursor_triangle_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/cursors/cursor_triangle_2_2x": {
+      "path": "assets/sprout_ui/cursors/cursor_triangle_2_2x.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/cursors/cursor_triangle_3": {
+      "path": "assets/sprout_ui/cursors/cursor_triangle_3.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/cursors/cursor_triangle_3_2x": {
+      "path": "assets/sprout_ui/cursors/cursor_triangle_3_2x.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/marks/check_sm_light_normal": {
+      "path": "assets/sprout_ui/marks/check_sm_light_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/check_sm_light_pressed": {
+      "path": "assets/sprout_ui/marks/check_sm_light_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/check_md_light_normal": {
+      "path": "assets/sprout_ui/marks/check_md_light_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/check_md_light_pressed": {
+      "path": "assets/sprout_ui/marks/check_md_light_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/check_lg_light_normal": {
+      "path": "assets/sprout_ui/marks/check_lg_light_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/check_lg_light_pressed": {
+      "path": "assets/sprout_ui/marks/check_lg_light_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/check_sm_dark_normal": {
+      "path": "assets/sprout_ui/marks/check_sm_dark_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/check_sm_dark_pressed": {
+      "path": "assets/sprout_ui/marks/check_sm_dark_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/check_md_dark_normal": {
+      "path": "assets/sprout_ui/marks/check_md_dark_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/check_md_dark_pressed": {
+      "path": "assets/sprout_ui/marks/check_md_dark_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/check_lg_dark_normal": {
+      "path": "assets/sprout_ui/marks/check_lg_dark_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/check_lg_dark_pressed": {
+      "path": "assets/sprout_ui/marks/check_lg_dark_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_sm_light_normal": {
+      "path": "assets/sprout_ui/marks/x_sm_light_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_sm_light_pressed": {
+      "path": "assets/sprout_ui/marks/x_sm_light_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_md_light_normal": {
+      "path": "assets/sprout_ui/marks/x_md_light_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_md_light_pressed": {
+      "path": "assets/sprout_ui/marks/x_md_light_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_lg_light_normal": {
+      "path": "assets/sprout_ui/marks/x_lg_light_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_lg_light_pressed": {
+      "path": "assets/sprout_ui/marks/x_lg_light_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_sm_dark_normal": {
+      "path": "assets/sprout_ui/marks/x_sm_dark_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_sm_dark_pressed": {
+      "path": "assets/sprout_ui/marks/x_sm_dark_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_md_dark_normal": {
+      "path": "assets/sprout_ui/marks/x_md_dark_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_md_dark_pressed": {
+      "path": "assets/sprout_ui/marks/x_md_dark_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_lg_dark_normal": {
+      "path": "assets/sprout_ui/marks/x_lg_dark_normal.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/marks/x_lg_dark_pressed": {
+      "path": "assets/sprout_ui/marks/x_lg_dark_pressed.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/gear": {
+      "path": "assets/sprout_ui/icons/dark_brown/gear.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/question": {
+      "path": "assets/sprout_ui/icons/dark_brown/question.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/star": {
+      "path": "assets/sprout_ui/icons/dark_brown/star.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/podium": {
+      "path": "assets/sprout_ui/icons/dark_brown/podium.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/trophy": {
+      "path": "assets/sprout_ui/icons/dark_brown/trophy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/crown": {
+      "path": "assets/sprout_ui/icons/dark_brown/crown.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/slash": {
+      "path": "assets/sprout_ui/icons/dark_brown/slash.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/check": {
+      "path": "assets/sprout_ui/icons/dark_brown/check.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/close_x": {
+      "path": "assets/sprout_ui/icons/dark_brown/close_x.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/ban": {
+      "path": "assets/sprout_ui/icons/dark_brown/ban.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/music_double": {
+      "path": "assets/sprout_ui/icons/dark_brown/music_double.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/fast_forward": {
+      "path": "assets/sprout_ui/icons/dark_brown/fast_forward.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/play": {
+      "path": "assets/sprout_ui/icons/dark_brown/play.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/pause": {
+      "path": "assets/sprout_ui/icons/dark_brown/pause.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/music_double_off": {
+      "path": "assets/sprout_ui/icons/dark_brown/music_double_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/heart": {
+      "path": "assets/sprout_ui/icons/dark_brown/heart.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/sprout_1": {
+      "path": "assets/sprout_ui/icons/dark_brown/sprout_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/sprout_2": {
+      "path": "assets/sprout_ui/icons/dark_brown/sprout_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/music_single": {
+      "path": "assets/sprout_ui/icons/dark_brown/music_single.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/gamepad": {
+      "path": "assets/sprout_ui/icons/dark_brown/gamepad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/chat_bubble": {
+      "path": "assets/sprout_ui/icons/dark_brown/chat_bubble.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/skull": {
+      "path": "assets/sprout_ui/icons/dark_brown/skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/music_single_off": {
+      "path": "assets/sprout_ui/icons/dark_brown/music_single_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/exclaim": {
+      "path": "assets/sprout_ui/icons/dark_brown/exclaim.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/dollar": {
+      "path": "assets/sprout_ui/icons/dark_brown/dollar.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/cart": {
+      "path": "assets/sprout_ui/icons/dark_brown/cart.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/sfx_on": {
+      "path": "assets/sprout_ui/icons/dark_brown/sfx_on.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/plus": {
+      "path": "assets/sprout_ui/icons/dark_brown/plus.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/minus": {
+      "path": "assets/sprout_ui/icons/dark_brown/minus.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/home": {
+      "path": "assets/sprout_ui/icons/dark_brown/home.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/sfx_off": {
+      "path": "assets/sprout_ui/icons/dark_brown/sfx_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/power": {
+      "path": "assets/sprout_ui/icons/dark_brown/power.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/login": {
+      "path": "assets/sprout_ui/icons/dark_brown/login.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/logout": {
+      "path": "assets/sprout_ui/icons/dark_brown/logout.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/vol_down": {
+      "path": "assets/sprout_ui/icons/dark_brown/vol_down.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/paw": {
+      "path": "assets/sprout_ui/icons/dark_brown/paw.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/dark_brown/vol_up": {
+      "path": "assets/sprout_ui/icons/dark_brown/vol_up.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/gear": {
+      "path": "assets/sprout_ui/icons/green_outline/gear.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/question": {
+      "path": "assets/sprout_ui/icons/green_outline/question.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/star": {
+      "path": "assets/sprout_ui/icons/green_outline/star.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/podium": {
+      "path": "assets/sprout_ui/icons/green_outline/podium.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/trophy": {
+      "path": "assets/sprout_ui/icons/green_outline/trophy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/crown": {
+      "path": "assets/sprout_ui/icons/green_outline/crown.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/slash": {
+      "path": "assets/sprout_ui/icons/green_outline/slash.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/check": {
+      "path": "assets/sprout_ui/icons/green_outline/check.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/close_x": {
+      "path": "assets/sprout_ui/icons/green_outline/close_x.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/ban": {
+      "path": "assets/sprout_ui/icons/green_outline/ban.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/music_double": {
+      "path": "assets/sprout_ui/icons/green_outline/music_double.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/fast_forward": {
+      "path": "assets/sprout_ui/icons/green_outline/fast_forward.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/play": {
+      "path": "assets/sprout_ui/icons/green_outline/play.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/pause": {
+      "path": "assets/sprout_ui/icons/green_outline/pause.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/music_double_off": {
+      "path": "assets/sprout_ui/icons/green_outline/music_double_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/heart": {
+      "path": "assets/sprout_ui/icons/green_outline/heart.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/sprout_1": {
+      "path": "assets/sprout_ui/icons/green_outline/sprout_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/sprout_2": {
+      "path": "assets/sprout_ui/icons/green_outline/sprout_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/music_single": {
+      "path": "assets/sprout_ui/icons/green_outline/music_single.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/gamepad": {
+      "path": "assets/sprout_ui/icons/green_outline/gamepad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/chat_bubble": {
+      "path": "assets/sprout_ui/icons/green_outline/chat_bubble.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/skull": {
+      "path": "assets/sprout_ui/icons/green_outline/skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/music_single_off": {
+      "path": "assets/sprout_ui/icons/green_outline/music_single_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/exclaim": {
+      "path": "assets/sprout_ui/icons/green_outline/exclaim.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/dollar": {
+      "path": "assets/sprout_ui/icons/green_outline/dollar.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/cart": {
+      "path": "assets/sprout_ui/icons/green_outline/cart.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/sfx_on": {
+      "path": "assets/sprout_ui/icons/green_outline/sfx_on.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/plus": {
+      "path": "assets/sprout_ui/icons/green_outline/plus.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/minus": {
+      "path": "assets/sprout_ui/icons/green_outline/minus.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/home": {
+      "path": "assets/sprout_ui/icons/green_outline/home.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/sfx_off": {
+      "path": "assets/sprout_ui/icons/green_outline/sfx_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/power": {
+      "path": "assets/sprout_ui/icons/green_outline/power.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/login": {
+      "path": "assets/sprout_ui/icons/green_outline/login.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/logout": {
+      "path": "assets/sprout_ui/icons/green_outline/logout.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/vol_down": {
+      "path": "assets/sprout_ui/icons/green_outline/vol_down.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/paw": {
+      "path": "assets/sprout_ui/icons/green_outline/paw.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/green_outline/vol_up": {
+      "path": "assets/sprout_ui/icons/green_outline/vol_up.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/gear": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/gear.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/question": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/question.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/star": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/star.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/podium": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/podium.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/trophy": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/trophy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/crown": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/crown.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/slash": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/slash.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/check": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/check.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/close_x": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/close_x.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/ban": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/ban.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/music_double": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/music_double.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/fast_forward": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/fast_forward.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/play": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/play.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/pause": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/pause.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/music_double_off": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/music_double_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/heart": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/heart.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/sprout_1": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/sprout_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/sprout_2": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/sprout_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/music_single": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/music_single.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/gamepad": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/gamepad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/chat_bubble": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/chat_bubble.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/skull": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/music_single_off": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/music_single_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/exclaim": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/exclaim.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/dollar": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/dollar.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/cart": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/cart.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/sfx_on": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/sfx_on.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/plus": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/plus.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/minus": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/minus.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/home": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/home.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/sfx_off": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/sfx_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/power": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/power.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/login": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/login.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/logout": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/logout.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/vol_down": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/vol_down.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/paw": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/paw.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_tan/vol_up": {
+      "path": "assets/sprout_ui/icons/brown_outline_tan/vol_up.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/gear": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/gear.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/question": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/question.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/star": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/star.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/podium": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/podium.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/trophy": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/trophy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/crown": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/crown.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/slash": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/slash.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/check": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/check.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/close_x": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/close_x.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/ban": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/ban.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/music_double": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/music_double.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/fast_forward": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/fast_forward.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/play": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/play.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/pause": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/pause.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/music_double_off": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/music_double_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/heart": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/heart.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/sprout_1": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/sprout_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/sprout_2": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/sprout_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/music_single": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/music_single.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/gamepad": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/gamepad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/chat_bubble": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/chat_bubble.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/skull": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/music_single_off": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/music_single_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/exclaim": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/exclaim.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/dollar": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/dollar.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/cart": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/cart.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/sfx_on": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/sfx_on.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/plus": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/plus.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/minus": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/minus.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/home": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/home.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/sfx_off": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/sfx_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/power": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/power.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/login": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/login.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/logout": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/logout.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/vol_down": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/vol_down.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/paw": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/paw.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/brown_outline_dark/vol_up": {
+      "path": "assets/sprout_ui/icons/brown_outline_dark/vol_up.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/gear": {
+      "path": "assets/sprout_ui/icons/pure_white/gear.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/question": {
+      "path": "assets/sprout_ui/icons/pure_white/question.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/star": {
+      "path": "assets/sprout_ui/icons/pure_white/star.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/podium": {
+      "path": "assets/sprout_ui/icons/pure_white/podium.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/trophy": {
+      "path": "assets/sprout_ui/icons/pure_white/trophy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/crown": {
+      "path": "assets/sprout_ui/icons/pure_white/crown.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/slash": {
+      "path": "assets/sprout_ui/icons/pure_white/slash.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/check": {
+      "path": "assets/sprout_ui/icons/pure_white/check.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/close_x": {
+      "path": "assets/sprout_ui/icons/pure_white/close_x.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/ban": {
+      "path": "assets/sprout_ui/icons/pure_white/ban.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/music_double": {
+      "path": "assets/sprout_ui/icons/pure_white/music_double.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/fast_forward": {
+      "path": "assets/sprout_ui/icons/pure_white/fast_forward.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/play": {
+      "path": "assets/sprout_ui/icons/pure_white/play.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/pause": {
+      "path": "assets/sprout_ui/icons/pure_white/pause.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/music_double_off": {
+      "path": "assets/sprout_ui/icons/pure_white/music_double_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/heart": {
+      "path": "assets/sprout_ui/icons/pure_white/heart.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/sprout_1": {
+      "path": "assets/sprout_ui/icons/pure_white/sprout_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/sprout_2": {
+      "path": "assets/sprout_ui/icons/pure_white/sprout_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/music_single": {
+      "path": "assets/sprout_ui/icons/pure_white/music_single.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/gamepad": {
+      "path": "assets/sprout_ui/icons/pure_white/gamepad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/chat_bubble": {
+      "path": "assets/sprout_ui/icons/pure_white/chat_bubble.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/skull": {
+      "path": "assets/sprout_ui/icons/pure_white/skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/music_single_off": {
+      "path": "assets/sprout_ui/icons/pure_white/music_single_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/exclaim": {
+      "path": "assets/sprout_ui/icons/pure_white/exclaim.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/dollar": {
+      "path": "assets/sprout_ui/icons/pure_white/dollar.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/cart": {
+      "path": "assets/sprout_ui/icons/pure_white/cart.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/sfx_on": {
+      "path": "assets/sprout_ui/icons/pure_white/sfx_on.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/plus": {
+      "path": "assets/sprout_ui/icons/pure_white/plus.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/minus": {
+      "path": "assets/sprout_ui/icons/pure_white/minus.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/home": {
+      "path": "assets/sprout_ui/icons/pure_white/home.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/sfx_off": {
+      "path": "assets/sprout_ui/icons/pure_white/sfx_off.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/power": {
+      "path": "assets/sprout_ui/icons/pure_white/power.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/login": {
+      "path": "assets/sprout_ui/icons/pure_white/login.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/logout": {
+      "path": "assets/sprout_ui/icons/pure_white/logout.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/vol_down": {
+      "path": "assets/sprout_ui/icons/pure_white/vol_down.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/paw": {
+      "path": "assets/sprout_ui/icons/pure_white/paw.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/icons/pure_white/vol_up": {
+      "path": "assets/sprout_ui/icons/pure_white/vol_up.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/vitals/heart_wood_full": {
+      "path": "assets/sprout_ui/vitals/heart_wood_full.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/vitals/heart_wood_spark_full": {
+      "path": "assets/sprout_ui/vitals/heart_wood_spark_full.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/vitals/heart_wood_half": {
+      "path": "assets/sprout_ui/vitals/heart_wood_half.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/vitals/heart_wood_spark_half": {
+      "path": "assets/sprout_ui/vitals/heart_wood_spark_half.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/vitals/heart_wood_empty": {
+      "path": "assets/sprout_ui/vitals/heart_wood_empty.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/vitals/heart_wood_spark_empty": {
+      "path": "assets/sprout_ui/vitals/heart_wood_spark_empty.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/vitals/star_wood_full": {
+      "path": "assets/sprout_ui/vitals/star_wood_full.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/vitals/star_wood_empty": {
+      "path": "assets/sprout_ui/vitals/star_wood_empty.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/vitals/coin_sm_1": {
+      "path": "assets/sprout_ui/vitals/coin_sm_1.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/vitals/coin_lg_1": {
+      "path": "assets/sprout_ui/vitals/coin_lg_1.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/vitals/coin_sm_2": {
+      "path": "assets/sprout_ui/vitals/coin_sm_2.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/vitals/coin_lg_2": {
+      "path": "assets/sprout_ui/vitals/coin_lg_2.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/vitals/coin_sm_outline": {
+      "path": "assets/sprout_ui/vitals/coin_sm_outline.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/vitals/coin_lg_outline": {
+      "path": "assets/sprout_ui/vitals/coin_lg_outline.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/vitals/coin_sm_shadow": {
+      "path": "assets/sprout_ui/vitals/coin_sm_shadow.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/vitals/coin_lg_shadow": {
+      "path": "assets/sprout_ui/vitals/coin_lg_shadow.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/moods/mood_sm_r0_ecstatic": {
+      "path": "assets/sprout_ui/moods/mood_sm_r0_ecstatic.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_sm_r1_ecstatic": {
+      "path": "assets/sprout_ui/moods/mood_sm_r1_ecstatic.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r0_ecstatic": {
+      "path": "assets/sprout_ui/moods/mood_md_r0_ecstatic.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r1_ecstatic": {
+      "path": "assets/sprout_ui/moods/mood_md_r1_ecstatic.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r2_ecstatic": {
+      "path": "assets/sprout_ui/moods/mood_md_r2_ecstatic.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r3_ecstatic": {
+      "path": "assets/sprout_ui/moods/mood_md_r3_ecstatic.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r4_ecstatic": {
+      "path": "assets/sprout_ui/moods/mood_md_r4_ecstatic.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r5_ecstatic": {
+      "path": "assets/sprout_ui/moods/mood_md_r5_ecstatic.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_sm_r0_happy": {
+      "path": "assets/sprout_ui/moods/mood_sm_r0_happy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_sm_r1_happy": {
+      "path": "assets/sprout_ui/moods/mood_sm_r1_happy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r0_happy": {
+      "path": "assets/sprout_ui/moods/mood_md_r0_happy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r1_happy": {
+      "path": "assets/sprout_ui/moods/mood_md_r1_happy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r2_happy": {
+      "path": "assets/sprout_ui/moods/mood_md_r2_happy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r3_happy": {
+      "path": "assets/sprout_ui/moods/mood_md_r3_happy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r4_happy": {
+      "path": "assets/sprout_ui/moods/mood_md_r4_happy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r5_happy": {
+      "path": "assets/sprout_ui/moods/mood_md_r5_happy.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_sm_r0_neutral": {
+      "path": "assets/sprout_ui/moods/mood_sm_r0_neutral.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_sm_r1_neutral": {
+      "path": "assets/sprout_ui/moods/mood_sm_r1_neutral.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r0_neutral": {
+      "path": "assets/sprout_ui/moods/mood_md_r0_neutral.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r1_neutral": {
+      "path": "assets/sprout_ui/moods/mood_md_r1_neutral.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r2_neutral": {
+      "path": "assets/sprout_ui/moods/mood_md_r2_neutral.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r3_neutral": {
+      "path": "assets/sprout_ui/moods/mood_md_r3_neutral.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r4_neutral": {
+      "path": "assets/sprout_ui/moods/mood_md_r4_neutral.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r5_neutral": {
+      "path": "assets/sprout_ui/moods/mood_md_r5_neutral.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_sm_r0_sad": {
+      "path": "assets/sprout_ui/moods/mood_sm_r0_sad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_sm_r1_sad": {
+      "path": "assets/sprout_ui/moods/mood_sm_r1_sad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r0_sad": {
+      "path": "assets/sprout_ui/moods/mood_md_r0_sad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r1_sad": {
+      "path": "assets/sprout_ui/moods/mood_md_r1_sad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r2_sad": {
+      "path": "assets/sprout_ui/moods/mood_md_r2_sad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r3_sad": {
+      "path": "assets/sprout_ui/moods/mood_md_r3_sad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r4_sad": {
+      "path": "assets/sprout_ui/moods/mood_md_r4_sad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r5_sad": {
+      "path": "assets/sprout_ui/moods/mood_md_r5_sad.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_sm_r0_upset": {
+      "path": "assets/sprout_ui/moods/mood_sm_r0_upset.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_sm_r1_upset": {
+      "path": "assets/sprout_ui/moods/mood_sm_r1_upset.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r0_upset": {
+      "path": "assets/sprout_ui/moods/mood_md_r0_upset.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r1_upset": {
+      "path": "assets/sprout_ui/moods/mood_md_r1_upset.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r2_upset": {
+      "path": "assets/sprout_ui/moods/mood_md_r2_upset.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r3_upset": {
+      "path": "assets/sprout_ui/moods/mood_md_r3_upset.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r4_upset": {
+      "path": "assets/sprout_ui/moods/mood_md_r4_upset.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r5_upset": {
+      "path": "assets/sprout_ui/moods/mood_md_r5_upset.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_sm_r0_skull": {
+      "path": "assets/sprout_ui/moods/mood_sm_r0_skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_sm_r1_skull": {
+      "path": "assets/sprout_ui/moods/mood_sm_r1_skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r0_skull": {
+      "path": "assets/sprout_ui/moods/mood_md_r0_skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r1_skull": {
+      "path": "assets/sprout_ui/moods/mood_md_r1_skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r2_skull": {
+      "path": "assets/sprout_ui/moods/mood_md_r2_skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r3_skull": {
+      "path": "assets/sprout_ui/moods/mood_md_r3_skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r4_skull": {
+      "path": "assets/sprout_ui/moods/mood_md_r4_skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/moods/mood_md_r5_skull": {
+      "path": "assets/sprout_ui/moods/mood_md_r5_skull.png",
+      "width": 16,
+      "height": 16
+    },
+    "sprout_ui/weather/weather_hud_full": {
+      "path": "assets/sprout_ui/weather/weather_hud_full.png",
+      "width": 98,
+      "height": 99
+    },
+    "sprout_ui/weather/weather_hud_top_frame": {
+      "path": "assets/sprout_ui/weather/weather_hud_top_frame.png",
+      "width": 92,
+      "height": 50
+    },
+    "sprout_ui/weather/weather_hud_with_banner": {
+      "path": "assets/sprout_ui/weather/weather_hud_with_banner.png",
+      "width": 92,
+      "height": 73
+    },
+    "sprout_ui/weather/weather_hud_compact": {
+      "path": "assets/sprout_ui/weather/weather_hud_compact.png",
+      "width": 64,
+      "height": 33
+    },
+    "sprout_ui/weather/weather_hud_compact_hanging": {
+      "path": "assets/sprout_ui/weather/weather_hud_compact_hanging.png",
+      "width": 65,
+      "height": 54
+    },
+    "sprout_ui/weather/weather_time_banner_wide": {
+      "path": "assets/sprout_ui/weather/weather_time_banner_wide.png",
+      "width": 51,
+      "height": 24
+    },
+    "sprout_ui/weather/weather_time_banner_slim": {
+      "path": "assets/sprout_ui/weather/weather_time_banner_slim.png",
+      "width": 48,
+      "height": 19
+    },
+    "sprout_ui/weather/weather_dial_day_night_lg": {
+      "path": "assets/sprout_ui/weather/weather_dial_day_night_lg.png",
+      "width": 22,
+      "height": 34
+    },
+    "sprout_ui/weather/weather_dial_day_night_sm": {
+      "path": "assets/sprout_ui/weather/weather_dial_day_night_sm.png",
+      "width": 13,
+      "height": 17
+    },
+    "sprout_ui/weather/icon_sm_day_sunny": {
+      "path": "assets/sprout_ui/weather/icon_sm_day_sunny.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_day_partly_cloudy": {
+      "path": "assets/sprout_ui/weather/icon_sm_day_partly_cloudy.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_day_rainbow": {
+      "path": "assets/sprout_ui/weather/icon_sm_day_rainbow.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_day_rain": {
+      "path": "assets/sprout_ui/weather/icon_sm_day_rain.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_day_snow": {
+      "path": "assets/sprout_ui/weather/icon_sm_day_snow.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_day_blizzard": {
+      "path": "assets/sprout_ui/weather/icon_sm_day_blizzard.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_day_wind_tornado": {
+      "path": "assets/sprout_ui/weather/icon_sm_day_wind_tornado.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_night_clear": {
+      "path": "assets/sprout_ui/weather/icon_sm_night_clear.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_night_cloudy": {
+      "path": "assets/sprout_ui/weather/icon_sm_night_cloudy.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_night_rain": {
+      "path": "assets/sprout_ui/weather/icon_sm_night_rain.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_night_storm": {
+      "path": "assets/sprout_ui/weather/icon_sm_night_storm.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_overcast_day": {
+      "path": "assets/sprout_ui/weather/icon_sm_overcast_day.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_overcast_dusk": {
+      "path": "assets/sprout_ui/weather/icon_sm_overcast_dusk.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_overcast_night": {
+      "path": "assets/sprout_ui/weather/icon_sm_overcast_night.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_dusk_clear": {
+      "path": "assets/sprout_ui/weather/icon_sm_dusk_clear.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_dusk_cloudy": {
+      "path": "assets/sprout_ui/weather/icon_sm_dusk_cloudy.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_dusk_rain": {
+      "path": "assets/sprout_ui/weather/icon_sm_dusk_rain.png",
+      "width": 32,
+      "height": 32
+    },
+    "sprout_ui/weather/icon_sm_dusk_hot_sun": {
+      "path": "assets/sprout_ui/weather/icon_sm_dusk_hot_sun.png",
+      "width": 32,
+      "height": 32
     }
   },
   "heroes": {
@@ -9121,6 +12686,252 @@
           "rows": 4
         }
       }
+    }
+  },
+  "uiNineSlices": {
+    "panel_wood": {
+      "key": "sprout_ui/panels/panel_wood_tan",
+      "top": 4,
+      "right": 4,
+      "bottom": 8,
+      "left": 4
+    },
+    "dock_light": {
+      "key": "sprout_ui/docks/tray_light_enclosed",
+      "top": 5,
+      "right": 5,
+      "bottom": 7,
+      "left": 5
+    },
+    "dock_dark": {
+      "key": "sprout_ui/docks/tray_dark_enclosed",
+      "top": 5,
+      "right": 5,
+      "bottom": 7,
+      "left": 5
+    },
+    "tray_light_enclosed": {
+      "key": "sprout_ui/docks/tray_light_enclosed",
+      "top": 5,
+      "right": 5,
+      "bottom": 7,
+      "left": 5
+    },
+    "tray_med_enclosed": {
+      "key": "sprout_ui/docks/tray_med_enclosed",
+      "top": 5,
+      "right": 5,
+      "bottom": 7,
+      "left": 5
+    },
+    "tray_dark_enclosed": {
+      "key": "sprout_ui/docks/tray_dark_enclosed",
+      "top": 5,
+      "right": 5,
+      "bottom": 7,
+      "left": 5
+    },
+    "slot_oct_light": {
+      "key": "sprout_ui/slots/slot_oct_light",
+      "top": 8,
+      "right": 8,
+      "bottom": 9,
+      "left": 8
+    },
+    "slot_oct_med": {
+      "key": "sprout_ui/slots/slot_oct_med",
+      "top": 8,
+      "right": 8,
+      "bottom": 9,
+      "left": 8
+    },
+    "slot_oct_dark": {
+      "key": "sprout_ui/slots/slot_oct_dark",
+      "top": 8,
+      "right": 8,
+      "bottom": 9,
+      "left": 8
+    },
+    "slot_round_light": {
+      "key": "sprout_ui/slots/slot_round_light",
+      "top": 5,
+      "right": 5,
+      "bottom": 7,
+      "left": 5
+    },
+    "slot_round_med": {
+      "key": "sprout_ui/slots/slot_round_med",
+      "top": 5,
+      "right": 5,
+      "bottom": 7,
+      "left": 5
+    },
+    "btn_wide_normal": {
+      "key": "sprout_ui/buttons/btn_wide_blank_normal",
+      "top": 4,
+      "right": 4,
+      "bottom": 6,
+      "left": 4
+    },
+    "btn_wide_pressed": {
+      "key": "sprout_ui/buttons/btn_wide_blank_pressed",
+      "top": 4,
+      "right": 4,
+      "bottom": 4,
+      "left": 4
+    },
+    "btn_rect_light_normal": {
+      "key": "sprout_ui/buttons/rect_wide_light_normal",
+      "top": 4,
+      "right": 4,
+      "bottom": 6,
+      "left": 4
+    },
+    "btn_rect_light_pressed": {
+      "key": "sprout_ui/buttons/rect_wide_light_pressed",
+      "top": 3,
+      "right": 4,
+      "bottom": 4,
+      "left": 4
+    },
+    "btn_rect_tan_normal": {
+      "key": "sprout_ui/buttons/rect_wide_tan_normal",
+      "top": 4,
+      "right": 4,
+      "bottom": 6,
+      "left": 4
+    },
+    "btn_rect_tan_pressed": {
+      "key": "sprout_ui/buttons/rect_wide_tan_pressed",
+      "top": 3,
+      "right": 4,
+      "bottom": 4,
+      "left": 4
+    },
+    "btn_rect_dark_normal": {
+      "key": "sprout_ui/buttons/rect_wide_dark_normal",
+      "top": 4,
+      "right": 4,
+      "bottom": 6,
+      "left": 4
+    },
+    "btn_rect_dark_pressed": {
+      "key": "sprout_ui/buttons/rect_wide_dark_pressed",
+      "top": 3,
+      "right": 4,
+      "bottom": 4,
+      "left": 4
+    },
+    "btn_rect_white_normal": {
+      "key": "sprout_ui/buttons/rect_wide_white_normal",
+      "top": 4,
+      "right": 4,
+      "bottom": 6,
+      "left": 4
+    },
+    "btn_rect_white_pressed": {
+      "key": "sprout_ui/buttons/rect_wide_white_pressed",
+      "top": 3,
+      "right": 4,
+      "bottom": 4,
+      "left": 4
+    },
+    "frame_wood_a1": {
+      "key": "sprout_ui/frames/backdrop_a1",
+      "top": 7,
+      "right": 7,
+      "bottom": 7,
+      "left": 7
+    },
+    "frame_wood_a3": {
+      "key": "sprout_ui/frames/backdrop_a3",
+      "top": 5,
+      "right": 5,
+      "bottom": 5,
+      "left": 5
+    },
+    "frame_wood_a4": {
+      "key": "sprout_ui/frames/backdrop_a4",
+      "top": 7,
+      "right": 7,
+      "bottom": 7,
+      "left": 7
+    },
+    "frame_wood_b1": {
+      "key": "sprout_ui/frames/backdrop_b1",
+      "top": 7,
+      "right": 7,
+      "bottom": 7,
+      "left": 7
+    },
+    "frame_wood_b3": {
+      "key": "sprout_ui/frames/backdrop_b3",
+      "top": 5,
+      "right": 5,
+      "bottom": 5,
+      "left": 5
+    },
+    "frame_wood_c1": {
+      "key": "sprout_ui/frames/backdrop_c1",
+      "top": 7,
+      "right": 7,
+      "bottom": 7,
+      "left": 7
+    },
+    "frame_wood_c4": {
+      "key": "sprout_ui/frames/backdrop_c4",
+      "top": 7,
+      "right": 7,
+      "bottom": 7,
+      "left": 7
+    },
+    "frame_wood_big1": {
+      "key": "sprout_ui/frames/backdrop_big1",
+      "top": 19,
+      "right": 19,
+      "bottom": 19,
+      "left": 19
+    },
+    "frame_wood_big2": {
+      "key": "sprout_ui/frames/backdrop_big2",
+      "top": 19,
+      "right": 19,
+      "bottom": 19,
+      "left": 19
+    },
+    "dialog_frame": {
+      "key": "sprout_ui/dialogue/dialog_box_frame",
+      "top": 4,
+      "right": 4,
+      "bottom": 6,
+      "left": 4
+    },
+    "bar_track": {
+      "key": "sprout_ui/bars/bar_frame_empty_lg",
+      "top": 3,
+      "right": 4,
+      "bottom": 3,
+      "left": 4
+    }
+  },
+  "uiSpritesheets": {
+    "sprout_ui/dialogue/continue_indicator": {
+      "key": "sprout_ui/dialogue/continue_indicator",
+      "frameWidth": 16,
+      "frameHeight": 16,
+      "frames": 7
+    },
+    "sprout_ui/bars/stamina_circle_black": {
+      "key": "sprout_ui/bars/stamina_circle_black",
+      "frameWidth": 16,
+      "frameHeight": 16,
+      "frames": 37
+    },
+    "sprout_ui/bars/stamina_circle_white": {
+      "key": "sprout_ui/bars/stamina_circle_white",
+      "frameWidth": 16,
+      "frameHeight": 16,
+      "frames": 37
     }
   }
 }
