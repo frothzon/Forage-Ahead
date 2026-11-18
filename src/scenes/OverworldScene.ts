@@ -38,6 +38,7 @@ import { FoxCompanion, Player } from '../entities/Player';
 import { dialogueBox } from '../ui/DialogueBox';
 import { FishingMinigame, type FishBehavior } from '../ui/FishingMinigame';
 import { tryActivateGadget } from '../entities/GadgetHelper';
+import { selectBestAimTarget, type AimCandidate } from '../entities/targeting';
 import { HudController, type QueuedStationType } from '../ui/HudController';
 import { revealSequence } from '../ui/RevealSequence';
 import { getBlueprintsForMonster, getBlueprintsForNode, tryUnlockBlueprintFromPool } from '../data/blueprints';
@@ -49,7 +50,7 @@ import {
   type OverlayType,
   type TerrainType,
 } from '../world/AutoTiler';
-import { BuildingEntity } from '../world/BuildingEntity';
+import { BuildingEntity, getStructurePreviewSpec } from '../world/BuildingEntity';
 import { INNER_ISLAND_SIZE, generateIslandMask } from '../world/IslandGenerator';
 import {
   LightingSystem,
@@ -162,12 +163,23 @@ export class OverworldScene extends Phaser.Scene {
   private houseTileSet = new Set<string>();
   private buildCursor!: Phaser.GameObjects.Rectangle;
   private targetIndicator!: Phaser.GameObjects.Arc;
+  private mobilePlaceActive = false;
+  private mobilePlaceTx = 0;
+  private mobilePlaceTy = 0;
+  private mobilePlaceWorldX = 0;
+  private mobilePlaceWorldY = 0;
+  private mobilePlaceDragging = false;
+  private mobileDragLastWorldX = 0;
+  private mobileDragLastWorldY = 0;
+  private buildPreviewSprite?: Phaser.GameObjects.Image;
+  private buildGizmoGfx?: Phaser.GameObjects.Graphics;
 
   private respawnTimerMs = 0;
   private offscreenTickAccumMs = 0;
   private regenTimerMs = 0;
   private minimapTimerMs = 0;
   private lowEnergyToastMs = 0;
+  private petActionCooldownMs = 0;
   private sandstormBonusTimerMs = 0;
 
   private keys!: {
@@ -240,8 +252,17 @@ export class OverworldScene extends Phaser.Scene {
     this.targetIndicator = this.add
       .circle(0, 0, 9, 0xffe066, 0.14)
       .setStrokeStyle(1.3, 0xffe066, 0.9)
-      .setDepth(7900)
+      .setDepth(1)
       .setVisible(false);
+
+    this.tweens.add({
+      targets: this.targetIndicator,
+      scale: { from: 0.75, to: 1.0 },
+      duration: 1000,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+    });
 
     const worldPx = WORLD_TILES * TILE_PX;
     this.cameras.main.setBounds(0, 0, worldPx, worldPx);
@@ -796,12 +817,12 @@ export class OverworldScene extends Phaser.Scene {
       const ty = oy + Phaser.Math.Between(1, ISLAND_CELL_TILES - 2);
       if (!isLand(this.terrainGrid[ty]?.[tx])) continue;
       if (avoidTx >= 0 && Math.hypot(tx - avoidTx, ty - avoidTy) < 2.4) continue;
-      // Never spawn on top of or adjacent-locking the player
-      if (this.player) {
-        const px = tx * TILE_PX + 8;
-        const py = ty * TILE_PX + 8;
-        if (Math.hypot(px - this.player.x, py - this.player.y) < 40) continue;
-      }
+      // Never spawn on top of or adjacent-locking the player, NPCs, or dungeon portals
+      const px = tx * TILE_PX + 8;
+      const py = ty * TILE_PX + 8;
+      if (this.player && Math.hypot(px - this.player.x, py - this.player.y) < 40) continue;
+      if (this.npcs.some((npc) => Math.hypot(px - npc.x, py - npc.y) < 28)) continue;
+      if (this.dungeonPortals.some((dp) => Math.hypot(px - dp.x, py - dp.y) < 28)) continue;
       if (this.hasNodeAt(tx, ty) || this.hasBuildingAt(tx, ty)) continue;
 
       const kind = this.pickNodeKindForBiome(spec.biome);
@@ -947,6 +968,10 @@ export class OverworldScene extends Phaser.Scene {
         const dx = f === 'left' ? -18 : f === 'right' ? 18 : 0;
         const dy = f === 'up' ? -18 : f === 'down' ? 18 : 0;
         this.tryPlaceBuilding(this.player.x + dx, this.player.y + dy);
+      },
+      onTouchConfirmBuilding: () => {
+        if (!gameState.pendingBuildRecipeId || !this.mobilePlaceActive) return;
+        this.tryPlaceBuilding(this.mobilePlaceTx * TILE_PX + 8, this.mobilePlaceTy * TILE_PX + 8);
       },
       getNearbyStations: () => {
         const set = new Set<CraftingStation>();
@@ -1128,13 +1153,70 @@ export class OverworldScene extends Phaser.Scene {
       if (!gameState.pendingBuildRecipeId && currentlyOver && currentlyOver.length > 0) return;
       if (pointer.leftButtonDown()) {
         const worldPt = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-        if (gameState.pendingBuildRecipeId) {
+        if (this.mobilePlaceActive && gameState.pendingBuildRecipeId) {
+          const curX = this.mobilePlaceTx * TILE_PX + 8;
+          const curY = this.mobilePlaceTy * TILE_PX + 8;
+          if (Math.hypot(worldPt.x - curX, worldPt.y - curY) > 40) {
+            this.mobilePlaceWorldX = worldPt.x;
+            this.mobilePlaceWorldY = worldPt.y;
+            this.mobilePlaceTx = Phaser.Math.Clamp(Math.floor(worldPt.x / TILE_PX), 0, WORLD_TILES - 1);
+            this.mobilePlaceTy = Phaser.Math.Clamp(Math.floor(worldPt.y / TILE_PX), 0, WORLD_TILES - 1);
+          }
+          this.mobilePlaceDragging = true;
+          this.mobileDragLastWorldX = worldPt.x;
+          this.mobileDragLastWorldY = worldPt.y;
+        } else if (gameState.pendingBuildRecipeId) {
           this.tryPlaceBuilding(worldPt.x, worldPt.y);
         } else {
           this.handlePrimaryAction(worldPt.x, worldPt.y);
         }
       }
     });
+
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (!this.mobilePlaceActive || !this.mobilePlaceDragging || !pointer.isDown) return;
+      const worldPt = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      const dx = worldPt.x - this.mobileDragLastWorldX;
+      const dy = worldPt.y - this.mobileDragLastWorldY;
+      this.mobileDragLastWorldX = worldPt.x;
+      this.mobileDragLastWorldY = worldPt.y;
+      this.mobilePlaceWorldX = Phaser.Math.Clamp(this.mobilePlaceWorldX + dx, 8, WORLD_TILES * TILE_PX - 8);
+      this.mobilePlaceWorldY = Phaser.Math.Clamp(this.mobilePlaceWorldY + dy, 8, WORLD_TILES * TILE_PX - 8);
+      this.mobilePlaceTx = Phaser.Math.Clamp(Math.floor(this.mobilePlaceWorldX / TILE_PX), 0, WORLD_TILES - 1);
+      this.mobilePlaceTy = Phaser.Math.Clamp(Math.floor(this.mobilePlaceWorldY / TILE_PX), 0, WORLD_TILES - 1);
+    });
+
+    this.input.on('pointerup', () => {
+      if (!this.mobilePlaceDragging) return;
+      this.mobilePlaceDragging = false;
+      this.mobilePlaceWorldX = this.mobilePlaceTx * TILE_PX + 8;
+      this.mobilePlaceWorldY = this.mobilePlaceTy * TILE_PX + 8;
+    });
+  }
+
+  private drawPlacementGizmo(gfx: Phaser.GameObjects.Graphics, cx: number, cy: number, valid: boolean): void {
+    gfx.clear();
+    const ringCol = valid ? 0x5ef2ff : 0xff7a85;
+    const arrowCol = valid ? 0xffe066 : 0xff9ea8;
+    // Outer ring & crosshair
+    gfx.lineStyle(1.4, ringCol, 0.95);
+    gfx.strokeCircle(cx, cy, 13);
+    gfx.lineStyle(1, 0xffffff, 0.45);
+    gfx.strokeCircle(cx, cy, 16);
+
+    // 4-way drag handle arrows (N, S, E, W)
+    const tip = 19;
+    const base = 14.5;
+    const wing = 2.6;
+    gfx.fillStyle(arrowCol, 0.98);
+    // Up
+    gfx.fillTriangle(cx, cy - tip, cx - wing, cy - base, cx + wing, cy - base);
+    // Down
+    gfx.fillTriangle(cx, cy + tip, cx - wing, cy + base, cx + wing, cy + base);
+    // Left
+    gfx.fillTriangle(cx - tip, cy, cx - base, cy - wing, cx - base, cy + wing);
+    // Right
+    gfx.fillTriangle(cx + tip, cy, cx + base, cy - wing, cx + base, cy + wing);
   }
 
   private validatePlacement(tx: number, ty: number): { ok: boolean; reason?: string; rec?: (typeof RECIPES)[number] } {
@@ -1258,14 +1340,35 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  private handlePrimaryAction(wx: number, wy: number): void {
-    if (this.handleInteractKey()) return;
+  private handlePrimaryAction(wx: number, wy: number, fromHold = false): void {
     const itemId = gameState.hotbar[gameState.selectedHotbarIndex] || 'pickaxe';
     const def = ITEMS[itemId];
-    if (!def) return;
+    if (!def) {
+      if (!fromHold) this.handleInteractKey();
+      return;
+    }
 
     const dx = wx - this.player.x;
     const dy = wy - this.player.y;
+    const dLen = Math.hypot(dx, dy) || 1;
+    const preAimed =
+      def.category === 'tool' || def.category === 'weapon'
+        ? this.findAimedTarget(itemId, dx / dLen, dy / dLen, def.range ?? 36)
+        : null;
+
+    // When holding mouse button, only allow continuous tool/weapon swings (no 60fps interact/pet spam)
+    if (!fromHold) {
+      // Enemies always take highest priority over nearby interactables; any aimed target also beats NPCs (lowest priority)
+      const skipInteract =
+        preAimed?.kind === 'enemy' || (preAimed !== null && this.findInteractableTarget()?.kind === 'npc');
+      if (!skipInteract && this.handleInteractKey()) return;
+    }
+
+    // Stop using tools if out of energy -> play exhausted animation & 2s cooldown
+    if (def.category === 'tool' && gameState.energy < 1.5) {
+      this.triggerPlayerExhausted();
+      return;
+    }
 
     if (def.healHp || def.healEnergy) {
       if ((gameState.inventory[itemId] ?? 0) <= 0) return;
@@ -1591,12 +1694,26 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  private triggerPlayerExhausted(): void {
+    if (!this.player.triggerExhausted(2000)) return;
+    const lines = [
+      "I'm exhausted...",
+      'Need to catch my breath!',
+      'Too tired to swing...',
+      'Out of energy — need food or rest!',
+      'My arms feel like lead...',
+    ];
+    const msg = lines[Math.floor(Math.random() * lines.length)];
+    spawnFloatingText(this, this.player.x, this.player.y - 18, msg, '#9fd8ff', '8px', 'exhausted');
+    if (this.lowEnergyToastMs <= 0) {
+      this.lowEnergyToastMs = 2000;
+      this.hud.showToast(msg);
+    }
+  }
+
   private consumeToolEnergy(amount = 1.5): boolean {
     if (gameState.energy < amount) {
-      if (this.lowEnergyToastMs <= 0) {
-        this.lowEnergyToastMs = 1800;
-        this.hud.showToast('Low Energy! Eat food or rest.');
-      }
+      this.triggerPlayerExhausted();
       return false;
     }
     gameState.energy = Math.max(0, gameState.energy - amount);
@@ -1610,30 +1727,29 @@ export class OverworldScene extends Phaser.Scene {
     ny: number,
     range: number,
   ):
-    | { kind: 'node'; node: ResourceNode; dist: number; x: number; y: number }
-    | { kind: 'enemy'; enemy: Enemy; dist: number; x: number; y: number }
-    | { kind: 'animal'; animal: OverworldScene['animals'][number]; dist: number; x: number; y: number }
+    | { kind: 'node'; node: ResourceNode; dist: number; x: number; y: number; depth: number }
+    | { kind: 'enemy'; enemy: Enemy; dist: number; x: number; y: number; depth: number }
+    | { kind: 'animal'; animal: OverworldScene['animals'][number]; dist: number; x: number; y: number; depth: number }
     | null {
-    const px = this.player.x;
-    const py = this.player.y;
-    const maxRay = range + 10;
-    const coneHalfWidth = 14;
-    let best:
-      | { kind: 'node'; node: ResourceNode; dist: number; x: number; y: number }
-      | { kind: 'enemy'; enemy: Enemy; dist: number; x: number; y: number }
-      | { kind: 'animal'; animal: OverworldScene['animals'][number]; dist: number; x: number; y: number }
-      | null = null;
+    type TargetEntry =
+      | { kind: 'node'; node: ResourceNode; x: number; y: number; depth: number }
+      | { kind: 'enemy'; enemy: Enemy; x: number; y: number; depth: number }
+      | { kind: 'animal'; animal: OverworldScene['animals'][number]; x: number; y: number; depth: number };
 
-    const consider = (tx: number, ty: number): number | null => {
-      const dx = tx - px;
-      const dy = ty - py;
-      const along = dx * nx + dy * ny;
-      if (along < -4 || along > maxRay) return null;
-      const perp = Math.abs(dx * -ny + dy * nx);
-      if (perp > coneHalfWidth) return null;
-      return along;
-    };
+    const candidates: Array<AimCandidate<TargetEntry>> = [];
 
+    // Highest priority (3): Enemies
+    for (const e of this.enemies) {
+      if (!e.active || e.isDead) continue;
+      candidates.push({
+        item: { kind: 'enemy', enemy: e, x: e.x, y: e.y, depth: e.depth },
+        x: e.x,
+        y: e.y,
+        priority: 3,
+      });
+    }
+
+    // Medium priority (2): Resource nodes (tools) and animals (sword)
     if (!itemId.startsWith('sword')) {
       for (const n of this.nodes) {
         if (!n.active) continue;
@@ -1641,45 +1757,35 @@ export class OverworldScene extends Phaser.Scene {
         if (itemId === 'shovel' && n.requiredTool !== 'shovel') continue;
         if (n.requiredTool === 'fishing_rod' && itemId !== 'fishing_rod') continue;
         if (itemId === 'fishing_rod' && n.kind !== 'fish_spot') continue;
-        const along = consider(n.x, n.y);
-        if (along !== null && (!best || along < best.dist)) {
-          best = { kind: 'node', node: n, dist: along, x: n.x, y: n.y };
-        }
+        const feet = n.getCollisionCenter();
+        candidates.push({
+          item: { kind: 'node', node: n, x: feet.x, y: feet.y, depth: n.depth },
+          x: n.x,
+          y: n.y,
+          priority: 2,
+        });
       }
-    }
-
-    for (const e of this.enemies) {
-      if (!e.active || e.isDead) continue;
-      const along = consider(e.x, e.y);
-      if (along !== null && (!best || along < best.dist)) {
-        best = { kind: 'enemy', enemy: e, dist: along, x: e.x, y: e.y };
-      }
-    }
-
-    if (itemId.startsWith('sword')) {
+    } else {
       for (const a of this.animals) {
-        const along = consider(a.x, a.y);
-        if (along !== null && (!best || along < best.dist)) {
-          best = { kind: 'animal', animal: a, dist: along, x: a.x, y: a.y };
-        }
+        candidates.push({
+          item: { kind: 'animal', animal: a, x: a.x, y: a.y, depth: a.sprite.depth },
+          x: a.x,
+          y: a.y,
+          priority: 2,
+        });
       }
     }
 
-    return best;
+    const match = selectBestAimTarget(this.player.x, this.player.y, nx, ny, range + 10, candidates);
+    if (!match) return null;
+    return { ...match.item, dist: match.dist };
   }
 
-  private findInteractableTarget(): { x: number; y: number } | null {
+  private findInteractableTarget(): { kind: 'portal' | 'animal' | 'ranch' | 'building' | 'npc'; x: number; y: number; depth: number } | null {
     for (const dp of this.dungeonPortals) {
-      if (Math.hypot(dp.x - this.player.x, dp.y - this.player.y) <= 28) return { x: dp.x, y: dp.y };
-    }
-    for (const npc of this.npcs) {
-      if (Math.hypot(npc.x - this.player.x, npc.y - this.player.y) <= 30) return { x: npc.x, y: npc.y };
-    }
-    for (const a of this.animals) {
-      if (Math.hypot(a.x - this.player.x, a.y - this.player.y) <= 28) return { x: a.x, y: a.y };
-    }
-    for (const rc of this.ranchEntities) {
-      if (Math.hypot(rc.save.x - this.player.x, rc.save.y - this.player.y) <= 28) return { x: rc.save.x, y: rc.save.y };
+      if (Math.hypot(dp.x - this.player.x, dp.y - this.player.y) <= 28) {
+        return { kind: 'portal', x: dp.x, y: dp.y + dp.sprite.displayHeight * 0.25, depth: dp.sprite.depth };
+      }
     }
     for (const b of this.buildings) {
       if (!b.active || Math.hypot(b.x - this.player.x, b.y - this.player.y) > 28) continue;
@@ -1692,7 +1798,28 @@ export class OverworldScene extends Phaser.Scene {
         b.interactStation ||
         b.isCropRipe()
       ) {
-        return { x: b.x, y: b.y };
+        return {
+          kind: 'building',
+          x: b.x,
+          y: b.getCollisionCenter().y,
+          depth: b.depth,
+        };
+      }
+    }
+    for (const rc of this.ranchEntities) {
+      if (Math.hypot(rc.save.x - this.player.x, rc.save.y - this.player.y) <= 28) {
+        return { kind: 'ranch', x: rc.save.x, y: rc.save.y + rc.sprite.displayHeight * 0.3, depth: rc.sprite.depth };
+      }
+    }
+    for (const a of this.animals) {
+      if (Math.hypot(a.x - this.player.x, a.y - this.player.y) <= 28) {
+        return { kind: 'animal', x: a.x, y: a.y, depth: a.sprite.depth };
+      }
+    }
+    // NPCs are lowest priority
+    for (const npc of this.npcs) {
+      if (Math.hypot(npc.x - this.player.x, npc.y - this.player.y) <= 30) {
+        return { kind: 'npc', x: npc.x, y: npc.y, depth: npc.sprite.depth };
       }
     }
     return null;
@@ -1703,44 +1830,59 @@ export class OverworldScene extends Phaser.Scene {
       this.targetIndicator?.setVisible(false);
       return;
     }
+    const itemId = gameState.hotbar[gameState.selectedHotbarIndex];
+    const def = itemId ? ITEMS[itemId] : undefined;
+    let aimed: ReturnType<OverworldScene['findAimedTarget']> = null;
+    if (itemId && def && (def.category === 'tool' || def.category === 'weapon')) {
+      const f = this.player.facing;
+      let nx = f === 'left' ? -1 : f === 'right' ? 1 : 0;
+      let ny = f === 'up' ? -1 : f === 'down' ? 1 : 0;
+      const ptr = this.input.activePointer;
+      if (!this.hud.isTouchEnabled() && ptr) {
+        const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+        const dx = wp.x - this.player.x;
+        const dy = wp.y - this.player.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 4) {
+          nx = dx / len;
+          ny = dy / len;
+        }
+      }
+      const len = Math.hypot(nx, ny) || 1;
+      aimed = this.findAimedTarget(itemId, nx / len, ny / len, def.range ?? 36);
+    }
+
+    // Enemies always take priority over interactables
+    if (aimed?.kind === 'enemy') {
+      this.targetIndicator
+        .setPosition(aimed.x, aimed.y)
+        .setDepth(aimed.depth - 0.5)
+        .setStrokeStyle(1.4, 0xff6b6b, 0.9)
+        .setFillStyle(0xff6b6b, 0.14)
+        .setVisible(true);
+      return;
+    }
+
     const interactable = this.findInteractableTarget();
-    if (interactable) {
+    // Non-NPC interactables take priority over nodes/animals, while NPCs are lowest priority
+    if (interactable && (interactable.kind !== 'npc' || !aimed)) {
       this.targetIndicator
         .setPosition(interactable.x, interactable.y)
+        .setDepth(interactable.depth - 0.5)
         .setStrokeStyle(1.4, 0x44ee88, 0.95)
         .setFillStyle(0x44ee88, 0.18)
         .setVisible(true);
       return;
     }
-    const itemId = gameState.hotbar[gameState.selectedHotbarIndex];
-    const def = itemId ? ITEMS[itemId] : undefined;
-    if (!itemId || !def || (def.category !== 'tool' && def.category !== 'weapon')) {
+
+    if (!aimed) {
       this.targetIndicator.setVisible(false);
       return;
     }
-    const f = this.player.facing;
-    let nx = f === 'left' ? -1 : f === 'right' ? 1 : 0;
-    let ny = f === 'up' ? -1 : f === 'down' ? 1 : 0;
-    const ptr = this.input.activePointer;
-    if (!this.hud.isTouchEnabled() && ptr) {
-      const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
-      const dx = wp.x - this.player.x;
-      const dy = wp.y - this.player.y;
-      const len = Math.hypot(dx, dy);
-      if (len > 4) {
-        nx = dx / len;
-        ny = dy / len;
-      }
-    }
-    const len = Math.hypot(nx, ny) || 1;
-    const target = this.findAimedTarget(itemId, nx / len, ny / len, def.range ?? 36);
-    if (!target) {
-      this.targetIndicator.setVisible(false);
-      return;
-    }
-    const color = target.kind === 'enemy' || target.kind === 'animal' ? 0xff6b6b : 0xffe066;
+    const color = aimed.kind === 'animal' ? 0xff6b6b : 0xffe066;
     this.targetIndicator
-      .setPosition(target.x, target.y)
+      .setPosition(aimed.x, aimed.y)
+      .setDepth(aimed.depth - 0.5)
       .setStrokeStyle(1.4, color, 0.9)
       .setFillStyle(color, 0.14)
       .setVisible(true);
@@ -1839,7 +1981,15 @@ export class OverworldScene extends Phaser.Scene {
     SFX.playHit();
     const hitAng = Math.atan2(dirY, dirX);
     spawnDirectionalSparks(this, enemy.x, enemy.y - 4, hitAng, crit ? 0xffe066 : 0xffffff, crit ? 9 : 5);
-    spawnFloatingText(this, enemy.x, enemy.y - 16, crit ? `${dmg}!` : `${dmg}`, crit ? '#ffe066' : '#ffffff');
+    spawnFloatingText(
+      this,
+      enemy.x,
+      enemy.y - 16,
+      crit ? `${dmg}!` : `${dmg}`,
+      crit ? '#ffe066' : '#ffffff',
+      crit ? '10px' : '8px',
+      crit ? 'crit' : 'damage',
+    );
     spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, crit ? 8 : 5);
 
     const killed = enemy.takeDamage(dmg, dirX, dirY, (nx, ny) => this.isWalkable(nx, ny));
@@ -1872,6 +2022,9 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private awardXp(amount: number): void {
+    if (amount > 0) {
+      spawnFloatingText(this, this.player.x, this.player.y - 18, `+${amount} XP`, '#7ef5ff', '8px', 'xp');
+    }
     const leveled = gameState.addXp(amount);
     if (leveled) {
       SFX.playLevelUp();
@@ -1957,97 +2110,11 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    // 2. Check nearby Quest NPC
-    for (const npc of this.npcs) {
-      if (Math.hypot(npc.x - this.player.x, npc.y - this.player.y) <= 30) {
-        const q = gameState.getNextQuestForNpc(npc.spec.id);
-        if (!q) {
-          dialogueBox.show({
-            speaker: npc.spec.name,
-            portraitKey: npc.spec.spriteKey,
-            subtitle: 'Townsfolk',
-            lines: ['{c:#7ef29d}Safe travels, hero!{/c} Our island is thriving thanks to your courage.'],
-          });
-          return true;
-        }
-        if (gameState.isQuestActive(q.id)) {
-          if (gameState.isQuestReadyToTurnIn(q.id)) {
-            dialogueBox.show({
-              speaker: npc.spec.name,
-              portraitKey: npc.spec.spriteKey,
-              subtitle: `Quest Complete: ${q.title}`,
-              voicePitch: q.voicePitch,
-              lines: q.completeDialogue,
-              choices: [
-                {
-                  label: `Complete (+${q.rewards.coins}g, +${q.rewards.xp} XP)`,
-                  primary: true,
-                  onSelect: () => {
-                    const done = gameState.completeQuest(q.id);
-                    if (done) {
-                      SFX.playQuestComplete();
-                      spawnSparklers(this, this.player.x, this.player.y - 8, 16);
-                      this.hud.showToast(`Quest Complete: ${done.title}! +${done.rewards.coins}g +${done.rewards.xp} XP`);
-                      this.refreshNpcPrompts();
-                    }
-                  },
-                },
-              ],
-            });
-          } else {
-            const summary = q.objectives
-              .map((o) => `{c:#ffe066}${o.label}{/c}: ${gameState.getObjectiveProgress(q.id, o)}/${o.count}`)
-              .join(' • ');
-            dialogueBox.show({
-              speaker: npc.spec.name,
-              portraitKey: npc.spec.spriteKey,
-              subtitle: `In Progress: ${q.title}`,
-              voicePitch: q.voicePitch,
-              lines: [...q.progressDialogue, `Progress: ${summary}`],
-            });
-          }
-        } else {
-          dialogueBox.show({
-            speaker: npc.spec.name,
-            portraitKey: npc.spec.spriteKey,
-            subtitle: `New Quest: ${q.title}`,
-            voicePitch: q.voicePitch,
-            lines: q.offerDialogue,
-            choices: [
-              {
-                label: 'Accept Quest',
-                primary: true,
-                onSelect: () => {
-                  gameState.acceptQuest(q.id);
-                  gameState.setTrackedQuest(q.id);
-                  SFX.playPickup();
-                  spawnSparklers(this, this.player.x, this.player.y - 8, 14);
-                  this.hud.showToast(`Quest Accepted: ${q.title} [Q]`);
-                  this.refreshNpcPrompts();
-                  revealSequence.show({
-                    title: 'QUEST ACCEPTED!',
-                    subtitle: q.title,
-                    badgeText: '📜',
-                    accentColor: '#ffe066',
-                  });
-                },
-              },
-              {
-                label: 'Maybe Later',
-                onSelect: () => {
-                  SFX.playUiClose();
-                },
-              },
-            ],
-          });
-        }
-        return true;
-      }
-    }
-
-    // 3. Check nearby Ranch Creature (Pet & Collect Eggs) or Wild Animal (Pet for items) or Nest
+    // 2. Check nearby Ranch Creature (Pet & Collect Eggs) or Wild Animal (Pet for items) or Nest
     for (const a of this.animals) {
       if (Math.hypot(a.x - this.player.x, a.y - this.player.y) <= 28) {
+        if (this.petActionCooldownMs > 0) return true;
+        this.petActionCooldownMs = 1000;
         SFX.playPickup();
         if (a.petCooldownMs <= 0) {
           a.petCooldownMs = 20000;
@@ -2069,6 +2136,8 @@ export class OverworldScene extends Phaser.Scene {
     }
     for (const rc of this.ranchEntities) {
       if (Math.hypot(rc.save.x - this.player.x, rc.save.y - this.player.y) <= 28) {
+        if (this.petActionCooldownMs > 0) return true;
+        this.petActionCooldownMs = 1000;
         const sp = getSpeciesById(rc.save.speciesId);
         const res = gameState.petRanchCreature(rc.save.id);
         SFX.playPickup();
@@ -2160,6 +2229,97 @@ export class OverworldScene extends Phaser.Scene {
         return true;
       }
     }
+
+    // 5. Check nearby Quest NPC (lowest priority)
+    return this.tryInteractNpc();
+  }
+
+  private tryInteractNpc(): boolean {
+    for (const npc of this.npcs) {
+      if (Math.hypot(npc.x - this.player.x, npc.y - this.player.y) > 30) continue;
+      const q = gameState.getNextQuestForNpc(npc.spec.id);
+      if (!q) {
+        dialogueBox.show({
+          speaker: npc.spec.name,
+          portraitKey: npc.spec.spriteKey,
+          subtitle: 'Townsfolk',
+          lines: ['{c:#7ef29d}Safe travels, hero!{/c} Our island is thriving thanks to your courage.'],
+        });
+        return true;
+      }
+      if (gameState.isQuestActive(q.id)) {
+        if (gameState.isQuestReadyToTurnIn(q.id)) {
+          dialogueBox.show({
+            speaker: npc.spec.name,
+            portraitKey: npc.spec.spriteKey,
+            subtitle: `Quest Complete: ${q.title}`,
+            voicePitch: q.voicePitch,
+            lines: q.completeDialogue,
+            choices: [
+              {
+                label: `Complete (+${q.rewards.coins}g, +${q.rewards.xp} XP)`,
+                primary: true,
+                onSelect: () => {
+                  const done = gameState.completeQuest(q.id);
+                  if (done) {
+                    SFX.playQuestComplete();
+                    spawnSparklers(this, this.player.x, this.player.y - 8, 16);
+                    this.hud.showToast(`Quest Complete: ${done.title}! +${done.rewards.coins}g +${done.rewards.xp} XP`);
+                    this.refreshNpcPrompts();
+                  }
+                },
+              },
+            ],
+          });
+        } else {
+          const summary = q.objectives
+            .map((o) => `{c:#ffe066}${o.label}{/c}: ${gameState.getObjectiveProgress(q.id, o)}/${o.count}`)
+            .join(' • ');
+          dialogueBox.show({
+            speaker: npc.spec.name,
+            portraitKey: npc.spec.spriteKey,
+            subtitle: `In Progress: ${q.title}`,
+            voicePitch: q.voicePitch,
+            lines: [...q.progressDialogue, `Progress: ${summary}`],
+          });
+        }
+      } else {
+        dialogueBox.show({
+          speaker: npc.spec.name,
+          portraitKey: npc.spec.spriteKey,
+          subtitle: `New Quest: ${q.title}`,
+          voicePitch: q.voicePitch,
+          lines: q.offerDialogue,
+          choices: [
+            {
+              label: 'Accept Quest',
+              primary: true,
+              onSelect: () => {
+                gameState.acceptQuest(q.id);
+                gameState.setTrackedQuest(q.id);
+                SFX.playPickup();
+                spawnSparklers(this, this.player.x, this.player.y - 8, 14);
+                this.hud.showToast(`Quest Accepted: ${q.title} [Q]`);
+                this.refreshNpcPrompts();
+                revealSequence.show({
+                  title: 'QUEST ACCEPTED!',
+                  subtitle: q.title,
+                  badgeText: '📜',
+                  accentColor: '#ffe066',
+                });
+              },
+            },
+            {
+              label: 'Maybe Later',
+              onSelect: () => {
+                SFX.playUiClose();
+              },
+            },
+          ],
+        });
+      }
+      return true;
+    }
     return false;
   }
 
@@ -2169,6 +2329,7 @@ export class OverworldScene extends Phaser.Scene {
     // Passive HP/Energy trickle (only emit lightweight vitals update when values actually change)
     this.regenTimerMs += dt;
     if (this.lowEnergyToastMs > 0) this.lowEnergyToastMs = Math.max(0, this.lowEnergyToastMs - dt);
+    if (this.petActionCooldownMs > 0) this.petActionCooldownMs = Math.max(0, this.petActionCooldownMs - dt);
 
     if (this.regenTimerMs >= 1000) {
       this.regenTimerMs = 0;
@@ -2201,20 +2362,90 @@ export class OverworldScene extends Phaser.Scene {
       this.handleInteractKey();
     }
 
-    // Build cursor preview (green if valid tile, red if blocked)
-    if (gameState.pendingBuildRecipeId && this.hud.activeModal === 'none') {
-      const ptr = this.input.activePointer;
-      const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
-      const tx = Math.floor(wp.x / TILE_PX);
-      const ty = Math.floor(wp.y / TILE_PX);
+    // Build cursor preview (green if valid tile, red if blocked) + mobile zoom-out gizmo
+    const isMobileBuild = Boolean(
+      this.hud.isTouchEnabled() && gameState.pendingBuildRecipeId && this.hud.activeModal === 'none',
+    );
+    const cam = this.cameras.main;
+    const targetZoom = isMobileBuild ? 1.85 : 3;
+    if (Math.abs(cam.zoom - targetZoom) > 0.005) {
+      cam.setZoom(Phaser.Math.Linear(cam.zoom, targetZoom, Math.min(1, dt * 0.012)));
+    } else if (cam.zoom !== targetZoom) {
+      cam.setZoom(targetZoom);
+    }
+
+    if (isMobileBuild) {
+      const rec = RECIPES.find((r) => r.id === gameState.pendingBuildRecipeId);
+      if (!this.mobilePlaceActive) {
+        this.mobilePlaceActive = true;
+        const f = this.player.facing;
+        const offTx = f === 'left' ? -2 : f === 'right' ? 2 : 0;
+        const offTy = f === 'up' ? -2 : f === 'down' ? 2 : 0;
+        this.mobilePlaceTx = Phaser.Math.Clamp(Math.floor(this.player.x / TILE_PX) + offTx, 0, WORLD_TILES - 1);
+        this.mobilePlaceTy = Phaser.Math.Clamp(Math.floor(this.player.y / TILE_PX) + offTy, 0, WORLD_TILES - 1);
+        this.mobilePlaceWorldX = this.mobilePlaceTx * TILE_PX + 8;
+        this.mobilePlaceWorldY = this.mobilePlaceTy * TILE_PX + 8;
+      }
+
+      const tx = this.mobilePlaceTx;
+      const ty = this.mobilePlaceTy;
+      const cx = tx * TILE_PX + 8;
+      const cy = ty * TILE_PX + 8;
       const valid = this.canPlacePendingAt(tx, ty);
+
       this.buildCursor
-        .setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8)
+        .setPosition(cx, cy)
         .setFillStyle(valid ? 0x6ee88a : 0xff6b78, 0.28)
         .setStrokeStyle(1, valid ? 0x8ef5a7 : 0xff8a93, 0.95)
         .setVisible(true);
+
+      if (rec?.structureType) {
+        const spec = getStructurePreviewSpec(rec.structureType);
+        if (!this.buildPreviewSprite) {
+          this.buildPreviewSprite = this.add.image(cx, cy, spec.texture, spec.frame).setDepth(8500);
+        } else {
+          this.buildPreviewSprite.setTexture(spec.texture, spec.frame);
+        }
+        this.buildPreviewSprite
+          .setPosition(cx, cy + (spec.offsetY ?? 0))
+          .setOrigin(0.5, spec.originY ?? 0.5)
+          .setScale(spec.scale ?? 1)
+          .setAlpha(0.78)
+          .setTint(valid ? 0xa6ffbe : 0xff8a93)
+          .setVisible(true);
+      }
+
+      if (!this.buildGizmoGfx) {
+        this.buildGizmoGfx = this.add.graphics().setDepth(8550);
+      }
+      this.drawPlacementGizmo(this.buildGizmoGfx, cx, cy, valid);
+      this.buildGizmoGfx.setVisible(true);
+
+      const sx = (cx - cam.worldView.x) * cam.zoom;
+      const sy = (cy - 20 - cam.worldView.y) * cam.zoom;
+      this.hud.updateMobileBuildControls(sx, sy, valid, rec?.name ?? 'Build');
     } else {
-      this.buildCursor.setVisible(false);
+      if (this.mobilePlaceActive) {
+        this.mobilePlaceActive = false;
+        this.mobilePlaceDragging = false;
+        this.buildPreviewSprite?.setVisible(false);
+        this.buildGizmoGfx?.setVisible(false);
+        this.hud.hideMobileBuildControls();
+      }
+      if (gameState.pendingBuildRecipeId && this.hud.activeModal === 'none') {
+        const ptr = this.input.activePointer;
+        const wp = cam.getWorldPoint(ptr.x, ptr.y);
+        const tx = Math.floor(wp.x / TILE_PX);
+        const ty = Math.floor(wp.y / TILE_PX);
+        const valid = this.canPlacePendingAt(tx, ty);
+        this.buildCursor
+          .setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8)
+          .setFillStyle(valid ? 0x6ee88a : 0xff6b78, 0.28)
+          .setStrokeStyle(1, valid ? 0x8ef5a7 : 0xff8a93, 0.95)
+          .setVisible(true);
+      } else {
+        this.buildCursor.setVisible(false);
+      }
     }
 
     if (!this.hud.isBlockingInput() && !this.fishingMinigame.isActive()) {
@@ -2244,7 +2475,7 @@ export class OverworldScene extends Phaser.Scene {
           }
         }
       }
-      // Hold Left Mouse Button for smooth continuous gather / attack swings
+      // Hold Left Mouse Button for smooth continuous gather / attack swings (pass fromHold=true)
       const ptr = this.input.activePointer;
       if (
         ptr.leftButtonDown() &&
@@ -2254,7 +2485,7 @@ export class OverworldScene extends Phaser.Scene {
         const curItem = gameState.hotbar[gameState.selectedHotbarIndex] || 'pickaxe';
         if (curItem !== 'fishing_rod') {
           const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
-          this.handlePrimaryAction(wp.x, wp.y);
+          this.handlePrimaryAction(wp.x, wp.y, true);
         }
       }
       const ptx = Math.floor(this.player.x / TILE_PX);
@@ -2369,6 +2600,16 @@ export class OverworldScene extends Phaser.Scene {
             this.spawnCoin(fx, fy, 3);
             spawnFloatingText(this, fx, fy - 12, 'Fox +3g', '#ffe066', '7px');
           }
+        },
+      },
+      {
+        isWaterAt: (fx, fy) => {
+          const tx = Math.floor(fx / TILE_PX);
+          const ty = Math.floor(fy / TILE_PX);
+          return this.terrainGrid[ty]?.[tx] === 'water' && !this.bridgeSet.has(`${tx},${ty}`);
+        },
+        onSplash: (fx, fy) => {
+          this.ocean.spawnSplash(fx, fy, 0.52);
         },
       });
     } else if (this.fishingMinigame.isActive()) {
@@ -2688,21 +2929,23 @@ export class OverworldScene extends Phaser.Scene {
 
     const pointLights: PointLightSource[] = [
       // Simple smooth circular light field fading outward around the player
-      { x: this.player.x, y: this.player.y - 4, radius: 74, color: 0xffe4aa, intensity: 1.0 },
+      { x: this.player.x, y: this.player.y - 4, radius: 24, color: 0xffe4aa, intensity: 1.0 },
     ];
     const spotLights: SpotLightSource[] = [];
 
     for (const b of this.buildings) {
       if (!b.active) continue;
       if (b.structureType === 'bonfire') {
-        pointLights.push({ x: b.x, y: b.y, radius: 64 * flicker, color: 0xff8c3b, intensity: 1 });
+        pointLights.push({ x: b.x, y: b.y, radius: 56 * flicker, color: 0xff8c3b, intensity: 1 });
       } else if (b.structureType === 'furnace') {
-        pointLights.push({ x: b.x, y: b.y, radius: 52 * flicker, color: 0xff5f2e, intensity: 0.9 });
+        pointLights.push({ x: b.x, y: b.y, radius: 22 * flicker, color: 0xff5f2e, intensity: 0.9 });
       } else if (b.structureType === 'mining_rod') {
-        pointLights.push({ x: b.x, y: b.y - 6, radius: 54, color: 0x5be6ff, intensity: 0.9 });
+        pointLights.push({ x: b.x, y: b.y - 6, radius: 20, color: 0x5be6ff, intensity: 0.9 });
+      } else if (b.structureType === 'furniture_lamp') {
+        pointLights.push({ x: b.x, y: b.y - 4, radius: 24, color: 0xffe08a, intensity: 0.85 });
       } else if (b.structureType === 'lighthouse') {
         const beaconY = b.y - 11;
-        pointLights.push({ x: b.x, y: beaconY, radius: 68, color: 0xfff08a, intensity: 0.95 });
+        pointLights.push({ x: b.x, y: beaconY, radius: 28, color: 0xfff08a, intensity: 0.95 });
         spotLights.push({
           x: b.x,
           y: beaconY,
@@ -2718,14 +2961,14 @@ export class OverworldScene extends Phaser.Scene {
     for (const n of this.nodes) {
       if (!n.active || !this.isNearCamera(n.x, n.y, 120)) continue;
       if (n.kind === 'crystal_vein') {
-        pointLights.push({ x: n.x, y: n.y, radius: 34, color: 0x6ce5ff, intensity: 0.75 });
+        pointLights.push({ x: n.x, y: n.y, radius: 13, color: 0x6ce5ff, intensity: 0.75 });
       } else if (n.kind === 'obsidian_vein') {
-        pointLights.push({ x: n.x, y: n.y, radius: 34, color: 0xb86bff, intensity: 0.75 });
+        pointLights.push({ x: n.x, y: n.y, radius: 13, color: 0xb86bff, intensity: 0.75 });
       }
     }
 
     for (const dp of this.dungeonPortals) {
-      pointLights.push({ x: dp.x, y: dp.y, radius: 48, color: 0xa275ff, intensity: 0.85 });
+      pointLights.push({ x: dp.x, y: dp.y, radius: 18, color: 0xa275ff, intensity: 0.85 });
     }
 
     const dayWrapped = this.lighting.update(

@@ -587,7 +587,15 @@ export class DungeonScene extends Phaser.Scene {
     const dmg = Math.max(1, Math.round(rawDmg * scale.dealMult));
     SFX.playHit();
     spawnDirectionalSparks(this, enemy.x, enemy.y - 4, Math.atan2(dirY, dirX), crit ? 0xffe066 : 0xffffff, crit ? 9 : 5);
-    spawnFloatingText(this, enemy.x, enemy.y - 16, crit ? `${dmg}!` : `${dmg}`, crit ? '#ffe066' : '#ffffff');
+    spawnFloatingText(
+      this,
+      enemy.x,
+      enemy.y - 16,
+      crit ? `${dmg}!` : `${dmg}`,
+      crit ? '#ffe066' : '#ffffff',
+      crit ? '10px' : '8px',
+      crit ? 'crit' : 'damage',
+    );
     spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, crit ? 8 : 5);
 
     const killed = enemy.takeDamage(dmg, dirX, dirY, this.isWalkable);
@@ -633,6 +641,7 @@ export class DungeonScene extends Phaser.Scene {
           this.spawnDrop(enemy.x, enemy.y, d.itemId, d.count, false);
         }
       }
+      spawnFloatingText(this, this.player.x, this.player.y - 18, `+${enemy.def.xp} XP`, '#7ef5ff', '8px', 'xp');
       gameState.addXp(enemy.def.xp);
 
       if (enemy === this.boss && !this.relicSpawned) {

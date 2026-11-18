@@ -25,6 +25,8 @@ export class Player extends Phaser.GameObjects.Container {
   private swingTimerMs = 0;
   private swingDurationMs = 180;
   private footstepTimerMs = 0;
+  private exhaustedTimerMs = 0;
+  private baseFeetOffset = 8;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
@@ -32,6 +34,7 @@ export class Player extends Phaser.GameObjects.Container {
       gameState.heroClass
     ];
     const feetOffset = heroInfo?.idle?.feetOffset ?? 8;
+    this.baseFeetOffset = feetOffset;
     // Shadow centered slightly above y=0 so it overlaps the bottom half of the character's feet
     this.shadow = scene.add.ellipse(0, -1.5, 11, 5, 0x000000, 0.4);
     const startTex = `heroes/${gameState.heroClass}/${gameState.heroClass}_idle`;
@@ -140,6 +143,57 @@ export class Player extends Phaser.GameObjects.Container {
     return true;
   }
 
+  public isExhausted(): boolean {
+    return this.exhaustedTimerMs > 0;
+  }
+
+  public triggerExhausted(durationMs = 2000): boolean {
+    if (this.exhaustedTimerMs > 0) return false;
+    this.exhaustedTimerMs = durationMs;
+    this.actionCooldownMs = Math.max(this.actionCooldownMs, durationMs);
+    this.swingTimerMs = 0;
+    this.isActionLocked = false;
+    this.heldItemSprite.setVisible(false);
+    this.playHeroAnim('idle', true);
+    this.scene.tweens.killTweensOf(this.sprite);
+    this.sprite.setScale(1, 1);
+    this.sprite.y = -this.baseFeetOffset;
+    this.sprite.setTint(0x9fc2e6);
+    this.scene.tweens.add({
+      targets: this.sprite,
+      scaleY: 0.84,
+      scaleX: 1.09,
+      y: -this.baseFeetOffset + 2.5,
+      duration: 240,
+      yoyo: true,
+      repeat: 3,
+      ease: 'Sine.InOut',
+      onComplete: () => {
+        if (!this.sprite.active) return;
+        this.sprite.setScale(1, 1);
+        this.sprite.y = -this.baseFeetOffset;
+        this.sprite.clearTint();
+      },
+    });
+    // Sweat drop particles
+    for (let i = 0; i < 3; i++) {
+      const drop = this.scene.add
+        .circle(this.x + (i - 1) * 5, this.y - 12, 1.5, 0x7ce8ff, 0.9)
+        .setDepth(this.y + 10);
+      this.scene.tweens.add({
+        targets: drop,
+        x: drop.x + (i - 1) * 6,
+        y: drop.y + 8,
+        alpha: 0,
+        duration: 420 + i * 90,
+        delay: i * 110,
+        ease: 'Quad.In',
+        onComplete: () => drop.destroy(),
+      });
+    }
+    return true;
+  }
+
   public startAction(
     animName: string,
     cooldownMs: number,
@@ -147,7 +201,7 @@ export class Player extends Phaser.GameObjects.Container {
     aimDy: number,
     lockMs = 180,
   ): boolean {
-    if (this.actionCooldownMs > 0 || this.isDashing) return false;
+    if (this.exhaustedTimerMs > 0 || this.actionCooldownMs > 0 || this.isDashing) return false;
     this.facing = vectorToDirection(aimDx, aimDy, this.facing);
     this.actionCooldownMs = cooldownMs;
     this.isActionLocked = true;
@@ -188,6 +242,7 @@ export class Player extends Phaser.GameObjects.Container {
   ): void {
     const dt = dtMs / 1000;
     if (this.dodgeMomentumMs > 0) this.dodgeMomentumMs = Math.max(0, this.dodgeMomentumMs - dtMs);
+    if (this.exhaustedTimerMs > 0) this.exhaustedTimerMs = Math.max(0, this.exhaustedTimerMs - dtMs);
     if (this.actionCooldownMs > 0) this.actionCooldownMs = Math.max(0, this.actionCooldownMs - dtMs);
     if (this.dashCooldownMs > 0) this.dashCooldownMs = Math.max(0, this.dashCooldownMs - dtMs);
     if (this.swingTimerMs > 0) this.swingTimerMs = Math.max(0, this.swingTimerMs - dtMs);
@@ -256,6 +311,8 @@ export class Player extends Phaser.GameObjects.Container {
 
 export class FoxCompanion extends Phaser.GameObjects.Container {
   private sprite: Phaser.GameObjects.Sprite;
+  private shadow: Phaser.GameObjects.Ellipse;
+  private baseFeetOffset = 6.4;
   private facing: Direction = 'down';
   private curAnim = '';
   private attackCooldownMs = 2500;
@@ -263,15 +320,18 @@ export class FoxCompanion extends Phaser.GameObjects.Container {
   private strikeLungeMs = 0;
   private strikeTargetX = 0;
   private strikeTargetY = 0;
+  private splashTimerMs = 0;
+  private swimClockMs = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
     const foxInfo = (manifest.heroes as Record<string, { idle?: { feetOffset?: number } }>).Fox;
     const scale = 0.8;
     const feetOffset = (foxInfo?.idle?.feetOffset ?? 8) * scale;
-    const shadow = scene.add.ellipse(0, -1, 9, 4, 0x000000, 0.35);
+    this.baseFeetOffset = feetOffset;
+    this.shadow = scene.add.ellipse(0, -1, 9, 4, 0x000000, 0.35);
     this.sprite = scene.add.sprite(0, -feetOffset, 'heroes/Fox/Fox_idle', 0).setScale(scale);
-    this.add([shadow, this.sprite]);
+    this.add([this.shadow, this.sprite]);
     this.setDepth(y);
     scene.add.existing(this);
   }
@@ -284,6 +344,10 @@ export class FoxCompanion extends Phaser.GameObjects.Container {
       findTarget: () => { x: number; y: number } | null;
       onBite: (x: number, y: number, dmg: number) => void;
       onForage: (x: number, y: number) => void;
+    },
+    water?: {
+      isWaterAt: (x: number, y: number) => boolean;
+      onSplash: (x: number, y: number) => void;
     },
   ): void {
     if (this.attackCooldownMs > 0) this.attackCooldownMs -= dtMs;
@@ -313,6 +377,7 @@ export class FoxCompanion extends Phaser.GameObjects.Container {
     const dx = goalX - this.x;
     const dy = goalY - this.y;
     const dist = Math.hypot(dx, dy);
+    let isMoving = false;
     if (dist > 140) {
       this.x = targetX - 16;
       this.y = targetY + 6;
@@ -322,9 +387,33 @@ export class FoxCompanion extends Phaser.GameObjects.Container {
       this.y += (dy / dist) * spd;
       this.facing = vectorToDirection(dx, dy, this.facing);
       this.playAnim('walk');
+      isMoving = true;
     } else {
       this.playAnim('idle');
     }
+
+    const inWater = Boolean(water?.isWaterAt(this.x, this.y));
+    if (inWater) {
+      this.swimClockMs += dtMs;
+      this.shadow.setVisible(false);
+      // Bob & submerge lower half in water
+      this.sprite.y = -this.baseFeetOffset + 4.5 + Math.sin(this.swimClockMs * 0.012) * 1.1;
+      const fw = this.sprite.width || 16;
+      const fh = this.sprite.height || 16;
+      this.sprite.setCrop(0, 0, fw, Math.round(fh * 0.62));
+      this.playAnim('walk');
+      this.splashTimerMs -= dtMs;
+      if (this.splashTimerMs <= 0) {
+        this.splashTimerMs = isMoving ? 340 : 780;
+        water?.onSplash(this.x, this.y);
+      }
+    } else {
+      this.shadow.setVisible(true);
+      this.sprite.setCrop();
+      this.sprite.y = -this.baseFeetOffset;
+      this.splashTimerMs = 0;
+    }
+
     this.setDepth(this.y);
   }
 

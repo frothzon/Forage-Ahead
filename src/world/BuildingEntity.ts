@@ -5,6 +5,80 @@ import { RECIPES, type StructureType } from '../data/recipes';
 import { SPROUT_CROP_BY_STRUCTURE, type SproutCropDef } from '../data/sproutCrops';
 import { applyWindShader } from './WindShader';
 
+export interface StructurePreviewSpec {
+  texture: string;
+  frame?: number;
+  offsetY?: number;
+  originY?: number;
+  scale?: number;
+}
+
+export function getStructurePreviewSpec(type: StructureType): StructurePreviewSpec {
+  switch (type) {
+    case 'furnace':
+      return { texture: 'ui_icons/furnace', offsetY: 3, originY: 0.8 };
+    case 'anvil':
+      return { texture: 'objects/Anvil', offsetY: 2, originY: 0.7 };
+    case 'bonfire':
+      return { texture: 'extras/Bonfire', frame: 0, offsetY: 2, originY: 0.7 };
+    case 'alchemy_lab':
+      return { texture: 'objects/Barrel', offsetY: 2, originY: 0.75, scale: 1.1 };
+    case 'frost_kiln':
+      return { texture: 'ui_icons/furnace', offsetY: 3, originY: 0.8, scale: 1.1 };
+    case 'infernal_forge':
+      return { texture: 'objects/Anvil', offsetY: 2, originY: 0.75, scale: 1.15 };
+    case 'void_altar':
+      return { texture: 'objects/Anvil', offsetY: 2, originY: 0.75, scale: 1.2 };
+    case 'chest':
+      return { texture: 'objects/Chest_small', frame: 0, offsetY: 2, originY: 0.7 };
+    case 'nest':
+      return { texture: 'tileset/Wooden logs', offsetY: 2, originY: 0.7, scale: 0.9 };
+    case 'fence':
+      return { texture: 'sprout/fences', frame: 0, offsetY: 2, originY: 0.75 };
+    case 'fence_gate':
+      return { texture: 'sprout/fence_gates', frame: 0, offsetY: 2, originY: 0.75 };
+    case 'house_floor':
+      return { texture: 'sprout/house_walls', frame: 11, offsetY: 0, originY: 0.5 };
+    case 'house_wall':
+      return { texture: 'sprout/house_walls', frame: 1, offsetY: 2, originY: 0.75 };
+    case 'house_door':
+      return { texture: 'sprout/house_door', frame: 0, offsetY: 2, originY: 0.75 };
+    case 'furniture_bed':
+      return { texture: 'sprout/furniture', frame: 18, offsetY: 2, originY: 0.75 };
+    case 'furniture_lamp':
+      return { texture: 'sprout/furniture', frame: 12, offsetY: 2, originY: 0.75 };
+    case 'furniture_table':
+      return { texture: 'sprout/furniture', frame: 30, offsetY: 2, originY: 0.75 };
+    case 'furniture_rug':
+      return { texture: 'sprout/furniture', frame: 45, offsetY: 0, originY: 0.5 };
+    case 'water_well':
+      return { texture: 'sprout/water_well', offsetY: 2, originY: 0.8, scale: 0.8 };
+    case 'lighthouse':
+      return { texture: 'ui_icons/lighthouse', offsetY: 5, originY: 0.9, scale: 1.35 };
+    case 'mining_rod':
+      return { texture: 'ui_icons/mining_rod', offsetY: 4, originY: 0.85, scale: 1.1 };
+    case 'fish_trap':
+      return { texture: 'objects/Barrel_water', offsetY: 0, originY: 0.5, scale: 0.9 };
+    case 'bridge':
+      return { texture: 'ui_icons/bridge', offsetY: 0, originY: 0.5 };
+    case 'road_stone':
+      return { texture: 'ui_icons/road', offsetY: 0, originY: 0.5 };
+    case 'crop_berries':
+      return { texture: 'objects/Crops (berries)', frame: 0, offsetY: 4, originY: 0.85 };
+    case 'crop_carrot':
+      return { texture: 'objects/Crops (carrot)', frame: 0, offsetY: 4, originY: 0.85 };
+    case 'crop_sunflower':
+      return { texture: 'objects/Crops (sunflower)', frame: 0, offsetY: 4, originY: 0.85 };
+    default: {
+      const sproutCrop = SPROUT_CROP_BY_STRUCTURE[type as SproutCropDef['structureType']];
+      if (sproutCrop) {
+        return { texture: 'sprout/farming_plants', frame: sproutCrop.plantRow * 5, offsetY: 4, originY: 0.85 };
+      }
+      return { texture: 'objects/Barrel', offsetY: 0, originY: 0.7 };
+    }
+  }
+}
+
 export class BuildingEntity extends Phaser.GameObjects.Container {
   public readonly id: string;
   public readonly structureType: StructureType;

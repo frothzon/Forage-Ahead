@@ -5454,6 +5454,56 @@
       "path": "assets/sprout_icons/fence_gate.png",
       "width": 16,
       "height": 16
+    },
+    "ui_icons/pickaxe_iron": {
+      "path": "assets/ui_icons/pickaxe_iron.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/sword_iron": {
+      "path": "assets/ui_icons/sword_iron.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/sword_astral": {
+      "path": "assets/ui_icons/sword_astral.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/meat": {
+      "path": "assets/ui_icons/meat.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/cooked_meat": {
+      "path": "assets/ui_icons/cooked_meat.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/amber": {
+      "path": "assets/ui_icons/amber.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/dune_catfish": {
+      "path": "assets/ui_icons/dune_catfish.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/ghost_eel": {
+      "path": "assets/ui_icons/ghost_eel.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/frost_salmon": {
+      "path": "assets/ui_icons/frost_salmon.png",
+      "width": 16,
+      "height": 16
+    },
+    "ui_icons/ember_koi": {
+      "path": "assets/ui_icons/ember_koi.png",
+      "width": 16,
+      "height": 16
     }
   },
   "heroes": {

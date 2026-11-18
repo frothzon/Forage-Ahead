@@ -11,6 +11,8 @@ export interface ActiveProjectile {
   pierce?: boolean;
 }
 
+export type FloatingTextStyle = 'default' | 'damage' | 'crit' | 'xp' | 'exhausted';
+
 export function spawnFloatingText(
   scene: Phaser.Scene,
   x: number,
@@ -18,6 +20,7 @@ export function spawnFloatingText(
   text: string,
   color = '#ffffff',
   fontSize = '8px',
+  style: FloatingTextStyle = 'default',
 ): void {
   const txt = scene.add
     .text(x, y, text, {
@@ -25,12 +28,89 @@ export function spawnFloatingText(
       fontStyle: 'bold',
       color,
       stroke: '#0b1018',
-      strokeThickness: 2,
+      strokeThickness: style === 'crit' ? 3 : 2,
       resolution: 4,
     })
     .setOrigin(0.5)
-    .setScale(1.45)
+    .setScale(style === 'crit' ? 2.1 : style === 'damage' ? 1.75 : style === 'xp' ? 1.4 : 1.45)
     .setDepth(9999);
+
+  if (style === 'damage' || style === 'crit') {
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const driftX = dir * Phaser.Math.Between(8, 15);
+    const rot = dir * (style === 'crit' ? 10 : 6);
+    scene.tweens.add({
+      targets: txt,
+      scale: style === 'crit' ? 1.15 : 0.98,
+      angle: { from: -rot, to: rot },
+      duration: 180,
+      ease: 'Back.Out',
+      yoyo: style === 'crit',
+      repeat: style === 'crit' ? 1 : 0,
+    });
+    scene.tweens.add({
+      targets: txt,
+      x: x + driftX,
+      y: y - (style === 'crit' ? 24 : 19),
+      duration: 240,
+      ease: 'Quad.Out',
+      onComplete: () => {
+        if (!txt.active) return;
+        scene.tweens.add({
+          targets: txt,
+          y: txt.y - 6,
+          alpha: 0,
+          duration: 420,
+          ease: 'Cubic.In',
+          onComplete: () => txt.destroy(),
+        });
+      },
+    });
+    return;
+  }
+
+  if (style === 'xp') {
+    const sway = Phaser.Math.Between(-6, 6);
+    scene.tweens.add({
+      targets: txt,
+      scale: { from: 1.35, to: 1.02 },
+      duration: 160,
+      yoyo: true,
+      repeat: 1,
+      ease: 'Sine.InOut',
+    });
+    scene.tweens.add({
+      targets: txt,
+      x: x + sway,
+      y: y - 26,
+      alpha: { from: 1, to: 0 },
+      duration: 920,
+      ease: 'Sine.Out',
+      onComplete: () => txt.destroy(),
+    });
+    return;
+  }
+
+  if (style === 'exhausted') {
+    scene.tweens.add({
+      targets: txt,
+      scale: 1,
+      angle: { from: -4, to: 4 },
+      duration: 220,
+      yoyo: true,
+      repeat: 2,
+      ease: 'Sine.InOut',
+    });
+    scene.tweens.add({
+      targets: txt,
+      y: y - 16,
+      alpha: 0,
+      duration: 1450,
+      ease: 'Cubic.Out',
+      onComplete: () => txt.destroy(),
+    });
+    return;
+  }
 
   const driftX = Phaser.Math.Between(-7, 7);
   scene.tweens.add({

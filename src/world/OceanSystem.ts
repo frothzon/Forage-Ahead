@@ -23,32 +23,45 @@ void main() {
   vec2 wDir = length(uWindDir) > 0.001 ? normalize(uWindDir) : vec2(1.0, 0.25);
   vec2 wPerp = vec2(-wDir.y, wDir.x);
 
-  float along = dot(worldPos, wDir);
-  float across = dot(worldPos, wPerp);
-  float waveRate = 1.65 + uWindSpeed * 1.55;
+  // Subtle low-frequency swell tinting behind the cellular water pattern
+  float swell = sin(dot(worldPos, wDir) * 0.022 - uTime * (0.65 + uWindSpeed * 0.45)) * 0.5
+              + cos(dot(worldPos, wPerp) * 0.018 + uTime * 0.4) * 0.5;
+  vec3 baseWater = vec3(0.19215686, 0.66274510, 0.93333333);
+  vec3 deepWater = vec3(0.125, 0.505, 0.785);
+  vec3 col = mix(deepWater, baseWater, smoothstep(-0.85, 0.85, swell));
 
-  float swell1 = sin(along * 0.14 - uTime * waveRate + sin(across * 0.065 + uTime * 0.9) * 1.15);
-  float swell2 = sin(along * 0.23 - across * 0.09 - uTime * (waveRate * 1.25));
-  float waveBand = swell1 * 0.64 + swell2 * 0.36;
+  // Shadertoy cellular water wave/foam network (world-locked so it doesn't swim with camera)
+  mat3 m = mat3(
+    vec3(-2.0, -1.0, 0.0),
+    vec3(3.0, -1.0, 1.0),
+    vec3(1.0, -1.0, -1.0)
+  );
+  vec2 waterUv = (worldPos + wDir * (uTime * 4.5 * uWindSpeed)) / 180.0;
+  vec4 k = vec4(uTime * 0.8);
+  k.xy = waterUv * 7.0;
+  float val1 = length(0.5 - fract(k.xyw *= m * 0.5));
+  float val2 = length(0.5 - fract(k.xyw *= m * 0.2));
+  float val3 = length(0.5 - fract(k.xyw *= m * 0.5));
+  float cellMin = min(min(val1, val2), val3);
+  float c2 = cellMin * cellMin;
+  float surfaceNet = (c2 * c2 * c2 * cellMin) * 3.0;
 
-  // Fast stylized caustics (no expensive pow() on mobile GPUs)
-  vec2 cUv1 = worldPos * 0.088 + wDir * (uTime * 0.45);
-  vec2 cUv2 = worldPos * 0.074 - wPerp * (uTime * 0.35);
-  float cellA = abs(sin(cUv1.x + sin(cUv1.y * 0.8 + uTime)) * cos(cUv1.y));
-  float cellB = abs(sin(cUv2.x + 1.2) * cos(cUv2.y - 0.8 + cos(cUv2.x * 0.7 - uTime)));
-  float cRaw = clamp(1.0 - min(cellA, cellB) * 1.45, 0.0, 1.0);
-  float caustic = cRaw * cRaw * cRaw;
+  // Additional deeper underwater caustics layer
+  vec2 subUv = (worldPos - wPerp * (uTime * 3.0)) / 135.0;
+  vec4 k2 = vec4(uTime * 0.52 + 3.7);
+  k2.xy = subUv * 5.5;
+  float s1 = length(0.5 - fract(k2.xyw *= m * 0.5));
+  float s2 = length(0.5 - fract(k2.xyw *= m * 0.2));
+  float subMin = min(s1, s2);
+  float subPow = subMin * subMin * subMin * subMin * subMin;
+  float extraCaustic = subPow * 1.4;
 
-  vec3 deepCol = vec3(0.12, 0.40, 0.60);
-  vec3 midCol  = vec3(0.22, 0.60, 0.80);
-  vec3 col = mix(deepCol, midCol, smoothstep(-0.55, 0.65, waveBand));
+  // Combine deeper cyan caustics + bright surface cellular highlights, dimmed softly at night
+  float dayVis = 1.0 - uNightFactor * 0.42;
+  col += vec3(0.14, 0.44, 0.56) * extraCaustic * dayVis;
+  col += vec3(surfaceNet) * (0.95 - uNightFactor * 0.35);
 
-  col += vec3(0.26, 0.54, 0.62) * caustic * (0.78 - uNightFactor * 0.30);
-
-  float crest = smoothstep(0.62, 0.92, waveBand + (uWindSpeed - 1.0) * 0.14);
-  col = mix(col, vec3(0.74, 0.94, 1.0), crest * 0.56);
-
-  gl_FragColor = vec4(col, 1.0);
+  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
 `;
 

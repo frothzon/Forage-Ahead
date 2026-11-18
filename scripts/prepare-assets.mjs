@@ -465,6 +465,193 @@ function extractSproutLands(manifest) {
 
   const gateDec = decodePngRgba(fs.readFileSync(path.join(OUT_DIR, 'sprout/fence_gates.png')));
   sliceAndSaveIcon(gateDec, 0, 0, 16, 16, 'sprout_icons/fence_gate.png', manifest);
+
+  extractFranukaIcons(manifest);
+}
+
+function extractFranukaIcons(manifest) {
+  const zipPath = path.join(ROOT, 'Fantasy RPG icon pack (by Franuka) (1).zip');
+  if (!fs.existsSync(zipPath)) return;
+  const zip = new AdmZip(zipPath);
+
+  const base = (n) => `Base set/Individual icons (16x16)/${n}.png`;
+  const fish = (n) => `Expansions/02 - Fishing set/Individual icons (16x16)/${n}.png`;
+
+  // Pixel-verified named catalog for Franuka Base set (16x16)
+  const FRANUKA_BASE = {
+    // Tools & Weapons (R01..R04)
+    WOOD_SWORD: 2,
+    WOOD_PICKAXE: 8,
+    WOOD_HOE: 10,
+    IRON_SWORD: 12,
+    IRON_BOW: 13,
+    IRON_SHOVEL: 17,
+    IRON_PICKAXE: 18,
+    GOLD_SWORD: 22,
+    GOLD_PICKAXE: 28,
+    CRYSTAL_SWORD: 340,
+    FIRE_SWORD: 342,
+    SUN_SWORD: 343,
+    IRON_WATERING_CAN: 346,
+
+    // Armor, Accessories, Rods, Potions, Gems (R06..R11)
+    FROST_ROBE: 41,
+    LEATHER_ARMOR: 43,
+    IRON_ARMOR: 53,
+    OBSIDIAN_ROBE: 61,
+    WOOD_STAFF: 71,
+    FIRE_ROD: 72,
+    THUNDER_ROD: 73,
+    ICE_ROD: 74,
+    RUBY_RING: 75,
+    AMBER_RING: 76,
+    SAPPHIRE_AMULET: 80,
+    RED_POTION: 82,
+    BLUE_POTION: 85,
+    AMBER_GEM: 97,
+    DIAMOND_GEM: 100,
+
+    // Bags, Resources, Crops, Ingots (R12..R16)
+    MAP: 101,
+    TOME: 102,
+    BACKPACK: 104,
+    WOOD_LOG: 111,
+    STONES: 112,
+    RAW_MEAT: 113,
+    GOLD_EGG: 120,
+    CARROT: 121,
+    BERRIES: 122,
+    SUNFLOWER: 123,
+    FISHING_ROD: 127,
+    IRON_INGOT: 306,
+    GOLD_INGOT: 307,
+    COOKED_MEAT: 354,
+
+    // UI Chrome & Status (R17..R26)
+    SAVE_FLOPPY: 131,
+    GEAR_COG: 132,
+    CHECKMARK: 133,
+    CLOSE_X: 134,
+    HEART_FULL: 139,
+    ENERGY_WING: 145,
+    SPRINT_BOOT: 164,
+    QUEST_SCROLL: 250,
+    STAR_XP: 265,
+    GOLD_COIN: 271,
+    CLOCK: 275,
+    COMPASS: 277,
+    PAW: 278,
+    SPEAKER_ON: 279,
+    SPEAKER_MUTE: 281,
+    MUSIC_ON: 282,
+    MUSIC_OFF: 283,
+  };
+
+  // Pixel-verified named catalog for Franuka Fishing Expansion (16x16)
+  const FRANUKA_FISHING = {
+    BLUE_FISH: 27,
+    COOKED_FISH: 31,
+    EMBER_KOI: 35,
+    FROST_SALMON: 36,
+    DUNE_CATFISH: 57,
+    GHOST_EEL: 71,
+  };
+
+  // Map ui_icons/* (items, weapons, tools, armor, accessories, food, potions)
+  const uiIconMap = {
+    coin: base(FRANUKA_BASE.GOLD_COIN),
+    pickaxe: base(FRANUKA_BASE.WOOD_PICKAXE),
+    pickaxe_iron: base(FRANUKA_BASE.IRON_PICKAXE),
+    pickaxe_gold: base(FRANUKA_BASE.GOLD_PICKAXE),
+    pickaxe_crystal: base(FRANUKA_BASE.DIAMOND_GEM),
+    shovel: base(FRANUKA_BASE.IRON_SHOVEL),
+    hoe: base(FRANUKA_BASE.WOOD_HOE),
+    watering_can: base(FRANUKA_BASE.IRON_WATERING_CAN),
+    fishing_rod: base(FRANUKA_BASE.FISHING_ROD),
+    sword: base(FRANUKA_BASE.WOOD_SWORD),
+    sword_iron: base(FRANUKA_BASE.IRON_SWORD),
+    sword_gold: base(FRANUKA_BASE.SUN_SWORD),
+    sword_obsidian: base(FRANUKA_BASE.FIRE_SWORD),
+    sword_astral: base(FRANUKA_BASE.CRYSTAL_SWORD),
+    bow: base(FRANUKA_BASE.IRON_BOW),
+    fire_rod: base(FRANUKA_BASE.FIRE_ROD),
+    thunder_rod: base(FRANUKA_BASE.THUNDER_ROD),
+    ice_rod: base(FRANUKA_BASE.ICE_ROD),
+    necro_rod: base(FRANUKA_BASE.WOOD_STAFF),
+    armor_leather: base(FRANUKA_BASE.LEATHER_ARMOR),
+    armor_iron: base(FRANUKA_BASE.IRON_ARMOR),
+    armor_frost: base(FRANUKA_BASE.FROST_ROBE),
+    armor_obsidian: base(FRANUKA_BASE.OBSIDIAN_ROBE),
+    ring_copper: base(FRANUKA_BASE.RUBY_RING),
+    charm_miner: base(FRANUKA_BASE.AMBER_RING),
+    amulet_dragon: base(FRANUKA_BASE.SAPPHIRE_AMULET),
+    potion_red: base(FRANUKA_BASE.RED_POTION),
+    potion_blue: base(FRANUKA_BASE.BLUE_POTION),
+    berries: base(FRANUKA_BASE.BERRIES),
+    carrot: base(FRANUKA_BASE.CARROT),
+    sunflower: base(FRANUKA_BASE.SUNFLOWER),
+    meat: base(FRANUKA_BASE.RAW_MEAT),
+    cooked_meat: base(FRANUKA_BASE.COOKED_MEAT),
+    amber: base(FRANUKA_BASE.AMBER_GEM),
+    fish: fish(FRANUKA_FISHING.BLUE_FISH),
+    cooked_fish: fish(FRANUKA_FISHING.COOKED_FISH),
+    dune_catfish: fish(FRANUKA_FISHING.DUNE_CATFISH),
+    ghost_eel: fish(FRANUKA_FISHING.GHOST_EEL),
+    frost_salmon: fish(FRANUKA_FISHING.FROST_SALMON),
+    ember_koi: fish(FRANUKA_FISHING.EMBER_KOI),
+    iron_ingot: base(FRANUKA_BASE.IRON_INGOT),
+    gold_ingot: base(FRANUKA_BASE.GOLD_INGOT),
+  };
+
+  // Dedicated HUD chrome icons (hud_icons/*)
+  const hudIconMap = {
+    menu: base(FRANUKA_BASE.BACKPACK),
+    save: base(FRANUKA_BASE.SAVE_FLOPPY),
+    music_on: base(FRANUKA_BASE.MUSIC_ON),
+    music_off: base(FRANUKA_BASE.MUSIC_OFF),
+    sfx_on: base(FRANUKA_BASE.SPEAKER_ON),
+    sfx_off: base(FRANUKA_BASE.SPEAKER_MUTE),
+    heart: base(FRANUKA_BASE.HEART_FULL),
+    energy: base(FRANUKA_BASE.ENERGY_WING),
+    xp: base(FRANUKA_BASE.STAR_XP),
+    quest: base(FRANUKA_BASE.QUEST_SCROLL),
+    craft: base(FRANUKA_BASE.GEAR_COG),
+    skills: base(FRANUKA_BASE.TOME),
+    map: base(FRANUKA_BASE.MAP),
+    compass: base(FRANUKA_BASE.COMPASS),
+    dash: base(FRANUKA_BASE.SPRINT_BOOT),
+    check: base(FRANUKA_BASE.CHECKMARK),
+    close: base(FRANUKA_BASE.CLOSE_X),
+    clock: base(FRANUKA_BASE.CLOCK),
+    paw: base(FRANUKA_BASE.PAW),
+    sword: base(FRANUKA_BASE.IRON_SWORD),
+    wood: base(FRANUKA_BASE.WOOD_LOG),
+    stone: base(FRANUKA_BASE.STONES),
+    gem: base(FRANUKA_BASE.DIAMOND_GEM),
+  };
+
+  const writeEntries = (prefix, map, addToManifest) => {
+    for (const [key, entryName] of Object.entries(map)) {
+      const entry = zip.getEntry(entryName);
+      if (!entry) continue;
+      const data = entry.getData();
+      const relOut = `${prefix}/${key}.png`;
+      const dest = path.join(OUT_DIR, relOut);
+      ensureDir(path.dirname(dest));
+      fs.writeFileSync(dest, data);
+      if (addToManifest) {
+        const { width, height } = readPngDimensions(data);
+        manifest.images[`${prefix}/${key}`] = {
+          path: `assets/${relOut}`,
+          width,
+          height,
+        };
+      }
+    }
+  };
+
+  writeEntries('ui_icons', uiIconMap, true);
+  writeEntries('hud_icons', hudIconMap, false);
 }
 
 main();

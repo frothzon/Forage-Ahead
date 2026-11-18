@@ -1,13 +1,54 @@
 import Phaser from 'phaser';
-import { ITEMS } from '../data/items';
+import { ITEMS, type ItemRarity } from '../data/items';
 import { gameState } from '../core/GameState';
 import { SFX } from '../core/SoundFX';
+
+const LOOT_AURA_FRAG = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+varying vec2 outTexCoord;
+uniform float uTime;
+uniform vec3 uColor;
+uniform float uStrength;
+uniform float uBeam;
+
+void main() {
+  vec2 uv = outTexCoord;
+  // Item sits near bottom-center (0.5, 0.86)
+  vec2 d = vec2((uv.x - 0.5) * 1.1, (uv.y - 0.86) * 2.6);
+  float dist = length(d);
+  float pulse = 0.85 + 0.15 * sin(uTime * 3.4);
+  float radial = clamp(1.0 - dist * 2.1, 0.0, 1.0);
+  radial = radial * radial * uStrength * pulse;
+
+  float beam = 0.0;
+  if (uBeam > 0.5 && uv.y <= 0.88) {
+    float dx = abs(uv.x - 0.5);
+    float core = clamp(1.0 - dx * 12.0, 0.0, 1.0);
+    core = core * core;
+    float halo = clamp(1.0 - dx * 4.2, 0.0, 1.0);
+    halo = halo * halo * 0.55;
+    float heightFade = smoothstep(0.0, 0.72, uv.y) * smoothstep(0.92, 0.78, uv.y);
+    float shimmer = 0.82 + 0.18 * sin(uv.y * 22.0 + uTime * 4.8);
+    beam = (core * 0.95 + halo) * heightFade * shimmer * uStrength;
+  }
+
+  float alpha = clamp(radial * 0.75 + beam * 0.88, 0.0, 0.95);
+  vec3 col = mix(uColor, vec3(1.0, 0.98, 0.86), clamp(beam * 0.55, 0.0, 0.7));
+  gl_FragColor = vec4(col * alpha, alpha);
+}
+`;
 
 export class LootDrop extends Phaser.GameObjects.Container {
   public readonly itemId: string;
   public readonly isCoin: boolean;
   public qty: number;
   private iconObj: Phaser.GameObjects.Image | Phaser.GameObjects.Arc;
+  private auraShader?: Phaser.GameObjects.Shader;
   private badgeText?: Phaser.GameObjects.Text;
   private ageMs = 0;
   private vy = -38;
@@ -29,10 +70,33 @@ export class LootDrop extends Phaser.GameObjects.Container {
     this.isCoin = isCoin;
     this.vx = Phaser.Math.Between(-28, 28);
 
+    const def = ITEMS[itemId];
+    const rarity: ItemRarity = isCoin ? 'common' : (def?.rarity ?? 'common');
+    const isLegendary = rarity === 'epic' || rarity === 'relic';
+    const isRare = rarity === 'rare';
+
+    // Shader-driven glow (faint white, golden for rare, Diablo light-pillar for epic/relic)
+    if (scene.game.renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer) {
+      const col = isLegendary
+        ? { x: 1.0, y: 0.86, z: 0.30 }
+        : isRare
+          ? { x: 1.0, y: 0.80, z: 0.22 }
+          : { x: 0.94, y: 0.97, z: 1.0 };
+      const baseShader = new Phaser.Display.BaseShader('loot_aura', LOOT_AURA_FRAG, undefined, {
+        uTime: { type: '1f', value: Math.random() * 6.28 },
+        uColor: { type: '3f', value: col },
+        uStrength: { type: '1f', value: isLegendary ? 1.0 : isRare ? 0.72 : 0.36 },
+        uBeam: { type: '1f', value: isLegendary ? 1.0 : 0.0 },
+      });
+      this.auraShader = scene.add
+        .shader(baseShader, 0, 4, 24, 64)
+        .setOrigin(0.5, 0.88);
+      this.add(this.auraShader);
+    }
+
     const shadow = scene.add.ellipse(0, 4, 8, 4, 0x000000, 0.35);
     this.add(shadow);
 
-    const def = ITEMS[itemId];
     const texKey = isCoin ? 'ui_icons/coin' : def?.iconKey;
     if (texKey && scene.textures.exists(texKey)) {
       this.iconObj = scene.add.image(0, -1, texKey).setScale(0.75);
@@ -85,6 +149,9 @@ export class LootDrop extends Phaser.GameObjects.Container {
   public updateDrop(dtMs: number, playerX: number, playerY: number): boolean {
     if (this.collected) return true;
     this.ageMs += dtMs;
+    if (this.auraShader) {
+      this.auraShader.setUniform('uTime.value', (this.scene.time.now * 0.001) % 628.3185);
+    }
     const dt = dtMs / 1000;
 
     // Short pop-out bounce on spawn

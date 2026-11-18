@@ -71,15 +71,15 @@ export class LightingSystem {
     const h = Math.max(200, scene.scale.height);
 
     this.lightmap = scene.add
-      .renderTexture(0, 0, w, h)
-      .setOrigin(0, 0)
+      .renderTexture(w / 2, h / 2, w, h)
+      .setOrigin(0.5, 0.5)
       .setScrollFactor(0)
       .setDepth(8900)
       .setBlendMode(Phaser.BlendModes.MULTIPLY);
 
     this.beamMap = scene.add
-      .renderTexture(0, 0, w, h)
-      .setOrigin(0, 0)
+      .renderTexture(w / 2, h / 2, w, h)
+      .setOrigin(0.5, 0.5)
       .setScrollFactor(0)
       .setDepth(8901)
       .setBlendMode(Phaser.BlendModes.ADD);
@@ -229,6 +229,9 @@ export class LightingSystem {
       this.lightmap.resize(vw, vh);
       this.beamMap.resize(vw, vh);
     }
+    // Keep lightmap/beamMap 1:1 with screen pixels regardless of camera zoom
+    this.lightmap.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
+    this.beamMap.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
 
     const base = this.getAmbientColor();
     let ambient = base.color;
