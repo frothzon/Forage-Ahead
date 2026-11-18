@@ -1,4 +1,6 @@
 import { SPROUT_CROPS, type SproutCropDef } from './sproutCrops';
+import { ITEMS } from './items';
+import { gearCoinCost } from './economy';
 
 export type CraftingStation =
   | 'hand'
@@ -62,9 +64,89 @@ export interface RecipeDef {
   blueprintHint?: string;
   iconKey?: string;
   craftTimeMs?: number;
+  coinCost?: number;
 }
 
-export const RECIPES: RecipeDef[] = [
+const TILE_OR_CROP_BUILD_IDS = new Set([
+  'build_bridge',
+  'build_road_stone',
+  'build_fence',
+  'build_fence_gate',
+  'build_house_floor',
+  'build_house_wall',
+  'build_house_door',
+  'build_furniture_bed',
+  'build_furniture_lamp',
+  'build_furniture_table',
+  'build_furniture_rug',
+  'build_crop_berries',
+  'build_crop_carrot',
+  'build_crop_sunflower',
+]);
+
+const VOID_ALTAR_SINKS: Record<string, Ingredient[]> = {
+  craft_sword_astral: [
+    { itemId: 'gold_ingot', count: 120 },
+    { itemId: 'crystal', count: 150 },
+  ],
+  craft_pickaxe_celestial: [
+    { itemId: 'crystal', count: 250 },
+    { itemId: 'obsidian', count: 200 },
+  ],
+  craft_sword_wyrmheart: [
+    { itemId: 'gold_ingot', count: 350 },
+    { itemId: 'obsidian', count: 300 },
+  ],
+  craft_armor_voidwalker: [
+    { itemId: 'crystal', count: 350 },
+    { itemId: 'obsidian', count: 300 },
+  ],
+  craft_trinket_chrono: [
+    { itemId: 'gold_ingot', count: 200 },
+    { itemId: 'crystal', count: 200 },
+  ],
+  craft_trinket_abyssal: [
+    { itemId: 'obsidian', count: 250 },
+    { itemId: 'gold_ingot', count: 250 },
+  ],
+  craft_gadget_meteor: [
+    { itemId: 'obsidian', count: 180 },
+    { itemId: 'crystal', count: 180 },
+  ],
+};
+
+function getRecipeMaterialMultiplier(r: RecipeDef): number {
+  if (r.id === 'build_frost_kiln' || r.station === 'frost_kiln') return 8;
+  if (r.id === 'build_infernal_forge' || r.station === 'infernal_forge') return 12;
+  if (r.id === 'build_void_altar') return 10;
+  if (r.station === 'void_altar') return 2;
+  if (TILE_OR_CROP_BUILD_IDS.has(r.id) || r.id.startsWith('build_crop_')) return 2;
+  return 5;
+}
+
+function scaleRecipe(r: RecipeDef): RecipeDef {
+  const mult = getRecipeMaterialMultiplier(r);
+  const scaledIngredients = r.ingredients.map((ing) => ({
+    itemId: ing.itemId,
+    count: Math.max(1, Math.round(ing.count * mult)),
+  }));
+  const extraSinks = VOID_ALTAR_SINKS[r.id];
+  if (extraSinks) {
+    scaledIngredients.push(...extraSinks);
+  }
+  const outDef = r.outputItemId ? ITEMS[r.outputItemId] : undefined;
+  const coinCost =
+    outDef && outDef.equipSlot && (outDef.requiredLevel ?? 1) >= 2
+      ? gearCoinCost(outDef.requiredLevel ?? 1)
+      : r.coinCost;
+  return {
+    ...r,
+    ingredients: scaledIngredients,
+    ...(coinCost ? { coinCost } : {}),
+  };
+}
+
+const BASE_RECIPES: RecipeDef[] = [
   // BUILDABLE STRUCTURES
   {
     id: 'build_bridge',
@@ -1012,3 +1094,5 @@ export const RECIPES: RecipeDef[] = [
     craftTimeMs: 7000,
   },
 ];
+
+export const RECIPES: RecipeDef[] = BASE_RECIPES.map(scaleRecipe);

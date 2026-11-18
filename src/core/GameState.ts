@@ -1,4 +1,5 @@
 import { ITEMS, type EquipSlot, type GearStats, type ItemRarity } from '../data/items';
+import { gearCoinCost, scaledIslandCost } from '../data/economy';
 import { ISLANDS, STORY_CHAPTERS, getBiomeChapter, type DungeonId } from '../data/islands';
 import { getQuestById, getQuestsForNpc, type QuestDef, type QuestObjective } from '../data/quests';
 import { RECIPES, type RecipeDef, type StructureType } from '../data/recipes';
@@ -406,7 +407,8 @@ export class GameState {
     }
     const existing = slot.instanceId ? this.gearInstances[slot.instanceId] : undefined;
     const refCount = existing?.reforgeCount ?? 0;
-    const coinCost = 35 + refCount * 20;
+    const baseReforge = (def.requiredLevel ?? 1) >= 2 ? Math.round(gearCoinCost(def.requiredLevel ?? 1) * 0.5) : 35;
+    const coinCost = baseReforge + refCount * 20;
     if (this._coins < coinCost) return { ok: false, reason: `Need ${coinCost}g to reforge.` };
     if ((this.inventory.iron_ingot ?? 0) < 2) return { ok: false, reason: 'Need 2 Iron Ingots.' };
 
@@ -787,6 +789,7 @@ export class GameState {
 
   public canCraft(recipe: RecipeDef): boolean {
     if (!this.isRecipeUnlocked(recipe)) return false;
+    if ((recipe.coinCost ?? 0) > this._coins) return false;
     const isBuild = recipe.station === 'build';
     return recipe.ingredients.every(
       (ing) => (this.inventory[ing.itemId] ?? 0) >= this.getStructureCostCount(ing.itemId, ing.count, isBuild),
@@ -813,6 +816,9 @@ export class GameState {
 
   public consumeIngredients(recipe: RecipeDef): boolean {
     if (!this.canCraft(recipe)) return false;
+    if (recipe.coinCost) {
+      this.coins = this._coins - recipe.coinCost;
+    }
     const isBuild = recipe.station === 'build';
     for (const ing of recipe.ingredients) {
       const needed = this.getStructureCostCount(ing.itemId, ing.count, isBuild);
@@ -822,6 +828,9 @@ export class GameState {
   }
 
   public refundIngredients(recipe: RecipeDef): void {
+    if (recipe.coinCost) {
+      this.coins = this._coins + recipe.coinCost;
+    }
     const isBuild = recipe.station === 'build';
     for (const ing of recipe.ingredients) {
       const count = this.getStructureCostCount(ing.itemId, ing.count, isBuild);
@@ -830,16 +839,19 @@ export class GameState {
   }
 
   public canUnlockSkill(skillId: string): boolean {
-    if (this.skillPoints <= 0 || this.unlockedSkills.has(skillId)) return false;
+    if (this.unlockedSkills.has(skillId)) return false;
     const def = SKILLS.find((s) => s.id === skillId);
     if (!def) return false;
+    if (this.skillPoints < (def.spCost ?? 1)) return false;
+    if (this.level < (def.minLevel ?? 1)) return false;
     if (def.requires && !this.unlockedSkills.has(def.requires)) return false;
     return true;
   }
 
   public unlockSkill(skillId: string): boolean {
     if (!this.canUnlockSkill(skillId)) return false;
-    this.skillPoints -= 1;
+    const def = SKILLS.find((s) => s.id === skillId)!;
+    this.skillPoints -= def.spCost ?? 1;
     this.unlockedSkills.add(skillId);
     this.hp = Math.min(this.getMaxHp(), this.hp + 15);
     this.energy = this.getMaxEnergy();
@@ -847,11 +859,27 @@ export class GameState {
     return true;
   }
 
+  public getBeaconScale(): number {
+    if (this.hasSkill('economy_beacon_4')) return 10;
+    if (this.hasSkill('economy_beacon_3')) return 7;
+    if (this.hasSkill('economy_beacon_2')) return 4.5;
+    if (this.hasSkill('economy_beacon_1')) return 2.5;
+    return 1;
+  }
+
+  public getLighthouseRadius(): number {
+    if (this.hasSkill('economy_beacon_4')) return 160;
+    if (this.hasSkill('economy_beacon_3')) return 144;
+    if (this.hasSkill('economy_beacon_2')) return 128;
+    if (this.hasSkill('economy_beacon_1')) return 112;
+    return 96;
+  }
+
   public getIslandCost(gx: number, gy: number): number {
     const spec = ISLANDS.find((i) => i.gx === gx && i.gy === gy);
     if (!spec) return 9999;
     const ownedCount = Math.max(0, this.ownedIslands.size - 1);
-    let cost = spec.baseCost + ownedCount * 15;
+    let cost = scaledIslandCost(spec.baseCost, ownedCount);
     if (this.hasSkill('economy_land_baron')) {
       cost = Math.max(10, Math.round(cost * 0.75));
     }

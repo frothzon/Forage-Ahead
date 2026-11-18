@@ -201,8 +201,10 @@ export class HudController {
         const kx = Math.cos(ang) * clamped;
         const ky = Math.sin(ang) * clamped;
         knob.style.transform = `translate(${kx}px, ${ky}px)`;
-        if (dist > 6) {
-          this.touchMoveVec = { x: kx / maxR, y: ky / maxR };
+        const normDist = clamped / maxR;
+        if (normDist >= 0.15) {
+          const mag = (normDist - 0.15) / 0.85;
+          this.touchMoveVec = { x: Math.cos(ang) * mag, y: Math.sin(ang) * mag };
         } else {
           this.touchMoveVec = { x: 0, y: 0 };
         }
@@ -253,7 +255,6 @@ export class HudController {
       });
     };
     bindBtn('#hud-touch-act', this.callbacks.onTouchAction);
-    bindBtn('#hud-touch-use', this.callbacks.onTouchInteract);
     bindBtn('#hud-touch-dash', this.callbacks.onTouchDash);
   }
 
@@ -743,7 +744,7 @@ export class HudController {
       }
 
       .nav-short { display: none; }
-      @media (max-width: 1120px) {
+      @media (max-width: 1120px), (max-height: 540px) {
         .nav-full, .nav-key { display: none; }
         .nav-short { display: inline; }
         #hud-vitals-panel { padding: 4px 6px !important; gap: 6px !important; max-width: 245px; }
@@ -760,9 +761,14 @@ export class HudController {
         .touch-joy-knob { left: 28px; top: 28px; width: 36px; height: 36px; }
         .hotbar-dock { padding: 4px; gap: 3px; }
         .hotbar-slot { width: 38px; height: 38px; }
-        .ledger-window { width: 98vw; height: 92vh; }
-        .ledger-body { -webkit-overflow-scrolling: touch; padding: 10px; }
-        .diablo-grid { grid-template-columns: 185px 1fr !important; }
+        .modal-box { width: 98vw; max-height: 94vh; }
+        .ledger-window { width: 98vw; height: 94vh; max-height: 94vh; }
+        .ledger-tabs { padding: 4px 8px; gap: 4px; flex-wrap: nowrap; overflow-x: auto; }
+        .ledger-tabs .hud-btn { padding: 4px 7px; font-size: 11px; white-space: nowrap; }
+        .ledger-body { -webkit-overflow-scrolling: touch; padding: 8px; }
+        .diablo-grid { grid-template-columns: 185px 1fr !important; gap: 8px !important; }
+        .inv-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; gap: 4px !important; }
+        .inv-slot { width: 100%; height: 38px; }
       }
     `;
     document.head.appendChild(style);
@@ -770,6 +776,10 @@ export class HudController {
 
   public getTouchMoveVector(): { x: number; y: number } {
     return this.touchMoveVec;
+  }
+
+  public isTouchEnabled(): boolean {
+    return this.touchEnabled;
   }
 
   public render(): void {
@@ -905,7 +915,6 @@ export class HudController {
           </div>
           <div class="touch-actions-wrap hud-interactive">
             <button id="hud-touch-dash" class="touch-act-btn">DASH</button>
-            <button id="hud-touch-use" class="touch-act-btn">USE</button>
             <button id="hud-touch-act" class="touch-act-btn primary">ACT</button>
           </div>
         </div>
@@ -1527,13 +1536,17 @@ export class HudController {
             const hasMats = gameState.canCraft(r);
             const canAction = isQueuedStation ? Boolean(selectedStation) && inRange && !queueFull && hasMats : hasMats;
             const isBuild = r.station === 'build';
-            const ings = r.ingredients
+            const ingsList = r.ingredients
               .map((ing) => {
                 const req = gameState.getStructureCostCount(ing.itemId, ing.count, isBuild);
                 const have = gameState.inventory[ing.itemId] ?? 0;
                 return `<span style="color:${have >= req ? '#8ef5a7' : '#ff8a93'};">${ITEMS[ing.itemId]?.name ?? ing.itemId}: ${have}/${req}</span>`;
-              })
-              .join(' • ');
+              });
+            if (r.coinCost) {
+              const haveCoins = gameState.coins;
+              ingsList.push(`<span style="color:${haveCoins >= r.coinCost ? '#ffd95a' : '#ff8a93'};">Coins: ${haveCoins.toLocaleString()}/${r.coinCost.toLocaleString()}g</span>`);
+            }
+            const ings = ingsList.join(' • ');
             const skillReqLabel = lockedBySkill
               ? `<div style="font-size:10px; color:#d09cff;">Requires Skill: ${SKILLS.find((s) => s.id === r.requiresSkill)?.name}</div>`
               : '';
@@ -1598,7 +1611,7 @@ export class HudController {
                         ${
                           unlocked
                             ? `<span style="font-size:10px; color:#8ef5a7; font-weight:700;">UNLOCKED</span>`
-                            : `<button class="hud-btn ${can ? 'gold' : ''}" ${can ? '' : 'disabled'} data-skill="${s.id}" style="width:100%; padding:3px;">Unlock (1 SP)</button>`
+                            : `<button class="hud-btn ${can ? 'gold' : ''}" ${can ? '' : 'disabled'} data-skill="${s.id}" style="width:100%; padding:3px;">Unlock (${s.spCost ?? 1} SP${s.minLevel ? ` • Lv.${s.minLevel}+` : ''})</button>`
                         }
                       </div>
                     `;
@@ -1936,9 +1949,138 @@ export class HudController {
       };
     });
 
-    // Inventory Bag Slot Clicks & Drag/Drop
+    const applyDropOnElement = (target: HTMLElement | null) => {
+      if (!target || !this.dragPayload) return false;
+      const bagTarget = target.closest<HTMLElement>('[data-bag-idx]');
+      if (bagTarget) {
+        const idx = Number(bagTarget.dataset.bagIdx);
+        if (this.dragPayload.source === 'bag') {
+          gameState.moveOrSwapBagSlot(this.dragPayload.bagIdx, idx);
+          const landed = gameState.bagSlots[idx];
+          this.selectedInspect = landed ? { kind: 'bag', bagIdx: idx, itemId: landed.itemId } : null;
+        } else if (this.dragPayload.source === 'equip') {
+          gameState.unequipToBag(this.dragPayload.slot, idx);
+        }
+        return true;
+      }
+      const equipTarget = target.closest<HTMLElement>('[data-equip-slot]');
+      if (equipTarget && this.dragPayload.source === 'bag') {
+        const eqSlot = equipTarget.dataset.equipSlot as EquipmentSlotKey;
+        if (gameState.equipFromBag(this.dragPayload.bagIdx, eqSlot)) {
+          SFX.playCraft();
+          this.selectedInspect = { kind: 'equip', slot: eqSlot, itemId: this.dragPayload.itemId };
+        } else {
+          this.showToast(`That item cannot go in ${EQUIP_SLOT_LABELS[eqSlot]}!`);
+        }
+        return true;
+      }
+      const hbTarget = target.closest<HTMLElement>('[data-hotbar-idx]');
+      if (hbTarget) {
+        const hbIdx = Number(hbTarget.dataset.hotbarIdx);
+        gameState.assignHotbarSlot(hbIdx, this.dragPayload.itemId);
+        this.showToast(`Assigned ${ITEMS[this.dragPayload.itemId]?.name ?? this.dragPayload.itemId} to slot ${hbIdx + 1}`);
+        return true;
+      }
+      return false;
+    };
+
+    const bindTouchLongPressDrag = (
+      el: HTMLElement,
+      getPayload: () => typeof this.dragPayload,
+    ) => {
+      let holdTimer: number | null = null;
+      let startX = 0;
+      let startY = 0;
+      let dragging = false;
+      let ghost: HTMLDivElement | null = null;
+      let lastHovered: HTMLElement | null = null;
+
+      const cleanup = () => {
+        if (holdTimer !== null) {
+          window.clearTimeout(holdTimer);
+          holdTimer = null;
+        }
+        ghost?.remove();
+        ghost = null;
+        lastHovered?.classList.remove('drag-over');
+        lastHovered = null;
+        dragging = false;
+      };
+
+      el.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        const payload = getPayload();
+        if (!payload) return;
+        const t = e.touches[0];
+        startX = t.clientX;
+        startY = t.clientY;
+        holdTimer = window.setTimeout(() => {
+          holdTimer = null;
+          dragging = true;
+          this.dragPayload = payload;
+          const def = ITEMS[payload.itemId];
+          ghost = document.createElement('div');
+          ghost.style.cssText = 'position:fixed; z-index:9999; pointer-events:none; width:40px; height:40px; border:2px solid #ffe066; border-radius:6px; background:rgba(16,26,40,0.92); display:flex; align-items:center; justify-content:center; transform:translate(-50%,-50%); box-shadow:0 4px 12px rgba(0,0,0,0.6);';
+          if (def?.iconKey) {
+            ghost.innerHTML = `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:28px;height:28px;" />`;
+          }
+          ghost.style.left = `${startX}px`;
+          ghost.style.top = `${startY}px`;
+          document.body.appendChild(ghost);
+          this.showToast(`Dragging ${def?.name ?? 'item'} — release on target slot`);
+        }, 2000);
+      }, { passive: true });
+
+      el.addEventListener('touchmove', (e) => {
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        if (!dragging) {
+          if (holdTimer !== null && Math.hypot(t.clientX - startX, t.clientY - startY) > 12) {
+            cleanup();
+          }
+          return;
+        }
+        e.preventDefault();
+        if (ghost) {
+          ghost.style.left = `${t.clientX}px`;
+          ghost.style.top = `${t.clientY}px`;
+        }
+        const under = document.elementFromPoint(t.clientX, t.clientY) as HTMLElement | null;
+        const dropSlot = under?.closest<HTMLElement>('[data-bag-idx],[data-equip-slot],[data-hotbar-idx]') ?? null;
+        if (lastHovered && lastHovered !== dropSlot) {
+          lastHovered.classList.remove('drag-over');
+        }
+        lastHovered = dropSlot;
+        lastHovered?.classList.add('drag-over');
+      }, { passive: false });
+
+      const onEnd = (e: TouchEvent) => {
+        if (!dragging) {
+          cleanup();
+          return;
+        }
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        const under = document.elementFromPoint(t.clientX, t.clientY) as HTMLElement | null;
+        applyDropOnElement(under);
+        this.dragPayload = null;
+        cleanup();
+        this.render();
+      };
+      el.addEventListener('touchend', onEnd);
+      el.addEventListener('touchcancel', () => {
+        this.dragPayload = null;
+        cleanup();
+      });
+    };
+
+    // Inventory Bag Slot Clicks & Drag/Drop (Mouse + 2s Mobile Long-Press)
     this.modalLayer.querySelectorAll<HTMLElement>('[data-bag-idx]').forEach((el) => {
       const idx = Number(el.dataset.bagIdx);
+      bindTouchLongPressDrag(el, () => {
+        const slot = gameState.bagSlots[idx];
+        return slot ? { source: 'bag', bagIdx: idx, itemId: slot.itemId } : null;
+      });
       el.onclick = () => {
         if (this.moveSourceBagIdx !== null) {
           const src = this.moveSourceBagIdx;
@@ -1990,9 +2132,13 @@ export class HudController {
       };
     });
 
-    // Equipment Slot Clicks & Drag/Drop
+    // Equipment Slot Clicks & Drag/Drop (Mouse + 2s Mobile Long-Press)
     this.modalLayer.querySelectorAll<HTMLElement>('[data-equip-slot]').forEach((el) => {
       const eqSlot = el.dataset.equipSlot as EquipmentSlotKey;
+      bindTouchLongPressDrag(el, () => {
+        const id = gameState.equipment[eqSlot];
+        return id ? { source: 'equip', slot: eqSlot, itemId: id } : null;
+      });
       el.onclick = () => {
         const id = gameState.equipment[eqSlot];
         this.selectedInspect = id ? { kind: 'equip', slot: eqSlot, itemId: id } : null;

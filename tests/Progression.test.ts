@@ -3,6 +3,7 @@ import { GameState, type InventoryFeedEvent } from '../src/core/GameState';
 import { RECIPES } from '../src/data/recipes';
 import { MONSTERS } from '../src/data/monsters';
 import { SKILLS } from '../src/data/skills';
+import { lighthouseBonus, getLighthouseMultiplier, gearCoinCost, scaledIslandCost } from '../src/data/economy';
 
 describe('GameState progression, crafting & Diablo inventory', () => {
   it('levels up and awards skill points cleanly', () => {
@@ -39,7 +40,7 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     state.unlockSkill('industry_smelt');
     state.unlockSkill('industry_masonry');
 
-    state.inventory = { stone: 7, coal: 2 };
+    state.inventory = { stone: 37, coal: 10 };
     expect(state.canCraft(furnace)).toBe(true);
     expect(state.craftRecipe('build_furnace')).toBe(true);
     expect(state.inventory.stone ?? 0).toBe(0);
@@ -105,6 +106,7 @@ describe('GameState progression, crafting & Diablo inventory', () => {
   it('supports crafting queue ingredient consumption, Bellows Mastery speed, and full refund on cancel', () => {
     const state = new GameState();
     state.reset('Beastmaster');
+    // 5x coal recipe: 20 wood, 2500ms -> 1786ms with Bellows Mastery
     state.addItem('wood', 14); // total 20 wood
     const coalRecipe = RECIPES.find((r) => r.id === 'smelt_coal')!;
     expect(coalRecipe.craftTimeMs).toBe(2500);
@@ -117,7 +119,7 @@ describe('GameState progression, crafting & Diablo inventory', () => {
 
     // Consume & refund
     expect(state.consumeIngredients(coalRecipe)).toBe(true);
-    expect(state.inventory.wood).toBe(16);
+    expect(state.inventory.wood ?? 0).toBe(0);
     state.refundIngredients(coalRecipe);
     expect(state.inventory.wood).toBe(20);
   });
@@ -137,7 +139,7 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     expect(state.skillPoints).toBe(5);
 
     state.debugUnlockAllSkills();
-    expect(state.unlockedSkills.size).toBe(32);
+    expect(state.unlockedSkills.size).toBe(36);
 
     state.debugUnlockAllRelics();
     expect(state.isGearOwned('fire_rod')).toBe(true);
@@ -183,8 +185,8 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     const state = new GameState();
     state.reset('Gladiator');
     const goldSmelt = RECIPES.find((r) => r.id === 'smelt_gold')!;
-    state.addItem('gold_ore', 4);
-    state.addItem('coal', 2);
+    state.addItem('gold_ore', 10);
+    state.addItem('coal', 5);
 
     expect(state.isRecipeUnlocked(goldSmelt)).toBe(false);
     expect(state.canCraft(goldSmelt)).toBe(false);
@@ -292,7 +294,7 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     expect(Object.keys(MONSTERS).length).toBe(55);
     expect(MONSTERS['Ancient Black Dragon'].level).toBe(60);
     expect(MONSTERS['Oni'].level).toBe(30);
-    expect(SKILLS.length).toBe(32);
+    expect(SKILLS.length).toBe(36);
 
     const wyrmheartRecipe = RECIPES.find((r) => r.id === 'craft_sword_wyrmheart');
     expect(wyrmheartRecipe?.station).toBe('void_altar');
@@ -349,5 +351,37 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     expect(loaded.load()).toBe(true);
     expect(loaded.voidSpireHighestFloor).toBe(15);
     expect(loaded.finalBossDefeated).toBe(true);
+  });
+
+  it('enforces diminishing lighthouse math, Beacon T9-T12 10x scaling, and exponential coin curves', () => {
+    expect(lighthouseBonus(0)).toBe(0);
+    expect(lighthouseBonus(1)).toBeCloseTo(0.5, 4);
+    expect(lighthouseBonus(2)).toBeCloseTo(0.75, 4);
+    expect(lighthouseBonus(60)).toBeCloseTo(1.1921, 3);
+    expect(getLighthouseMultiplier(60, 10)).toBeCloseTo(12.921, 2);
+
+    expect(gearCoinCost(1)).toBe(30);
+    expect(gearCoinCost(60)).toBe(38250);
+    expect(scaledIslandCost(40, 0)).toBe(40);
+    expect(scaledIslandCost(40, 10)).toBe(210);
+
+    // Beacon skills require minLevel + spCost and scale Beacon multiplier
+    const state = new GameState();
+    state.reset('Sorcerer');
+    state.debugUnlockAllSkills();
+    expect(state.getBeaconScale()).toBe(10);
+    expect(state.getLighthouseRadius()).toBe(160);
+
+    // Gear recipe coinCost deduction & refund
+    const vest = RECIPES.find((r) => r.id === 'craft_armor_leather')!;
+    expect(vest.coinCost).toBe(30);
+    state.inventory = { wood: 30, slime_gel: 20, berries: 20 };
+    state.coins = 20;
+    expect(state.canCraft(vest)).toBe(false);
+    state.coins = 50;
+    expect(state.consumeIngredients(vest)).toBe(true);
+    expect(state.coins).toBe(20);
+    state.refundIngredients(vest);
+    expect(state.coins).toBe(50);
   });
 });

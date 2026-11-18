@@ -211,9 +211,10 @@ export class Player extends Phaser.GameObjects.Container {
       }
     } else if (inputDir.lengthSq() > 0.01) {
       const spd = gameState.getMoveSpeed() * speedBonus * (this.isActionLocked ? 0.45 : 1);
+      const inputMag = Math.min(1, inputDir.length());
       const norm = inputDir.clone().normalize();
-      vx = norm.x * spd;
-      vy = norm.y * spd;
+      vx = norm.x * spd * inputMag;
+      vy = norm.y * spd * inputMag;
       if (!this.isActionLocked) {
         this.facing = vectorToDirection(norm.x, norm.y, this.facing);
         this.playHeroAnim('walk');

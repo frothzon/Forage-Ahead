@@ -4,9 +4,11 @@ export interface SkillDef {
   id: string;
   name: string;
   pillar: SkillPillar;
-  tier: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+  tier: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
   description: string;
   requires?: string;
+  spCost?: number;
+  minLevel?: number;
 }
 
 export const PILLAR_META: Record<SkillPillar, { label: string; color: string; accent: string }> = {
@@ -210,6 +212,46 @@ export const SKILLS: SkillDef[] = [
     tier: 8,
     requires: 'economy_imperial',
     description: 'All coin drops are increased by +25%.',
+  },
+  {
+    id: 'economy_beacon_1',
+    name: 'Beacon Lens',
+    pillar: 'economy',
+    tier: 9,
+    requires: 'economy_midas',
+    minLevel: 25,
+    spCost: 2,
+    description: 'Lighthouse bonus scales 2.5x and beacon radius widens (+16px).',
+  },
+  {
+    id: 'economy_beacon_2',
+    name: 'Prism Array',
+    pillar: 'economy',
+    tier: 10,
+    requires: 'economy_beacon_1',
+    minLevel: 35,
+    spCost: 3,
+    description: 'Lighthouse bonus scales 4.5x and beacon radius widens (+32px).',
+  },
+  {
+    id: 'economy_beacon_3',
+    name: 'Tidal Resonance',
+    pillar: 'economy',
+    tier: 11,
+    requires: 'economy_beacon_2',
+    minLevel: 45,
+    spCost: 4,
+    description: 'Lighthouse bonus scales 7.0x and beacon radius widens (+48px).',
+  },
+  {
+    id: 'economy_beacon_4',
+    name: 'Eternal Flame',
+    pillar: 'economy',
+    tier: 12,
+    requires: 'economy_beacon_3',
+    minLevel: 55,
+    spCost: 5,
+    description: 'Lighthouse bonus scales 10.0x (up to +11.92x) and radius widens (+64px).',
   },
 
   // MAGIC & COMBAT

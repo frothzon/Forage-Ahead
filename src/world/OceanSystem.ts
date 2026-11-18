@@ -2,7 +2,11 @@ import Phaser from 'phaser';
 import type { WindState } from './WeatherSystem';
 
 const OCEAN_FRAG_SHADER = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 
 uniform vec2 resolution;
 uniform float uTime;
@@ -12,12 +16,6 @@ uniform vec2 uWindDir;
 uniform float uWindSpeed;
 uniform float uNightFactor;
 
-float hash21(vec2 p) {
-  p = fract(p * vec2(123.34, 456.21));
-  p += dot(p, p + 45.32);
-  return fract(p.x * p.y);
-}
-
 void main() {
   vec2 screenUv = vec2(gl_FragCoord.x / max(1.0, resolution.x), 1.0 - gl_FragCoord.y / max(1.0, resolution.y));
   vec2 worldPos = uCamPos + screenUv * uCamSize;
@@ -25,35 +23,30 @@ void main() {
   vec2 wDir = length(uWindDir) > 0.001 ? normalize(uWindDir) : vec2(1.0, 0.25);
   vec2 wPerp = vec2(-wDir.y, wDir.x);
 
-  // Align ocean swells directly with current wind vector
   float along = dot(worldPos, wDir);
   float across = dot(worldPos, wPerp);
-  float waveRate = 1.15 + uWindSpeed * 1.45;
+  float waveRate = 1.65 + uWindSpeed * 1.55;
 
-  float swell1 = sin(along * 0.145 - uTime * waveRate + sin(across * 0.065 + uTime * 0.7) * 1.15);
-  float swell2 = sin(along * 0.24 - across * 0.09 - uTime * (waveRate * 1.25));
+  float swell1 = sin(along * 0.14 - uTime * waveRate + sin(across * 0.065 + uTime * 0.9) * 1.15);
+  float swell2 = sin(along * 0.23 - across * 0.09 - uTime * (waveRate * 1.25));
   float waveBand = swell1 * 0.64 + swell2 * 0.36;
 
-  // Stylised animated caustics
-  vec2 cUv1 = worldPos * 0.088 + wDir * (uTime * 0.28) + vec2(sin(worldPos.y * 0.07 + uTime), cos(worldPos.x * 0.07 - uTime * 0.8)) * 0.35;
-  vec2 cUv2 = worldPos * 0.076 - wPerp * (uTime * 0.22) + vec2(cos(worldPos.y * 0.06 - uTime * 0.9), sin(worldPos.x * 0.06 + uTime)) * 0.35;
-  float cellA = abs(sin(cUv1.x) * cos(cUv1.y));
-  float cellB = abs(sin(cUv2.x + 1.2) * cos(cUv2.y - 0.8));
-  float caustic = pow(clamp(1.0 - min(cellA, cellB) * 1.45, 0.0, 1.0), 2.8);
+  // Fast stylized caustics (no expensive pow() on mobile GPUs)
+  vec2 cUv1 = worldPos * 0.088 + wDir * (uTime * 0.45);
+  vec2 cUv2 = worldPos * 0.074 - wPerp * (uTime * 0.35);
+  float cellA = abs(sin(cUv1.x + sin(cUv1.y * 0.8 + uTime)) * cos(cUv1.y));
+  float cellB = abs(sin(cUv2.x + 1.2) * cos(cUv2.y - 0.8 + cos(cUv2.x * 0.7 - uTime)));
+  float cRaw = clamp(1.0 - min(cellA, cellB) * 1.45, 0.0, 1.0);
+  float caustic = cRaw * cRaw * cRaw;
 
-  vec3 deepCol = vec3(0.16, 0.43, 0.58);
-  vec3 midCol  = vec3(0.22, 0.56, 0.72);
-  vec3 col = mix(deepCol, midCol, smoothstep(-0.6, 0.7, waveBand));
+  vec3 deepCol = vec3(0.12, 0.40, 0.60);
+  vec3 midCol  = vec3(0.22, 0.60, 0.80);
+  vec3 col = mix(deepCol, midCol, smoothstep(-0.55, 0.65, waveBand));
 
-  col += vec3(0.18, 0.42, 0.48) * caustic * (0.65 - uNightFactor * 0.28);
+  col += vec3(0.26, 0.54, 0.62) * caustic * (0.78 - uNightFactor * 0.30);
 
-  float crest = smoothstep(0.68, 0.94, waveBand + (uWindSpeed - 1.0) * 0.14);
-  col = mix(col, vec3(0.68, 0.91, 0.98), crest * 0.46);
-
-  float sparkleSeed = hash21(floor(worldPos * 0.48) + floor(uTime * 3.0) * 0.13);
-  float glint = step(0.91, sparkleSeed) * smoothstep(0.35, 0.85, waveBand);
-  vec3 glintCol = mix(vec3(0.95, 0.98, 1.0), vec3(0.75, 0.86, 1.0), uNightFactor);
-  col += glintCol * glint * 0.38;
+  float crest = smoothstep(0.62, 0.92, waveBand + (uWindSpeed - 1.0) * 0.14);
+  col = mix(col, vec3(0.74, 0.94, 1.0), crest * 0.56);
 
   gl_FragColor = vec4(col, 1.0);
 }
@@ -159,7 +152,7 @@ export class OceanSystem {
 
   public update(dtMs: number, wind: WindState, nightFactor: number): void {
     const dt = Math.min(0.05, dtMs / 1000);
-    const tSec = this.scene.time.now * 0.001;
+    const tSec = (this.scene.time.now * 0.001) % 628.3185;
     const cam = this.scene.cameras.main;
     const vw = Math.max(320, this.scene.scale.width);
     const vh = Math.max(200, this.scene.scale.height);

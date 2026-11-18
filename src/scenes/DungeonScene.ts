@@ -218,18 +218,11 @@ export class DungeonScene extends Phaser.Scene {
       },
       onTouchAction: () => {
         if (this.hud.isBlockingInput()) return;
+        if (this.tryInteractPortal()) return;
         const f = this.player.facing;
         const dx = f === 'left' ? -28 : f === 'right' ? 28 : 0;
         const dy = f === 'up' ? -28 : f === 'down' ? 28 : 0;
         this.handleAttack(this.player.x + dx, this.player.y + dy);
-      },
-      onTouchInteract: () => {
-        if (this.hud.isBlockingInput()) return;
-        if (Math.hypot(this.exitPortal.x - this.player.x, this.exitPortal.y - this.player.y) <= 28) {
-          this.hud.setBossBar(null);
-          this.hud.destroy();
-          this.scene.start('OverworldScene');
-        }
       },
       onTouchDash: () => {
         if (this.hud.isBlockingInput()) return;
@@ -455,7 +448,39 @@ export class DungeonScene extends Phaser.Scene {
     }
   }
 
+  private tryInteractPortal(): boolean {
+    if (this.nextFloorPortal && Math.hypot(this.nextFloorPortal.x - this.player.x, this.nextFloorPortal.y - this.player.y) <= 28) {
+      this.hud.setBossBar(null);
+      this.hud.destroy();
+      this.scene.restart({ dungeonId: 'void_spire', floor: this.voidFloor + 1 });
+      return true;
+    }
+    if (Math.hypot(this.exitPortal.x - this.player.x, this.exitPortal.y - this.player.y) <= 28) {
+      this.hud.setBossBar(null);
+      this.hud.destroy();
+      this.scene.start('OverworldScene');
+      return true;
+    }
+    if (
+      !this.treasureChest.opened &&
+      Math.hypot(this.treasureChest.x - this.player.x, this.treasureChest.y - this.player.y) <= 28
+    ) {
+      this.treasureChest.opened = true;
+      this.treasureChest.spr.play('prop_chest_big_open');
+      SFX.playChestOpen();
+      spawnSparklers(this, this.treasureChest.x, this.treasureChest.y - 4, 16);
+      this.spawnDrop(this.treasureChest.x, this.treasureChest.y + 10, 'coin', 45, true);
+      for (const item of this.cfg.chestLoot) {
+        this.spawnDrop(this.treasureChest.x, this.treasureChest.y + 10, item.itemId, item.count, false);
+      }
+      this.hud.showToast('Opened Dungeon Treasure Chest!');
+      return true;
+    }
+    return false;
+  }
+
   private handleAttack(wx: number, wy: number): void {
+    if (this.tryInteractPortal()) return;
     const itemId = gameState.hotbar[gameState.selectedHotbarIndex] || 'sword';
     const def = ITEMS[itemId];
     if (!def) return;
@@ -671,32 +696,7 @@ export class DungeonScene extends Phaser.Scene {
     const dt = Math.min(dtMs, 50);
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.E)) {
-      if (this.nextFloorPortal && Math.hypot(this.nextFloorPortal.x - this.player.x, this.nextFloorPortal.y - this.player.y) <= 28) {
-        this.hud.setBossBar(null);
-        this.hud.destroy();
-        this.scene.restart({ dungeonId: 'void_spire', floor: this.voidFloor + 1 });
-        return;
-      }
-      if (Math.hypot(this.exitPortal.x - this.player.x, this.exitPortal.y - this.player.y) <= 28) {
-        this.hud.setBossBar(null);
-        this.hud.destroy();
-        this.scene.start('OverworldScene');
-        return;
-      }
-      if (
-        !this.treasureChest.opened &&
-        Math.hypot(this.treasureChest.x - this.player.x, this.treasureChest.y - this.player.y) <= 28
-      ) {
-        this.treasureChest.opened = true;
-        this.treasureChest.spr.play('prop_chest_big_open');
-        SFX.playChestOpen();
-        spawnSparklers(this, this.treasureChest.x, this.treasureChest.y - 4, 16);
-        this.spawnDrop(this.treasureChest.x, this.treasureChest.y + 10, 'coin', 45, true);
-        for (const item of this.cfg.chestLoot) {
-          this.spawnDrop(this.treasureChest.x, this.treasureChest.y + 10, item.itemId, item.count, false);
-        }
-        this.hud.showToast('Opened Dungeon Treasure Chest!');
-      }
+      this.tryInteractPortal();
     }
 
     if (!this.hud.isBlockingInput()) {
