@@ -563,7 +563,7 @@ function extractFranukaIcons(manifest) {
     pickaxe: base(FRANUKA_BASE.WOOD_PICKAXE),
     pickaxe_iron: base(FRANUKA_BASE.IRON_PICKAXE),
     pickaxe_gold: base(FRANUKA_BASE.GOLD_PICKAXE),
-    pickaxe_crystal: base(FRANUKA_BASE.DIAMOND_GEM),
+    pickaxe_crystal: base(FRANUKA_BASE.GOLD_PICKAXE),
     shovel: base(FRANUKA_BASE.IRON_SHOVEL),
     hoe: base(FRANUKA_BASE.WOOD_HOE),
     watering_can: base(FRANUKA_BASE.IRON_WATERING_CAN),

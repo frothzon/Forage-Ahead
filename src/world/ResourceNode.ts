@@ -35,6 +35,8 @@ export class ResourceNode extends Phaser.GameObjects.Container {
   public readonly collisionRadius: number;
 
   private sprite: Phaser.GameObjects.Image;
+  private baseTint?: number;
+  private rustleCooldownMs = 0;
   private hpBarBg?: Phaser.GameObjects.Rectangle;
   private hpBarFill?: Phaser.GameObjects.Rectangle;
   private bobTween?: Phaser.Tweens.Tween;
@@ -63,6 +65,7 @@ export class ResourceNode extends Phaser.GameObjects.Container {
     this.solid = cfg.solid;
 
     this.sprite = scene.add.image(0, cfg.offsetY, cfg.textureKey).setOrigin(0.5, cfg.originY);
+    this.baseTint = cfg.tint;
     if (cfg.tint) this.sprite.setTint(cfg.tint);
     if (cfg.scale) this.sprite.setScale(cfg.scale);
     this.add(this.sprite);
@@ -274,6 +277,23 @@ export class ResourceNode extends Phaser.GameObjects.Container {
     }
   }
 
+  public rustle(nowMs: number): void {
+    if (!this.active || nowMs < this.rustleCooldownMs) return;
+    this.rustleCooldownMs = nowMs + 550;
+    this.scene.tweens.add({
+      targets: this.sprite,
+      scaleX: { from: 1.12, to: 1 },
+      scaleY: { from: 0.9, to: 1 },
+      angle: { from: -5, to: 5 },
+      duration: 180,
+      yoyo: true,
+      ease: 'Sine.InOut',
+      onComplete: () => {
+        if (this.sprite.active) this.sprite.setAngle(0);
+      },
+    });
+  }
+
   public damage(amount: number): boolean {
     this.hp = Math.max(0, this.hp - amount);
 
@@ -286,15 +306,25 @@ export class ResourceNode extends Phaser.GameObjects.Container {
       this.hpBarFill.width = Math.max(1, 15 * (this.hp / this.maxHp));
     }
 
-    // Visual shake + flash
+    // Visual shake + squash-and-stretch + hit flash
+    this.sprite.setTintFill(0xffffff);
+    this.scene.time.delayedCall(65, () => {
+      if (!this.sprite.active) return;
+      if (this.baseTint) this.sprite.setTint(this.baseTint);
+      else this.sprite.clearTint();
+    });
     this.scene.tweens.add({
       targets: this.sprite,
       x: { from: -2, to: 2 },
-      duration: 45,
+      scaleX: { from: 1.16, to: 1 },
+      scaleY: { from: 0.86, to: 1 },
+      duration: 85,
       yoyo: true,
-      repeat: 1,
       onComplete: () => {
-        if (this.sprite.active) this.sprite.x = 0;
+        if (this.sprite.active) {
+          this.sprite.x = 0;
+          this.sprite.setScale(1, 1);
+        }
       },
     });
 

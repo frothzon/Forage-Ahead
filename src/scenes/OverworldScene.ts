@@ -22,6 +22,7 @@ import {
 } from '../data/economy';
 import {
   drawSlashArc,
+  getWeaponSlashColor,
   spawnArcParticles,
   spawnBurstParticles,
   spawnDeathBurst,
@@ -30,6 +31,7 @@ import {
   spawnProjectileTrail,
   spawnShockwaveRing,
   spawnSparklers,
+  triggerHitStop,
   type ActiveProjectile,
 } from '../entities/CombatHelpers';
 import { Enemy } from '../entities/Enemy';
@@ -181,6 +183,7 @@ export class OverworldScene extends Phaser.Scene {
   private lowEnergyToastMs = 0;
   private petActionCooldownMs = 0;
   private sandstormBonusTimerMs = 0;
+  private autosaveTimerMs = 60000;
 
   private keys!: {
     W: Phaser.Input.Keyboard.Key;
@@ -948,7 +951,14 @@ export class OverworldScene extends Phaser.Scene {
         this.syncBuildingQueuesToSave();
         gameState.save();
         SFX.playCraft();
-        this.hud.showToast('Adventure Saved!');
+        this.hud.showToast(`File ${gameState.activeSlotIndex + 1} Saved!`);
+      },
+      onExitToTitle: () => {
+        gameState.playerPos = { x: this.player.x, y: this.player.y };
+        this.syncBuildingQueuesToSave();
+        gameState.save();
+        this.hud.destroy();
+        this.scene.start('TitleScene', { skipSplash: true });
       },
       onTouchAction: () => {
         if (this.hud.isBlockingInput()) return;
@@ -1191,6 +1201,41 @@ export class OverworldScene extends Phaser.Scene {
       this.mobilePlaceDragging = false;
       this.mobilePlaceWorldX = this.mobilePlaceTx * TILE_PX + 8;
       this.mobilePlaceWorldY = this.mobilePlaceTy * TILE_PX + 8;
+    });
+
+    // Save progress & suspend audio when app is backgrounded or closed
+    const onVisibility = () => {
+      if (document.hidden) {
+        if (this.player) {
+          gameState.playerPos = { x: this.player.x, y: this.player.y };
+        }
+        this.syncBuildingQueuesToSave();
+        gameState.save();
+        SFX.suspendAll();
+      } else {
+        SFX.resumeAll();
+      }
+    };
+    const onPageHide = () => {
+      if (this.player) {
+        gameState.playerPos = { x: this.player.x, y: this.player.y };
+      }
+      this.syncBuildingQueuesToSave();
+      gameState.save();
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', onPageHide);
+    }
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibility);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pagehide', onPageHide);
+      }
     });
   }
 
@@ -1639,7 +1684,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const range = def.range ?? 36;
     const angle = Math.atan2(ny, nx);
-    drawSlashArc(this, this.player.x, this.player.y - 4, angle, range, itemId.startsWith('sword') ? 0xfff0a8 : 0xb5e2ff);
+    drawSlashArc(this, this.player.x, this.player.y - 4, angle, range, getWeaponSlashColor(itemId));
     SFX.playSwing();
 
     // Check Ripe Crops
@@ -1914,6 +1959,7 @@ export class OverworldScene extends Phaser.Scene {
 
     const destroyed = node.damage(dmg);
     if (!destroyed) return;
+    triggerHitStop(this, 34, 0.03);
 
     const mult = this.getLighthouseMultiplier(node.x, node.y);
     for (const d of node.drops) {
@@ -1991,8 +2037,10 @@ export class OverworldScene extends Phaser.Scene {
       crit ? 'crit' : 'damage',
     );
     spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, crit ? 8 : 5);
+    if (crit) triggerHitStop(this, 40, 0.05);
 
     const killed = enemy.takeDamage(dmg, dirX, dirY, (nx, ny) => this.isWalkable(nx, ny));
+    if (killed && enemy.def.isBoss) triggerHitStop(this, 60, 0.08);
     if (killed) {
       SFX.playEnemyDeath();
       spawnDeathBurst(this, enemy.x, enemy.y, enemy.def.id, false);
@@ -2331,6 +2379,17 @@ export class OverworldScene extends Phaser.Scene {
     if (this.lowEnergyToastMs > 0) this.lowEnergyToastMs = Math.max(0, this.lowEnergyToastMs - dt);
     if (this.petActionCooldownMs > 0) this.petActionCooldownMs = Math.max(0, this.petActionCooldownMs - dt);
 
+    // Periodic 60s autosave
+    this.autosaveTimerMs -= dt;
+    if (this.autosaveTimerMs <= 0) {
+      this.autosaveTimerMs = 60000;
+      if (this.player) {
+        gameState.playerPos = { x: this.player.x, y: this.player.y };
+      }
+      this.syncBuildingQueuesToSave();
+      gameState.save();
+    }
+
     if (this.regenTimerMs >= 1000) {
       this.regenTimerMs = 0;
       const maxEn = gameState.getMaxEnergy();
@@ -2491,7 +2550,35 @@ export class OverworldScene extends Phaser.Scene {
       const ptx = Math.floor(this.player.x / TILE_PX);
       const pty = Math.floor(this.player.y / TILE_PX);
       const onRoad = this.overlayGrid[pty]?.[ptx] === 'road';
-      this.player.updatePlayer(dt, dir, this.isWalkable, onRoad ? 1.15 : 1);
+      const gx = Phaser.Math.Clamp(Math.floor(ptx / ISLAND_CELL_TILES), 0, 4);
+      const gy = Phaser.Math.Clamp(Math.floor(pty / ISLAND_CELL_TILES), 0, 4);
+      const biome = getIslandAt(gx, gy)?.biome ?? 'grass';
+      const stepPalette: Record<string, number> = {
+        grass: 0x9be68e,
+        autumn: 0xe6a85c,
+        graveyard: 0x988eb8,
+        winter: 0xe8f6ff,
+        infernal: 0xff7b54,
+      };
+      const stepCol = this.bridgeSet.has(`${ptx},${pty}`) ? 0xc99c6b : (stepPalette[biome] ?? 0xd8d2c5);
+      this.player.updatePlayer(dt, dir, this.isWalkable, onRoad ? 1.15 : 1, stepCol);
+
+      // Subtle camera look-ahead in movement direction
+      const cam = this.cameras.main;
+      const targetOffX = dir.lengthSq() > 0.01 ? Phaser.Math.Clamp(dir.x, -1, 1) * -9 : 0;
+      const targetOffY = dir.lengthSq() > 0.01 ? Phaser.Math.Clamp(dir.y, -1, 1) * -6 : 0;
+      cam.followOffset.x = Phaser.Math.Linear(cam.followOffset.x, targetOffX, Math.min(1, dt * 0.008));
+      cam.followOffset.y = Phaser.Math.Linear(cam.followOffset.y, targetOffY, Math.min(1, dt * 0.008));
+
+      // Interactive foliage rustle when walking through berry bushes
+      if (dir.lengthSq() > 0.01) {
+        const nowMs = this.time.now;
+        for (const n of this.nodes) {
+          if (n.active && n.kind === 'berry_bush' && Math.hypot(n.x - this.player.x, n.y - this.player.y) <= 16) {
+            n.rustle(nowMs);
+          }
+        }
+      }
 
       // Shoreline splash & sound when walking right along the water's edge
       if (dir.lengthSq() > 0.01 && !this.bridgeSet.has(`${ptx},${pty}`)) {
@@ -2672,6 +2759,10 @@ export class OverworldScene extends Phaser.Scene {
           }
           this.awardXp(8);
           this.syncBuildingQueuesToSave();
+          const outName = ITEMS[itemId]?.name ?? itemId;
+          if (!this.isNearCamera(bx, by, 80)) {
+            this.hud.showToast(`Station finished: ${outName} x${count}!`);
+          }
           if (this.hud.activeModal === 'craft') {
             this.hud.render();
           }

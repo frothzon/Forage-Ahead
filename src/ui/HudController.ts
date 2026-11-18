@@ -120,6 +120,7 @@ export class HudController {
     onSelectBuild: (recipeId: string) => void;
     onUseHotbarItem: (itemId: string) => void;
     onSave: () => void;
+    onExitToTitle?: () => void;
     onTouchAction?: () => void;
     onTouchInteract?: () => void;
     onTouchDash?: () => void;
@@ -138,6 +139,7 @@ export class HudController {
     onSelectBuild: (recipeId: string) => void;
     onUseHotbarItem: (itemId: string) => void;
     onSave: () => void;
+    onExitToTitle?: () => void;
     onTouchAction?: () => void;
     onTouchInteract?: () => void;
     onTouchDash?: () => void;
@@ -660,6 +662,19 @@ export class HudController {
         font-weight: 700;
         animation: readyPulse 1.5s ease-in-out infinite;
       }
+      @keyframes lowHpPulse {
+        0%, 100% { opacity: 0.42; }
+        50% { opacity: 0.85; }
+      }
+      #hud-low-hp-vignette {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 9;
+        box-shadow: inset 0 0 75px rgba(220, 35, 55, 0.85);
+        display: none;
+        animation: lowHpPulse 1.1s ease-in-out infinite;
+      }
       @media (max-width: 760px) {
         #hud-vitals-panel {
           top: max(6px, env(safe-area-inset-top)) !important;
@@ -918,6 +933,10 @@ export class HudController {
     if (xpText) xpText.textContent = `${gameState.xp}/${nextXp}`;
     if (lvlEl) lvlEl.textContent = `Lv.${gameState.level} ${gameState.heroClass}`;
     if (coinsEl) coinsEl.textContent = `${gameState.coins}g`;
+    const vignette = this.chromeLayer.querySelector<HTMLElement>('#hud-low-hp-vignette');
+    if (vignette) {
+      vignette.style.display = hpPct > 0 && hpPct <= 25 ? 'block' : 'none';
+    }
     if (spBadge) {
       spBadge.style.display = gameState.skillPoints > 0 ? 'inline-block' : 'none';
       spBadge.textContent = `+${gameState.skillPoints} SP`;
@@ -974,6 +993,7 @@ export class HudController {
 
     if (!this.chromeBuilt) {
       this.chromeLayer.innerHTML = `
+        <div id="hud-low-hp-vignette"></div>
         <div id="hud-vitals-panel" class="hud-panel hud-interactive" style="position:absolute; top:10px; left:10px; padding:7px 10px; display:flex; gap:10px; align-items:center;">
           <img src="${portrait}" class="px-icon" style="width:42px; height:42px;" />
           <div style="display:flex; flex-direction:column; gap:3px;">
@@ -1003,7 +1023,8 @@ export class HudController {
 
         <div id="hud-top-nav" class="hud-interactive" style="position:absolute; top:10px; right:10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
           <button class="hud-btn gold" data-nav="menu" id="hud-menu-btn"><img src="assets/hud_icons/menu.png" class="px-icon" style="width:14px; height:14px;" /><span>Menu<span class="nav-key"> [I/Tab]</span></span></button>
-          <button class="hud-btn primary" data-action="save"><img src="assets/hud_icons/save.png" class="px-icon" style="width:14px; height:14px;" /><span>Save</span></button>
+          <button class="hud-btn primary" data-action="save" title="Save to File ${gameState.activeSlotIndex + 1}"><img src="assets/hud_icons/save.png" class="px-icon" style="width:14px; height:14px;" /><span>Save #${gameState.activeSlotIndex + 1}</span></button>
+          <button class="hud-btn" data-action="files" id="hud-files-btn" style="${this.callbacks.onExitToTitle ? '' : 'display:none;'}" title="Save & Return to File Select">Files</button>
           <button class="hud-btn" data-action="music" id="hud-music-btn"><img src="assets/hud_icons/music_off.png" class="px-icon" style="width:14px; height:14px;" /><span>Music</span></button>
           <button class="hud-btn" data-action="mute" id="hud-mute-btn"><img src="assets/hud_icons/sfx_on.png" class="px-icon" style="width:14px; height:14px;" /><span>SFX</span></button>
         </div>
@@ -1047,6 +1068,10 @@ export class HudController {
         this.toggleModal('quests');
       });
       this.chromeLayer.querySelector<HTMLElement>('[data-action="save"]')!.onclick = () => this.callbacks.onSave();
+      this.chromeLayer.querySelector<HTMLElement>('[data-action="files"]')?.addEventListener('click', () => {
+        SFX.playUiClick();
+        this.callbacks.onExitToTitle?.();
+      });
       this.chromeLayer.querySelector<HTMLElement>('[data-action="music"]')!.onclick = () => {
         SFX.setMusicEnabled(!SFX.musicEnabled);
         this.renderChrome();
@@ -1056,6 +1081,30 @@ export class HudController {
         this.renderChrome();
       };
       this.minimapCanvas = this.chromeLayer.querySelector<HTMLCanvasElement>('#hud-minimap-canvas') ?? undefined;
+      if (this.minimapCanvas) {
+        this.minimapCanvas.style.cursor = 'pointer';
+        this.minimapCanvas.title = 'Click to open Islands Map [M]';
+        this.minimapCanvas.onclick = () => {
+          SFX.playUiClick();
+          this.toggleModal('map');
+        };
+      }
+      // Hidden 7-tap QA debug unlock on level label
+      let lvlTapCount = 0;
+      let lvlTapTimer: number | undefined;
+      this.chromeLayer.querySelector<HTMLElement>('#hud-level-label')?.addEventListener('click', () => {
+        lvlTapCount += 1;
+        if (lvlTapTimer) clearTimeout(lvlTapTimer);
+        lvlTapTimer = window.setTimeout(() => {
+          lvlTapCount = 0;
+        }, 1800);
+        if (lvlTapCount >= 7) {
+          lvlTapCount = 0;
+          gameState.toggleDebugMode();
+          this.showToast(`QA Debug Mode: ${gameState.debugMode ? 'ON' : 'OFF'}`);
+          this.render();
+        }
+      });
       this.chromeLayer.querySelector('#hud-minimap-toggle')?.addEventListener('click', () => {
         this.toggleMinimap();
       });
@@ -1435,9 +1484,12 @@ export class HudController {
 
         <!-- CENTER: INVENTORY GRID -->
         <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
-          <div style="width:100%; display:flex; justify-content:space-between; align-items:center;">
+          <div style="width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px;">
             <span style="font-size:12px; font-weight:700; color:#ffe596;">Inventory (${gameState.bagSlots.filter(Boolean).length}/${BAG_SIZE})</span>
-            <span style="font-size:10px; color:#9db6cf;">Drag to move, equip, or drop onto Hotbar 1–9</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:10px; color:#9db6cf;">Drag to move, equip, or drop onto Hotbar 1–9</span>
+              <button class="hud-btn" data-action="sort-bag" style="padding:2px 8px; font-size:10px;">Sort Bag</button>
+            </div>
           </div>
           <div class="bag-grid">${bagHtml}</div>
           ${
@@ -2397,6 +2449,14 @@ export class HudController {
       cancelMove.onclick = () => {
         this.moveSourceBagIdx = null;
         this.render();
+      };
+    }
+
+    const sortBagBtn = this.modalLayer.querySelector<HTMLElement>('[data-action="sort-bag"]');
+    if (sortBagBtn) {
+      sortBagBtn.onclick = () => {
+        SFX.playUiClick();
+        gameState.sortBag();
       };
     }
 

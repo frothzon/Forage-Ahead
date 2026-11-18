@@ -8,6 +8,7 @@ import type { DungeonId } from '../data/islands';
 import { TILE_PX } from '../data/islands';
 import {
   drawSlashArc,
+  getWeaponSlashColor,
   spawnArcParticles,
   spawnBurstParticles,
   spawnDeathBurst,
@@ -15,11 +16,13 @@ import {
   spawnFloatingText,
   spawnShockwaveRing,
   spawnSparklers,
+  triggerHitStop,
   type ActiveProjectile,
 } from '../entities/CombatHelpers';
 import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
-import { Player } from '../entities/Player';
+import { FoxCompanion, Player } from '../entities/Player';
+import { selectBestAimTarget, type AimCandidate } from '../entities/targeting';
 import { HudController } from '../ui/HudController';
 import { revealSequence } from '../ui/RevealSequence';
 
@@ -118,6 +121,7 @@ export class DungeonScene extends Phaser.Scene {
   private voidFloor = 1;
   private nextFloorPortal?: Phaser.GameObjects.Container;
   private player!: Player;
+  private fox?: FoxCompanion;
   private hud!: HudController;
   private enemies: Enemy[] = [];
   private drops: LootDrop[] = [];
@@ -202,6 +206,9 @@ export class DungeonScene extends Phaser.Scene {
 
     this.buildRoom();
     this.player = new Player(this, 3 * TILE_PX + 8, (ROOM_H / 2) * TILE_PX);
+    if (gameState.heroClass === 'Beastmaster') {
+      this.fox = new FoxCompanion(this, this.player.x - 14, this.player.y + 6);
+    }
 
     this.cameras.main.setBounds(0, 0, ROOM_W * TILE_PX, ROOM_H * TILE_PX);
     this.cameras.main.setZoom(3);
@@ -554,28 +561,32 @@ export class DungeonScene extends Phaser.Scene {
 
     if (!this.player.startAction('melee', def.cooldownMs ?? 260, nx, ny, 170)) return;
     const range = def.range ?? 40;
-    drawSlashArc(this, this.player.x, this.player.y - 4, Math.atan2(ny, nx), range, 0xfff0a8);
+    drawSlashArc(this, this.player.x, this.player.y - 4, Math.atan2(ny, nx), range, getWeaponSlashColor(itemId));
     SFX.playSwing();
 
-    const hitX = this.player.x + nx * (range * 0.55);
-    const hitY = this.player.y + ny * (range * 0.55);
     const dmg = gameState.getWeaponDamage(itemId);
-
-    for (const bp of this.breakables) {
-      if (!bp.broken && Math.hypot(bp.x - hitX, bp.y - hitY) <= range * 0.72) {
-        this.shatterBreakable(bp);
+    type DngTarget = { kind: 'enemy'; enemy: Enemy } | { kind: 'breakable'; bp: BreakableProp };
+    const candidates: Array<AimCandidate<DngTarget>> = [];
+    for (const e of this.enemies) {
+      if (e.active && !e.isDead) {
+        candidates.push({ item: { kind: 'enemy', enemy: e }, x: e.x, y: e.y, priority: 3 });
       }
     }
-
-    for (const e of this.enemies) {
-      if (e.active && !e.isDead && Math.hypot(e.x - hitX, e.y - hitY) <= range * 0.78) {
-        if (!itemId.startsWith('sword')) {
-          if (SFX.canPlay('needSwordHint', 750)) {
-            spawnFloatingText(this, e.x, e.y - 16, 'Use Sword!', '#ffbe76');
-          }
-          break;
+    for (const bp of this.breakables) {
+      if (!bp.broken) {
+        candidates.push({ item: { kind: 'breakable', bp }, x: bp.x, y: bp.y, priority: 2 });
+      }
+    }
+    const aimed = selectBestAimTarget(this.player.x, this.player.y, nx, ny, range + 10, candidates);
+    if (aimed?.item.kind === 'breakable') {
+      this.shatterBreakable(aimed.item.bp);
+    } else if (aimed?.item.kind === 'enemy') {
+      if (!itemId.startsWith('sword')) {
+        if (SFX.canPlay('needSwordHint', 750)) {
+          spawnFloatingText(this, aimed.item.enemy.x, aimed.item.enemy.y - 16, 'Use Sword!', '#ffbe76');
         }
-        this.damageEnemy(e, dmg, nx, ny);
+      } else {
+        this.damageEnemy(aimed.item.enemy, dmg, nx, ny);
       }
     }
   }
@@ -598,7 +609,9 @@ export class DungeonScene extends Phaser.Scene {
     );
     spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, crit ? 8 : 5);
 
+    if (crit) triggerHitStop(this, 38, 0.05);
     const killed = enemy.takeDamage(dmg, dirX, dirY, this.isWalkable);
+    if (killed && enemy.def.isBoss) triggerHitStop(this, 60, 0.08);
 
     // Boss Enrage Phase 2 below 50% HP
     if (!killed && enemy === this.boss && !this.bossEnraged && enemy.hp <= enemy.maxHp * 0.5) {
@@ -733,6 +746,40 @@ export class DungeonScene extends Phaser.Scene {
         }
       }
       this.player.updatePlayer(dt, dir, this.isWalkable);
+      if (this.fox) {
+        this.fox.updateCompanion(dt, this.player.x, this.player.y, {
+          findTarget: () => {
+            let best: Enemy | null = null;
+            let bestD = 84;
+            for (const e of this.enemies) {
+              if (!e.active || e.isDead || (e === this.boss && !this.gateOpen)) continue;
+              const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+              if (d < bestD) {
+                bestD = d;
+                best = e;
+              }
+            }
+            return best ? { x: best.x, y: best.y } : null;
+          },
+          onBite: (fx, fy, dmg) => {
+            const target = this.enemies.find(
+              (e) => e.active && !e.isDead && Math.hypot(e.x - fx, e.y - fy) <= 18,
+            );
+            if (target) {
+              spawnBurstParticles(this, target.x, target.y - 4, 0xffaa44, 5);
+              const nx = (target.x - this.fox!.x) / (Math.hypot(target.x - this.fox!.x, target.y - this.fox!.y) || 1);
+              const ny = (target.y - this.fox!.y) / (Math.hypot(target.x - this.fox!.x, target.y - this.fox!.y) || 1);
+              this.damageEnemy(target, dmg, nx, ny);
+            }
+          },
+          onForage: () => {},
+        });
+      }
+      const ptr = this.input.activePointer;
+      if (ptr.leftButtonDown() && !(ptr.event && ptr.event.target !== this.game.canvas)) {
+        const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+        this.handleAttack(wp.x, wp.y);
+      }
     }
 
     // Check Floor Puzzle Sigils in Room 2

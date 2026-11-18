@@ -16,6 +16,7 @@ export class Enemy extends Phaser.GameObjects.Container {
 
   public sprite: Phaser.GameObjects.Sprite;
   private hpBarBg: Phaser.GameObjects.Rectangle;
+  private hpBarTrail: Phaser.GameObjects.Rectangle;
   private hpBarFill: Phaser.GameObjects.Rectangle;
   private levelLabel: Phaser.GameObjects.Text;
   private curAnim = '';
@@ -70,11 +71,15 @@ export class Enemy extends Phaser.GameObjects.Container {
     const barW = def.isBoss ? 38 : 18;
     const barY = def.isBoss ? -36 : -20;
     this.hpBarBg = scene.add.rectangle(0, barY, barW, 3, 0x11161f).setOrigin(0.5);
+    this.hpBarTrail = scene.add
+      .rectangle(-barW / 2 + 0.5, barY, barW - 1, 2, 0xffffff)
+      .setOrigin(0, 0.5);
     this.hpBarFill = scene.add
       .rectangle(-barW / 2 + 0.5, barY, barW - 1, 2, def.isBoss ? 0xff4757 : 0xe85d5d)
       .setOrigin(0, 0.5);
     if (!def.isBoss) {
       this.hpBarBg.setVisible(false);
+      this.hpBarTrail.setVisible(false);
       this.hpBarFill.setVisible(false);
     }
     this.levelLabel = scene.add
@@ -88,7 +93,7 @@ export class Enemy extends Phaser.GameObjects.Container {
       })
       .setOrigin(0.5);
 
-    this.add([shadow, this.sprite, this.hpBarBg, this.hpBarFill, this.levelLabel]);
+    this.add([shadow, this.sprite, this.hpBarBg, this.hpBarTrail, this.hpBarFill, this.levelLabel]);
     this.syncLevelColor();
     this.setDepth(y);
     scene.add.existing(this);
@@ -132,9 +137,18 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.hp = Math.max(0, this.hp - amount);
     this.hitStunMs = 150;
     this.hpBarBg.setVisible(true);
+    this.hpBarTrail.setVisible(true);
     this.hpBarFill.setVisible(true);
     const barW = this.def.isBoss ? 37 : 17;
-    this.hpBarFill.width = Math.max(1, barW * (this.hp / this.maxHp));
+    const nextW = Math.max(1, barW * (this.hp / this.maxHp));
+    this.hpBarFill.width = nextW;
+    this.scene.tweens.add({
+      targets: this.hpBarTrail,
+      width: nextW,
+      delay: 160,
+      duration: 240,
+      ease: 'Quad.Out',
+    });
 
     this.sprite.setTintFill(0xffffff);
     this.scene.time.delayedCall(90, () => {
@@ -233,34 +247,51 @@ export class Enemy extends Phaser.GameObjects.Container {
       const ny = dist > 0.01 ? dy / dist : 1;
       this.facing = vectorToDirection(nx, ny, this.facing);
 
-      // Boss Special Abilities
+      // Boss Special Abilities (with 380ms ground danger telegraph)
       if (this.def.isBoss && this.specialCooldownMs <= 0) {
         this.specialCooldownMs = 4600;
         this.playMonAnim('special', true);
-        if (this.def.ai === 'boss_summoner') {
-          const proj = this.def.projectileKey ?? 'monster_projectiles/FireballBig';
-          for (let i = 0; i < 8; i++) {
-            const ang = (Math.PI * 2 * i) / 8;
-            actions.onFireProjectile(this.x, this.y - 4, Math.cos(ang) * 95, Math.sin(ang) * 95, this.def.damage, proj);
+        const dangerRing = this.scene.add
+          .circle(this.x, this.y, 18, 0xff4757, 0.14)
+          .setStrokeStyle(1.5, 0xff6b81, 0.9)
+          .setDepth(this.y - 1);
+        this.scene.tweens.add({
+          targets: dangerRing,
+          scale: { from: 0.4, to: 1.45 },
+          alpha: 0,
+          duration: 380,
+          onComplete: () => dangerRing.destroy(),
+        });
+        const fireX = this.x;
+        const fireY = this.y;
+        this.scene.time.delayedCall(340, () => {
+          if (this.isDead || !this.active) return;
+          if (this.def.ai === 'boss_summoner') {
+            const proj = this.def.projectileKey ?? 'monster_projectiles/FireballBig';
+            for (let i = 0; i < 8; i++) {
+              const ang = (Math.PI * 2 * i) / 8;
+              actions.onFireProjectile(fireX, fireY - 4, Math.cos(ang) * 95, Math.sin(ang) * 95, this.def.damage, proj);
+            }
+            if (Math.random() < 0.65) {
+              const minion = this.def.id === 'Lich' ? 'Skeleton' : 'Imp';
+              actions.onBossSummon(fireX + Phaser.Math.Between(-28, 28), fireY + 20, minion);
+            }
+          } else {
+            const proj = this.def.projectileKey ?? 'monster_projectiles/EnergyBall';
+            const baseAng = Math.atan2(dy, dx);
+            for (const offset of [-0.35, 0, 0.35]) {
+              actions.onFireProjectile(
+                fireX,
+                fireY - 4,
+                Math.cos(baseAng + offset) * 115,
+                Math.sin(baseAng + offset) * 115,
+                this.def.damage,
+                proj,
+              );
+            }
           }
-          if (Math.random() < 0.65) {
-            const minion = this.def.id === 'Lich' ? 'Skeleton' : 'Imp';
-            actions.onBossSummon(this.x + Phaser.Math.Between(-28, 28), this.y + 20, minion);
-          }
-        } else {
-          const proj = this.def.projectileKey ?? 'monster_projectiles/EnergyBall';
-          const baseAng = Math.atan2(dy, dx);
-          for (const offset of [-0.35, 0, 0.35]) {
-            actions.onFireProjectile(
-              this.x,
-              this.y - 4,
-              Math.cos(baseAng + offset) * 115,
-              Math.sin(baseAng + offset) * 115,
-              this.def.damage,
-              proj,
-            );
-          }
-        }
+        });
+        return;
       }
 
       if (this.def.ai === 'ranged' || (this.def.isBoss && dist > 65)) {

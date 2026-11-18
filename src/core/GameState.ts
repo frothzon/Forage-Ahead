@@ -112,7 +112,23 @@ export interface SaveData {
   ranchCreatures?: RanchCreatureSave[];
   voidSpireHighestFloor?: number;
   finalBossDefeated?: boolean;
+  savedAt?: number;
   playerPos?: { x: number; y: number };
+}
+
+export type SaveSlotIndex = 0 | 1 | 2;
+export const SAVE_SLOT_COUNT = 3;
+
+export interface SaveSlotSummary {
+  heroClass: HeroClassId;
+  level: number;
+  hp: number;
+  maxHp: number;
+  coins: number;
+  islands: number;
+  dungeonsCleared: number;
+  voidSpireFloor: number;
+  savedAt?: number;
 }
 
 const SAVE_KEY = 'isles_of_foraging_save_v2';
@@ -128,7 +144,10 @@ export interface StatComparisonRow {
 }
 
 export class GameState {
-  public debugMode = true;
+  public debugMode =
+    typeof import.meta !== 'undefined' &&
+    Boolean((import.meta as { env?: { DEV?: boolean } }).env?.DEV);
+  public activeSlotIndex: SaveSlotIndex = 0;
   public heroClass: HeroClassId = 'Beastmaster';
   public hp = 100;
   public energy = 100;
@@ -1135,8 +1154,31 @@ export class GameState {
     return { petted, happiness: c.happiness, eggsCollected };
   }
 
-  public save(): void {
+  private getSlotKey(slot: SaveSlotIndex = this.activeSlotIndex): string {
+    return `${SAVE_KEY}_slot_${slot}`;
+  }
+
+  public setActiveSlot(slot: SaveSlotIndex): void {
+    this.activeSlotIndex = slot;
+  }
+
+  private migrateLegacySaveIfNeeded(): void {
     if (typeof localStorage === 'undefined') return;
+    const slot0Key = this.getSlotKey(0);
+    if (localStorage.getItem(slot0Key) !== null) return;
+    for (const legacyKey of [SAVE_KEY, 'isles_of_foraging_save_v1']) {
+      const raw = localStorage.getItem(legacyKey);
+      if (raw) {
+        localStorage.setItem(slot0Key, raw);
+        localStorage.removeItem(legacyKey);
+        break;
+      }
+    }
+  }
+
+  public save(slot: SaveSlotIndex = this.activeSlotIndex): void {
+    if (typeof localStorage === 'undefined') return;
+    this.activeSlotIndex = slot;
     const data: SaveData = {
       version: 3,
       heroClass: this.heroClass,
@@ -1166,33 +1208,150 @@ export class GameState {
       ranchCreatures: this.ranchCreatures,
       voidSpireHighestFloor: this.voidSpireHighestFloor,
       finalBossDefeated: this.finalBossDefeated,
+      savedAt: Date.now(),
       playerPos: this.playerPos,
     };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    const key = this.getSlotKey(slot);
+    const serialized = JSON.stringify(data);
+    const prev = localStorage.getItem(key);
+    if (prev) {
+      localStorage.setItem(`${key}_backup`, prev);
+    }
+    localStorage.setItem(`${key}_tmp`, serialized);
+    localStorage.setItem(key, serialized);
+    localStorage.removeItem(`${key}_tmp`);
   }
 
-  public hasSavedGame(): boolean {
+  public hasSavedGame(slot: SaveSlotIndex = this.activeSlotIndex): boolean {
     if (typeof localStorage === 'undefined') return false;
-    return localStorage.getItem(SAVE_KEY) !== null;
+    this.migrateLegacySaveIfNeeded();
+    const key = this.getSlotKey(slot);
+    return localStorage.getItem(key) !== null || localStorage.getItem(`${key}_backup`) !== null;
   }
 
-  public load(): boolean {
-    if (typeof localStorage === 'undefined') return false;
-    const raw = localStorage.getItem(SAVE_KEY);
+  public hasAnySavedGame(): boolean {
+    return ([0, 1, 2] as SaveSlotIndex[]).some((s) => this.hasSavedGame(s));
+  }
+
+  public deleteSlot(slot: SaveSlotIndex): void {
+    if (typeof localStorage === 'undefined') return;
+    const key = this.getSlotKey(slot);
+    localStorage.removeItem(key);
+    localStorage.removeItem(`${key}_backup`);
+    localStorage.removeItem(`${key}_tmp`);
+  }
+
+  public copySlot(fromSlot: SaveSlotIndex, toSlot: SaveSlotIndex): boolean {
+    if (typeof localStorage === 'undefined' || fromSlot === toSlot) return false;
+    this.migrateLegacySaveIfNeeded();
+    const srcKey = this.getSlotKey(fromSlot);
+    const raw = localStorage.getItem(srcKey) ?? localStorage.getItem(`${srcKey}_backup`);
     if (!raw) return false;
+    const dstKey = this.getSlotKey(toSlot);
+    localStorage.setItem(dstKey, raw);
+    localStorage.removeItem(`${dstKey}_backup`);
+    return true;
+  }
+
+  public peekSaveSummary(slot: SaveSlotIndex = this.activeSlotIndex): SaveSlotSummary | null {
+    if (typeof localStorage === 'undefined') return null;
+    this.migrateLegacySaveIfNeeded();
+    const key = this.getSlotKey(slot);
+    const raw = localStorage.getItem(key) ?? localStorage.getItem(`${key}_backup`);
+    if (!raw) return null;
     try {
-      const data = JSON.parse(raw) as SaveData;
+      const data = JSON.parse(raw) as Partial<SaveData>;
+      if (!data || typeof data.heroClass !== 'string') return null;
+      const lvl = typeof data.level === 'number' && data.level >= 1 ? data.level : 1;
+      const baseMaxHp = 100 + (lvl - 1) * 10 + (data.heroClass === 'Gladiator' ? 20 : 0);
+      return {
+        heroClass: data.heroClass,
+        level: lvl,
+        hp: typeof data.hp === 'number' && Number.isFinite(data.hp) ? Math.round(data.hp) : baseMaxHp,
+        maxHp: baseMaxHp,
+        coins: typeof data.coins === 'number' && Number.isFinite(data.coins) ? data.coins : 0,
+        islands: Array.isArray(data.ownedIslands) ? data.ownedIslands.length : 1,
+        dungeonsCleared: Array.isArray(data.clearedDungeons) ? data.clearedDungeons.length : 0,
+        voidSpireFloor: typeof data.voidSpireHighestFloor === 'number' ? data.voidSpireHighestFloor : 0,
+        savedAt: typeof data.savedAt === 'number' ? data.savedAt : undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  public sortBag(): void {
+    const merged = new Map<string, { itemId: string; count: number; instanceId?: string }>();
+    const uniques: Array<{ itemId: string; count: number; instanceId?: string }> = [];
+    for (const s of this.bagSlots) {
+      if (!s || s.count <= 0) continue;
+      if (s.instanceId) {
+        uniques.push({ ...s });
+      } else {
+        const cur = merged.get(s.itemId);
+        if (cur) cur.count += s.count;
+        else merged.set(s.itemId, { ...s });
+      }
+    }
+    const rarityRank: Record<string, number> = { relic: 0, epic: 1, rare: 2, uncommon: 3, common: 4 };
+    const catRank: Record<string, number> = {
+      weapon: 0,
+      tool: 1,
+      armor: 2,
+      accessory: 3,
+      relic: 4,
+      gadget: 5,
+      food: 6,
+      consumable: 7,
+      material: 8,
+    };
+    const combined = [...uniques, ...merged.values()].sort((a, b) => {
+      const da = ITEMS[a.itemId];
+      const db = ITEMS[b.itemId];
+      const ca = catRank[da?.category ?? 'material'] ?? 9;
+      const cb = catRank[db?.category ?? 'material'] ?? 9;
+      if (ca !== cb) return ca - cb;
+      const ra = rarityRank[da?.rarity ?? 'common'] ?? 9;
+      const rb = rarityRank[db?.rarity ?? 'common'] ?? 9;
+      if (ra !== rb) return ra - rb;
+      return (da?.name ?? a.itemId).localeCompare(db?.name ?? b.itemId);
+    });
+    this.bagSlots = Array.from({ length: BAG_SIZE }, (_, i) => combined[i] ?? null);
+    this.emit();
+  }
+
+  public load(slot: SaveSlotIndex = this.activeSlotIndex): boolean {
+    if (typeof localStorage === 'undefined') return false;
+    this.migrateLegacySaveIfNeeded();
+    this.activeSlotIndex = slot;
+    const key = this.getSlotKey(slot);
+    const primary = localStorage.getItem(key);
+    if (primary && this.tryApplySave(primary)) return true;
+    const backup = localStorage.getItem(`${key}_backup`);
+    if (backup && this.tryApplySave(backup)) {
+      localStorage.setItem(key, backup);
+      return true;
+    }
+    return false;
+  }
+
+  private tryApplySave(raw: string): boolean {
+    try {
+      const data = JSON.parse(raw) as Partial<SaveData>;
+      if (!data || typeof data !== 'object' || typeof data.heroClass !== 'string') {
+        return false;
+      }
       this.heroClass = data.heroClass;
-      this.hp = data.hp;
-      this.energy = data.energy;
-      this.xp = data.xp;
-      this.level = data.level;
-      this.skillPoints = data.skillPoints;
-      this._coins = data.coins ?? 25;
-      this.unlockedSkills = new Set(data.unlockedSkills);
-      this.unlockedBlueprints = new Set(data.unlockedBlueprints ?? []);
-      this.ownedIslands = new Set(data.ownedIslands);
-      this.clearedDungeons = new Set(data.clearedDungeons);
+      this.hp = typeof data.hp === 'number' && Number.isFinite(data.hp) ? data.hp : 100;
+      this.energy = typeof data.energy === 'number' && Number.isFinite(data.energy) ? data.energy : 100;
+      this.xp = typeof data.xp === 'number' && Number.isFinite(data.xp) ? data.xp : 0;
+      this.level = typeof data.level === 'number' && data.level >= 1 ? data.level : 1;
+      this.skillPoints = typeof data.skillPoints === 'number' && data.skillPoints >= 0 ? data.skillPoints : 0;
+      this._coins = typeof data.coins === 'number' && Number.isFinite(data.coins) ? data.coins : 25;
+      this.unlockedSkills = new Set(Array.isArray(data.unlockedSkills) ? data.unlockedSkills : []);
+      this.unlockedBlueprints = new Set(Array.isArray(data.unlockedBlueprints) ? data.unlockedBlueprints : []);
+      this.ownedIslands = new Set(Array.isArray(data.ownedIslands) && data.ownedIslands.length ? data.ownedIslands : ['2,2']);
+      this.clearedDungeons = new Set(Array.isArray(data.clearedDungeons) ? data.clearedDungeons : []);
       const legacyMap: Record<string, string> = {
         farmer: 'farmer_1',
         fisherman: 'fisherman_1',
@@ -1220,13 +1379,15 @@ export class GameState {
       };
       this.gearInstances = data.gearInstances ?? {};
       this.equippedInstanceIds = data.equippedInstanceIds ?? {};
-      this.hotbar = data.hotbar ?? ['pickaxe', 'sword', 'shovel', 'fishing_rod', 'berries', '', '', '', ''];
-      this.selectedHotbarIndex = data.selectedHotbarIndex ?? 0;
-      this.buildings = data.buildings ?? [];
-      this.overlays = data.overlays ?? [];
+      this.hotbar = Array.isArray(data.hotbar)
+        ? data.hotbar
+        : ['pickaxe', 'sword', 'shovel', 'fishing_rod', 'berries', '', '', '', ''];
+      this.selectedHotbarIndex = typeof data.selectedHotbarIndex === 'number' ? data.selectedHotbarIndex : 0;
+      this.buildings = Array.isArray(data.buildings) ? data.buildings : [];
+      this.overlays = Array.isArray(data.overlays) ? data.overlays : [];
       this.savedNodes = data.savedNodes;
       this.savedDrops = data.savedDrops;
-      this.ranchCreatures = data.ranchCreatures ?? [];
+      this.ranchCreatures = Array.isArray(data.ranchCreatures) ? data.ranchCreatures : [];
       this.voidSpireHighestFloor = data.voidSpireHighestFloor ?? 0;
       this.finalBossDefeated = data.finalBossDefeated ?? false;
       this.playerPos = data.playerPos;

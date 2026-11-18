@@ -57,6 +57,37 @@ class SoundFXManager {
   public masterVolume = 0.7;
   public musicEnabled = false;
   private musicTimer?: number;
+  private readonly prefsKey = 'forage_ahead_audio_v1';
+
+  constructor() {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(this.prefsKey);
+        if (raw) {
+          const p = JSON.parse(raw) as { muted?: boolean; masterVolume?: number; musicEnabled?: boolean };
+          if (typeof p.muted === 'boolean') this.muted = p.muted;
+          if (typeof p.masterVolume === 'number' && Number.isFinite(p.masterVolume)) {
+            this.masterVolume = Math.max(0, Math.min(1, p.masterVolume));
+          }
+          if (typeof p.musicEnabled === 'boolean') this.musicEnabled = p.musicEnabled;
+        }
+      } catch {
+        // Ignore malformed audio prefs
+      }
+    }
+  }
+
+  private savePrefs(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(
+        this.prefsKey,
+        JSON.stringify({ muted: this.muted, masterVolume: this.masterVolume, musicEnabled: this.musicEnabled }),
+      );
+    } catch {
+      // Ignore storage quota errors
+    }
+  }
 
   private ensureGraph(): AudioContext | null {
     if (this.muted || typeof window === 'undefined') return null;
@@ -195,6 +226,7 @@ class SoundFXManager {
       this.masterGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
     }
     musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume);
+    this.savePrefs();
   }
 
   public setMuted(muted: boolean): void {
@@ -203,6 +235,7 @@ class SoundFXManager {
       this.masterGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
     }
     musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume);
+    this.savePrefs();
   }
 
   public setMusicEnabled(enabled: boolean, mode?: RoomSpace): void {
@@ -211,6 +244,7 @@ class SoundFXManager {
     if (enabled && mode) {
       musicEngine.setSituation(mode);
     }
+    this.savePrefs();
   }
 
   public setMusicSituation(sit: MusicSituation): void {
@@ -223,6 +257,20 @@ class SoundFXManager {
   public setMusicPaused(paused: boolean): void {
     musicEngine.setPaused(paused);
     musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume);
+  }
+
+  public suspendAll(): void {
+    this.setMusicPaused(true);
+    if (this.ctx && this.ctx.state === 'running') {
+      this.ctx.suspend().catch(() => {});
+    }
+  }
+
+  public resumeAll(): void {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+    this.setMusicPaused(false);
   }
 
   public startAmbientMusic(mode: RoomSpace): void {
@@ -762,6 +810,21 @@ class SoundFXManager {
       attack: 0.003,
       jitter: 0.15,
       reverb: 0.06,
+    });
+  }
+
+  public playStoneCrack(): void {
+    if (!this.canPlay('stoneCrack', 90)) return;
+    this.playTone({ freqStart: 145, freqEnd: 55, duration: 0.14, type: 'triangle', gain: 0.12, saturate: true, reverb: 0.35 });
+    this.playNoise({ color: 'white', duration: 0.09, filterType: 'bandpass', freqStart: 2200, freqEnd: 780, q: 2.2, gain: 0.14, reverb: 0.32 });
+  }
+
+  public playShatter(): void {
+    if (!this.canPlay('shatter', 250)) return;
+    this.playTone({ freqStart: 120, freqEnd: 34, duration: 0.38, type: 'sawtooth', gain: 0.18, saturate: true, reverb: 0.45 });
+    this.playNoise({ color: 'brown', duration: 0.45, filterType: 'lowpass', freqStart: 2400, freqEnd: 220, gain: 0.24, reverb: 0.48 });
+    [1318.5, 1046.5, 1567.98].forEach((f, i) => {
+      this.playTone({ freqStart: f, freqEnd: f * 0.65, duration: 0.11, type: 'triangle', gain: 0.055, delay: i * 0.035, reverb: 0.38 });
     });
   }
 }

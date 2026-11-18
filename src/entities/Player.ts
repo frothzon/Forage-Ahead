@@ -25,6 +25,7 @@ export class Player extends Phaser.GameObjects.Container {
   private swingTimerMs = 0;
   private swingDurationMs = 180;
   private footstepTimerMs = 0;
+  private dashTrailTimerMs = 0;
   private exhaustedTimerMs = 0;
   private baseFeetOffset = 8;
 
@@ -239,6 +240,7 @@ export class Player extends Phaser.GameObjects.Container {
     inputDir: Phaser.Math.Vector2,
     isWalkable: (nx: number, ny: number) => boolean,
     speedBonus = 1,
+    stepColor = 0xd8d2c5,
   ): void {
     const dt = dtMs / 1000;
     if (this.dodgeMomentumMs > 0) this.dodgeMomentumMs = Math.max(0, this.dodgeMomentumMs - dtMs);
@@ -261,6 +263,22 @@ export class Player extends Phaser.GameObjects.Container {
       const dashSpeed = 240;
       vx = this.dashDir.x * dashSpeed;
       vy = this.dashDir.y * dashSpeed;
+      this.dashTrailTimerMs -= dtMs;
+      if (this.dashTrailTimerMs <= 0) {
+        this.dashTrailTimerMs = 38;
+        const ghost = this.scene.add
+          .sprite(this.x, this.y - this.baseFeetOffset, this.sprite.texture.key, this.sprite.frame.name)
+          .setTint(0x7ce8ff)
+          .setAlpha(0.55)
+          .setDepth(this.depth - 1);
+        this.scene.tweens.add({
+          targets: ghost,
+          alpha: 0,
+          scale: 0.85,
+          duration: 180,
+          onComplete: () => ghost.destroy(),
+        });
+      }
       if (this.dashTimerMs <= 0) {
         this.isDashing = false;
       }
@@ -277,7 +295,7 @@ export class Player extends Phaser.GameObjects.Container {
         if (this.footstepTimerMs <= 0) {
           this.footstepTimerMs = 260;
           SFX.playFootstep('grass');
-          const dust = this.scene.add.circle(this.x + Phaser.Math.Between(-3, 3), this.y + 1, 1.8, 0xd8d2c5, 0.45).setDepth(this.y - 1);
+          const dust = this.scene.add.circle(this.x + Phaser.Math.Between(-3, 3), this.y + 1, 1.8, stepColor, 0.5).setDepth(this.y - 1);
           this.scene.tweens.add({
             targets: dust,
             y: dust.y - 4,

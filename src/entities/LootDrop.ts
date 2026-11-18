@@ -178,6 +178,19 @@ export class LootDrop extends Phaser.GameObjects.Container {
 
     if (dist < 13) {
       this.collected = true;
+      const sparkCol = this.isCoin ? 0xffe066 : 0xa6ffbe;
+      for (let i = 0; i < 4; i++) {
+        const p = this.scene.add.circle(this.x, this.y - 2, 1.4, sparkCol, 0.9).setDepth(this.depth + 20);
+        const ang = (Math.PI * 2 * i) / 4 + 0.4;
+        this.scene.tweens.add({
+          targets: p,
+          x: this.x + Math.cos(ang) * 9,
+          y: this.y - 4 + Math.sin(ang) * 7,
+          alpha: 0,
+          duration: 210,
+          onComplete: () => p.destroy(),
+        });
+      }
       if (this.isCoin) {
         gameState.coins += this.qty;
         SFX.playCoin();

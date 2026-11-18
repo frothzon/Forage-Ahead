@@ -13,6 +13,35 @@ export interface ActiveProjectile {
 
 export type FloatingTextStyle = 'default' | 'damage' | 'crit' | 'xp' | 'exhausted';
 
+export function getWeaponSlashColor(itemId: string): number {
+  if (itemId === 'sword_obsidian' || itemId === 'sword_wyrmheart') return 0xff6b3d;
+  if (itemId === 'sword_sun') return 0xffe066;
+  if (itemId === 'sword_astral') return 0xd28eff;
+  if (itemId === 'sword_iron') return 0xdbe9ff;
+  if (itemId.startsWith('sword')) return 0xfff0a8;
+  if (itemId === 'pickaxe_crystal') return 0x7ce8ff;
+  if (itemId === 'pickaxe_gold') return 0xffdf78;
+  return 0xb5e2ff;
+}
+
+export function triggerHitStop(scene: Phaser.Scene, durationMs = 42, zoomPunch = 0.05): void {
+  const cam = scene.cameras.main;
+  if (zoomPunch > 0 && cam) {
+    const baseZoom = cam.zoom;
+    scene.tweens.add({
+      targets: cam,
+      zoom: baseZoom + zoomPunch,
+      duration: Math.max(40, durationMs),
+      yoyo: true,
+      ease: 'Quad.Out',
+    });
+  }
+  scene.time.timeScale = 0.18;
+  scene.time.delayedCall(Math.max(12, Math.round(durationMs * 0.2)), () => {
+    if (scene.time) scene.time.timeScale = 1;
+  });
+}
+
 export function spawnFloatingText(
   scene: Phaser.Scene,
   x: number,
