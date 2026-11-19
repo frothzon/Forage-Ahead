@@ -36,6 +36,7 @@ export class ResourceNode extends Phaser.GameObjects.Container {
 
   private sprite: Phaser.GameObjects.Image;
   private baseTint?: number;
+  private baseScale = 1;
   private rustleCooldownMs = 0;
   private hpBarBg?: Phaser.GameObjects.Rectangle;
   private hpBarFill?: Phaser.GameObjects.Rectangle;
@@ -66,6 +67,7 @@ export class ResourceNode extends Phaser.GameObjects.Container {
 
     this.sprite = scene.add.image(0, cfg.offsetY, cfg.textureKey).setOrigin(0.5, cfg.originY);
     this.baseTint = cfg.tint;
+    this.baseScale = cfg.scale ?? 1;
     if (cfg.tint) this.sprite.setTint(cfg.tint);
     if (cfg.scale) this.sprite.setScale(cfg.scale);
     this.add(this.sprite);
@@ -282,19 +284,43 @@ export class ResourceNode extends Phaser.GameObjects.Container {
     this.rustleCooldownMs = nowMs + 550;
     this.scene.tweens.add({
       targets: this.sprite,
-      scaleX: { from: 1.12, to: 1 },
-      scaleY: { from: 0.9, to: 1 },
+      scaleX: { from: this.baseScale * 1.12, to: this.baseScale },
+      scaleY: { from: this.baseScale * 0.9, to: this.baseScale },
       angle: { from: -5, to: 5 },
       duration: 180,
       yoyo: true,
+      repeat: 1,
       ease: 'Sine.InOut',
       onComplete: () => {
-        if (this.sprite.active) this.sprite.setAngle(0);
+        if (this.sprite.active) {
+          this.sprite.setAngle(0);
+          this.sprite.setScale(this.baseScale);
+        }
       },
     });
+    const leafCount = Math.random() < 0.5 ? 2 : 1;
+    const leafKeys = ['extras/Leaf_particle1', 'extras/Leaf_particle2', 'extras/Leaf_particle3'];
+    for (let i = 0; i < leafCount; i++) {
+      const key = leafKeys[Math.floor(Math.random() * leafKeys.length)];
+      const lx = this.x + Phaser.Math.Between(-5, 5);
+      const ly = this.y - 6 + Phaser.Math.Between(-3, 3);
+      if (this.scene.textures.exists(key)) {
+        const leaf = this.scene.add.image(lx, ly, key).setDepth(this.depth + 6).setScale(0.85);
+        this.scene.tweens.add({
+          targets: leaf,
+          x: lx + Phaser.Math.Between(-9, 9),
+          y: ly + Phaser.Math.Between(6, 12),
+          angle: Phaser.Math.Between(-90, 90),
+          alpha: 0,
+          duration: 520,
+          ease: 'Sine.Out',
+          onComplete: () => leaf.destroy(),
+        });
+      }
+    }
   }
 
-  public damage(amount: number): boolean {
+  public damage(amount: number, recoilDirX = 0): boolean {
     this.hp = Math.max(0, this.hp - amount);
 
     if (!this.hpBarBg) {
@@ -306,24 +332,27 @@ export class ResourceNode extends Phaser.GameObjects.Container {
       this.hpBarFill.width = Math.max(1, 15 * (this.hp / this.maxHp));
     }
 
-    // Visual shake + squash-and-stretch + hit flash
+    // 2-frame white hit-flash + elastic squash-and-stretch with horizontal recoil
     this.sprite.setTintFill(0xffffff);
-    this.scene.time.delayedCall(65, () => {
+    this.scene.time.delayedCall(55, () => {
       if (!this.sprite.active) return;
       if (this.baseTint) this.sprite.setTint(this.baseTint);
       else this.sprite.clearTint();
     });
+    const recoilX = recoilDirX !== 0 ? Math.sign(recoilDirX) * 1.8 : (Math.random() < 0.5 ? -1.5 : 1.5);
+    this.sprite.x = recoilX;
+    this.sprite.setScale(this.baseScale * 1.22, this.baseScale * 0.78);
     this.scene.tweens.add({
       targets: this.sprite,
-      x: { from: -2, to: 2 },
-      scaleX: { from: 1.16, to: 1 },
-      scaleY: { from: 0.86, to: 1 },
-      duration: 85,
-      yoyo: true,
+      x: 0,
+      scaleX: this.baseScale,
+      scaleY: this.baseScale,
+      duration: 90,
+      ease: 'Back.easeOut',
       onComplete: () => {
         if (this.sprite.active) {
           this.sprite.x = 0;
-          this.sprite.setScale(1, 1);
+          this.sprite.setScale(this.baseScale, this.baseScale);
         }
       },
     });

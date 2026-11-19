@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { ITEMS, type ItemRarity } from '../data/items';
 import { gameState } from '../core/GameState';
 import { SFX } from '../core/SoundFX';
+import { spawnRollingHarvestText } from './CombatHelpers';
 
 const LOOT_AURA_FRAG = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -48,12 +49,22 @@ export class LootDrop extends Phaser.GameObjects.Container {
   public readonly isCoin: boolean;
   public qty: number;
   private iconObj: Phaser.GameObjects.Image | Phaser.GameObjects.Arc;
+  private shadowObj: Phaser.GameObjects.Image | Phaser.GameObjects.Ellipse;
+  private glowRing?: Phaser.GameObjects.Arc;
   private auraShader?: Phaser.GameObjects.Shader;
   private badgeText?: Phaser.GameObjects.Text;
+  private rarity: ItemRarity = 'common';
   private ageMs = 0;
-  private vy = -38;
-  private vx = 0;
   private zHeight = 2;
+  private zVel = 88;
+  private vx = 0;
+  private vyGround = 0;
+  private bouncesLeft = 3;
+  private magnetState: 'idle' | 'anticipation' | 'homing' = 'idle';
+  private anticipationMs = 0;
+  private homingSpeed = 140;
+  private curveSign = 1;
+  private shimmerTimerMs = 450;
   private collected = false;
 
   constructor(
@@ -68,10 +79,15 @@ export class LootDrop extends Phaser.GameObjects.Container {
     this.itemId = itemId;
     this.qty = count;
     this.isCoin = isCoin;
-    this.vx = Phaser.Math.Between(-28, 28);
+    const ang = Math.random() * Math.PI * 2;
+    const spd = Phaser.Math.FloatBetween(18, 36);
+    this.vx = Math.cos(ang) * spd;
+    this.vyGround = Math.sin(ang) * spd * 0.55;
+    this.curveSign = Math.random() < 0.5 ? -1 : 1;
 
     const def = ITEMS[itemId];
     const rarity: ItemRarity = isCoin ? 'common' : (def?.rarity ?? 'common');
+    this.rarity = rarity;
     const isLegendary = rarity === 'epic' || rarity === 'relic';
     const isRare = rarity === 'rare';
 
@@ -94,8 +110,20 @@ export class LootDrop extends Phaser.GameObjects.Container {
       this.add(this.auraShader);
     }
 
-    const shadow = scene.add.ellipse(0, 4, 8, 4, 0x000000, 0.35);
-    this.add(shadow);
+    if (isRare || isLegendary) {
+      const ringCol = isLegendary ? 0xffe066 : 0x7ce8ff;
+      this.glowRing = scene.add
+        .circle(0, 4, isLegendary ? 8 : 6.5, ringCol, 0.14)
+        .setStrokeStyle(1, ringCol, 0.45);
+      this.add(this.glowRing);
+    }
+
+    if (scene.textures.exists('extras/Shadow')) {
+      this.shadowObj = scene.add.image(0, 4, 'extras/Shadow').setAlpha(0.45).setScale(0.65);
+    } else {
+      this.shadowObj = scene.add.ellipse(0, 4, 8, 4, 0x000000, 0.35);
+    }
+    this.add(this.shadowObj);
 
     const texKey = isCoin ? 'ui_icons/coin' : def?.iconKey;
     if (texKey && scene.textures.exists(texKey)) {
@@ -152,31 +180,109 @@ export class LootDrop extends Phaser.GameObjects.Container {
     if (this.auraShader) {
       this.auraShader.setUniform('uTime.value', (this.scene.time.now * 0.001) % 628.3185);
     }
-    const dt = dtMs / 1000;
+    const dt = Math.min(0.05, dtMs / 1000);
 
-    // Short pop-out bounce on spawn
-    if (this.ageMs < 380) {
+    // 2.5D Parabolic Z-bounce on spawn
+    if (this.bouncesLeft > 0 || this.zHeight > 0.1) {
       this.x += this.vx * dt;
-      this.zHeight += -this.vy * dt * 0.5;
-      this.vy += 180 * dt;
-      if (this.zHeight < 0) this.zHeight = 0;
-      this.iconObj.y = -1 - this.zHeight * 0.4;
-      return false;
+      this.y += this.vyGround * dt;
+      this.zVel -= 320 * dt;
+      this.zHeight += this.zVel * dt;
+      if (this.zHeight <= 0) {
+        this.zHeight = 0;
+        if (this.bouncesLeft > 0 && Math.abs(this.zVel) > 18) {
+          this.zVel = -this.zVel * 0.52;
+          this.vx *= 0.62;
+          this.vyGround *= 0.62;
+          this.bouncesLeft--;
+        } else {
+          this.zVel = 0;
+          this.vx = 0;
+          this.vyGround = 0;
+          this.bouncesLeft = 0;
+        }
+      }
+      this.iconObj.y = -1 - this.zHeight;
+      const shadowScale = Math.max(0.42, 1 - this.zHeight * 0.025);
+      this.shadowObj.setScale(
+        this.shadowObj instanceof Phaser.GameObjects.Image ? 0.65 * shadowScale : shadowScale,
+      );
+      this.setDepth(this.y);
+      if (this.ageMs < 240) return false;
     }
 
-    const dx = playerX - this.x;
-    const dy = playerY - this.y;
+    // Idle shimmer for rare/epic/relic drops
+    if (this.rarity === 'rare' || this.rarity === 'epic' || this.rarity === 'relic') {
+      if (this.glowRing) {
+        const pulse = 0.85 + 0.2 * Math.sin(this.ageMs * 0.006);
+        this.glowRing.setScale(pulse);
+      }
+      this.shimmerTimerMs -= dtMs;
+      if (this.shimmerTimerMs <= 0) {
+        this.shimmerTimerMs = this.rarity === 'rare' ? 680 : 420;
+        const col = this.rarity === 'rare' ? 0x7ce8ff : 0xffe066;
+        const sp = this.scene.add
+          .rectangle(
+            this.x + Phaser.Math.FloatBetween(-5, 5),
+            this.y - 2,
+            2,
+            2,
+            col,
+            0.9,
+          )
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setDepth(this.depth + 8);
+        this.scene.tweens.add({
+          targets: sp,
+          y: sp.y - 12,
+          alpha: 0,
+          scale: 0.3,
+          duration: 480,
+          ease: 'Sine.Out',
+          onComplete: () => sp.destroy(),
+        });
+      }
+    }
+
+    const targetX = playerX;
+    const targetY = playerY - 6;
+    const dx = targetX - this.x;
+    const dy = targetY - this.y;
     const dist = Math.hypot(dx, dy);
     const magnetRange = gameState.getPickupRadius();
 
-    if (dist < magnetRange && dist > 1) {
-      const pull = 165 * dt;
-      this.x += (dx / dist) * pull;
-      this.y += (dy / dist) * pull;
+    if (this.magnetState === 'idle' && dist < magnetRange) {
+      this.magnetState = 'anticipation';
+      this.anticipationMs = 70;
+      this.homingSpeed = 140;
+    }
+
+    if (this.magnetState === 'anticipation') {
+      this.anticipationMs -= dtMs;
+      if (dist > 1) {
+        // Kick slightly away from the player for anticipation
+        const awayPull = 48 * dt;
+        this.x -= (dx / dist) * awayPull;
+        this.y -= (dy / dist) * awayPull;
+      }
+      if (this.anticipationMs <= 0) {
+        this.magnetState = 'homing';
+      }
+    } else if (this.magnetState === 'homing' && dist > 1) {
+      this.homingSpeed = Math.min(340, this.homingSpeed + 480 * dt);
+      const nx = dx / dist;
+      const ny = dy / dist;
+      // Subtle perpendicular arc that tightens as distance shrinks
+      const arcWeight = Math.min(0.42, dist / 90) * this.curveSign;
+      const px = -ny * arcWeight;
+      const py = nx * arcWeight;
+      const step = this.homingSpeed * dt;
+      this.x += (nx + px) * step;
+      this.y += (ny + py) * step;
       this.setDepth(this.y);
     }
 
-    if (dist < 13) {
+    if (dist < 12) {
       this.collected = true;
       const sparkCol = this.isCoin ? 0xffe066 : 0xa6ffbe;
       for (let i = 0; i < 4; i++) {
@@ -194,10 +300,13 @@ export class LootDrop extends Phaser.GameObjects.Container {
       if (this.isCoin) {
         gameState.coins += this.qty;
         SFX.playCoin();
+        spawnRollingHarvestText(this.scene, 'coins', playerX, playerY - 18, 'Coins', this.qty, '#ffe066');
         gameState.emit();
       } else {
         gameState.addItem(this.itemId, this.qty);
         SFX.playPickup();
+        const label = ITEMS[this.itemId]?.name ?? this.itemId;
+        spawnRollingHarvestText(this.scene, this.itemId, playerX, playerY - 18, label, this.qty, '#a6ffbe');
       }
       this.destroy();
       return true;

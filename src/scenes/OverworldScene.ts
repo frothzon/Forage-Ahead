@@ -29,12 +29,16 @@ import {
   spawnDeathBurst,
   spawnDirectionalSparks,
   spawnFloatingText,
+  spawnProjectileImpact,
   spawnProjectileTrail,
   spawnShockwaveRing,
   spawnSparklers,
-  triggerHitStop,
   type ActiveProjectile,
 } from '../entities/CombatHelpers';
+import { AmbientCritterSystem } from '../vfx/AmbientCritters';
+import { CameraRig } from '../vfx/CameraRig';
+import { EffectSequencer } from '../vfx/EffectSequencer';
+import { showWorldEmote } from '../vfx/WorldEmote';
 import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
 import { FoxCompanion, Player } from '../entities/Player';
@@ -130,8 +134,12 @@ export class OverworldScene extends Phaser.Scene {
   private lighting!: LightingSystem;
   private ocean!: OceanSystem;
   private weather!: WeatherSystem;
+  private cameraRig!: CameraRig;
+  private fx!: EffectSequencer;
+  private critters!: AmbientCritterSystem;
   private fishingMinigame = new FishingMinigame();
   private fishingBobber?: Phaser.GameObjects.Sprite;
+  private fishingLine?: Phaser.GameObjects.Graphics;
   private fishingSplashTimerMs = 0;
   private fishingPending = false;
   private fishingIdle = false;
@@ -292,12 +300,19 @@ export class OverworldScene extends Phaser.Scene {
           minZoom: isMobBuild ? 1.85 : 3,
         }),
       );
+      this.lighting?.resize(gameSize.width, gameSize.height);
     };
     this.scale.on('resize', onResize);
 
     this.lighting = new LightingSystem(this);
     this.weather = new WeatherSystem(this);
     this.ocean = new OceanSystem(this);
+    this.cameraRig = new CameraRig(this, { maxLookAheadPx: 11 });
+    this.fx = new EffectSequencer(this, {
+      cameraRig: this.cameraRig,
+      onHitstop: (ms) => this.player.applyHitstop(ms),
+    });
+    this.critters = new AmbientCritterSystem(this);
     this.syncBiomeFromPlayer();
     this.setupHud();
     this.setupInput();
@@ -311,6 +326,9 @@ export class OverworldScene extends Phaser.Scene {
       this.lighting.destroy();
       this.weather.destroy();
       this.ocean.destroy();
+      this.critters.destroy();
+      this.fishingLine?.destroy();
+      this.fishingLine = undefined;
     });
   }
 
@@ -927,7 +945,6 @@ export class OverworldScene extends Phaser.Scene {
       this.hud.showToast('Not enough Coins or island not adjacent!');
       return;
     }
-    SFX.playIslandUnlock();
     this.stampIslandTerrain(gx, gy);
     const ox = gx * ISLAND_CELL_TILES;
     const oy = gy * ISLAND_CELL_TILES;
@@ -937,7 +954,8 @@ export class OverworldScene extends Phaser.Scene {
     const spec = getIslandAt(gx, gy);
     const centerPx = (gx * ISLAND_CELL_TILES + ISLAND_CELL_TILES / 2) * TILE_PX;
     const centerPy = (gy * ISLAND_CELL_TILES + ISLAND_CELL_TILES / 2) * TILE_PX;
-    spawnShockwaveRing(this, centerPx, centerPy, 0x7ef29d, 96, 520);
+    this.fx.play('island_unlock', { x: centerPx, y: centerPy });
+    this.cameraRig.zoomPunch(0.05, 160);
     this.hud.showToast(`Purchased ${spec?.name ?? 'New Island'}!`);
     revealSequence.show({
       title: 'ISLAND UNLOCKED!',
@@ -984,11 +1002,17 @@ export class OverworldScene extends Phaser.Scene {
         this.scene.start('TitleScene', { skipSplash: true });
       },
       onTouchAction: () => {
+        if (this.fishingMinigame.isActive()) return;
         if (this.hud.isBlockingInput()) return;
         const f = this.player.facing;
         const dx = f === 'left' ? -28 : f === 'right' ? 28 : 0;
         const dy = f === 'up' ? -28 : f === 'down' ? 28 : 0;
         this.handlePrimaryAction(this.player.x + dx, this.player.y + dy);
+      },
+      onTouchActionHold: (holding) => {
+        if (this.fishingMinigame.isActive()) {
+          this.fishingMinigame.setHolding(holding);
+        }
       },
       onTouchDash: () => {
         if (this.hud.isBlockingInput()) return;
@@ -1358,20 +1382,23 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     if (st.startsWith('crop_')) SFX.playPlantSeed();
-    else SFX.playBuildPlace();
     spawnBurstParticles(this, tx * TILE_PX + 8, ty * TILE_PX + 8, st.startsWith('crop_') ? 0x7ef29d : 0xd8c8a8, 6);
     if (st === 'bridge') {
+      SFX.playBuildPlace();
       this.overlayGrid[ty][tx] = 'bridge';
       this.bridgeSet.add(`${tx},${ty}`);
       gameState.overlays.push({ tx, ty, type: 'bridge' });
       this.refreshAutoTiles(tx - 1, ty - 1, tx + 1, ty + 1);
     } else if (st === 'road_stone') {
+      SFX.playBuildPlace();
       this.overlayGrid[ty][tx] = 'road';
       gameState.overlays.push({ tx, ty, type: 'road' });
       this.refreshAutoTiles(tx - 1, ty - 1, tx + 1, ty + 1);
     } else {
       const id = `bld_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      this.buildings.push(new BuildingEntity(this, id, st, tx, ty));
+      const bld = new BuildingEntity(this, id, st, tx, ty);
+      bld.playPlacePop();
+      this.buildings.push(bld);
       gameState.buildings.push({ id, type: st, tx, ty });
       if (this.isHousePart(st)) this.rebuildHouseRoofs();
     }
@@ -1661,13 +1688,19 @@ export class OverworldScene extends Phaser.Scene {
         const catchSpec = fishTable[islandBiome] ?? fishTable.grass;
         const catchName = ITEMS[catchSpec.itemId]?.name ?? 'Fresh Fish';
 
+        this.hud.setFishingMode(true);
         this.fishingMinigame.start(
           (caught) => {
+            this.hud.setFishingMode(false);
             this.fishingBobber?.destroy();
             this.fishingBobber = undefined;
+            this.fishingLine?.destroy();
+            this.fishingLine = undefined;
             if (caught) {
               this.ocean.spawnSplash(castX, castY, 1.35);
               spawnSparklers(this, castX, castY - 4, 14);
+              this.hud.triggerPortraitMood('happy', 2500);
+              this.cameraRig.zoomPunch(0.04, 110);
               const mult = this.getLighthouseMultiplier(castX, castY);
               const count = Math.max(1, Math.round((targetSpot ? 2 : 1) * mult));
               this.spawnLoot(this.player.x + 8, this.player.y + 8, catchSpec.itemId, count);
@@ -1828,9 +1861,10 @@ export class OverworldScene extends Phaser.Scene {
         const feet = n.getCollisionCenter();
         candidates.push({
           item: { kind: 'node', node: n, x: feet.x, y: feet.y, depth: n.depth },
-          x: n.x,
-          y: n.y,
+          x: feet.x,
+          y: feet.y,
           priority: 2,
+          radius: n.solid ? n.collisionRadius : 4,
         });
       }
     } else {
@@ -1874,14 +1908,18 @@ export class OverworldScene extends Phaser.Scene {
         };
       }
     }
-    for (const rc of this.ranchEntities) {
-      if (Math.hypot(rc.save.x - this.player.x, rc.save.y - this.player.y) <= 28) {
-        return { kind: 'ranch', x: rc.save.x, y: rc.save.y + rc.sprite.displayHeight * 0.3, depth: rc.sprite.depth };
+    const heldItemId = gameState.hotbar[gameState.selectedHotbarIndex] ?? '';
+    const holdingSword = heldItemId.startsWith('sword');
+    if (!holdingSword) {
+      for (const rc of this.ranchEntities) {
+        if (Math.hypot(rc.save.x - this.player.x, rc.save.y - this.player.y) <= 28) {
+          return { kind: 'ranch', x: rc.save.x, y: rc.save.y + rc.sprite.displayHeight * 0.3, depth: rc.sprite.depth };
+        }
       }
-    }
-    for (const a of this.animals) {
-      if (Math.hypot(a.x - this.player.x, a.y - this.player.y) <= 28) {
-        return { kind: 'animal', x: a.x, y: a.y, depth: a.sprite.depth };
+      for (const a of this.animals) {
+        if (Math.hypot(a.x - this.player.x, a.y - this.player.y) <= 28) {
+          return { kind: 'animal', x: a.x, y: a.y, depth: a.sprite.depth };
+        }
       }
     }
     // NPCs are lowest priority
@@ -1961,11 +1999,14 @@ export class OverworldScene extends Phaser.Scene {
     this.fishingIdle = false;
     this.fishingBobber?.destroy();
     this.fishingBobber = undefined;
+    this.fishingLine?.destroy();
+    this.fishingLine = undefined;
   }
 
   private hitResourceNode(node: ResourceNode, dmg: number, fromPlayer = true): void {
     if (fromPlayer && !this.consumeToolEnergy(1.5)) return;
     if (this.isNearCamera(node.x, node.y, 110)) {
+      if (fromPlayer) this.cameraRig.addTrauma(0.12);
       if (node.kind === 'tree' || node.kind === 'berry_bush') {
         SFX.playChop();
         spawnArcParticles(this, node.x, node.y - 6, node.kind === 'berry_bush' ? 0xff6b8b : 0x6fd96b, 6);
@@ -1980,9 +2021,22 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    const destroyed = node.damage(dmg);
+    const destroyed = node.damage(dmg, node.x - this.player.x);
     if (!destroyed) return;
-    triggerHitStop(this, 34, 0.03);
+    this.player.applyHitstop(70);
+    if (node.kind === 'tree' || node.kind === 'berry_bush') {
+      this.fx.play('node_break_wood', { x: node.x, y: node.y - 4 });
+    } else if (node.kind !== 'fish_spot') {
+      const oreTint =
+        node.kind === 'crystal_vein'
+          ? 0x6ce5ff
+          : node.kind === 'obsidian_vein'
+            ? 0x9945d6
+            : node.kind === 'gold_vein'
+              ? 0xffe066
+              : undefined;
+      this.fx.play('node_break_ore', { x: node.x, y: node.y - 4, tint: oreTint });
+    }
 
     const mult = this.getLighthouseMultiplier(node.x, node.y);
     for (const d of node.drops) {
@@ -2047,8 +2101,15 @@ export class OverworldScene extends Phaser.Scene {
     const scale = gameState.getDamageScaleVsEnemy(enemy.def.level);
     const rawDmg = crit ? Math.round(baseDmg * 2) : baseDmg;
     const dmg = Math.max(1, Math.round(rawDmg * scale.dealMult));
-    SFX.playHit();
     const hitAng = Math.atan2(dirY, dirX);
+    this.cameraRig.kick(dirX, dirY, crit ? 3.5 : 2.2, 80);
+    if (crit) {
+      this.fx.play('crit_strike', { x: enemy.x, y: enemy.y - 4 });
+      this.hud.triggerPortraitMood('angry', 1500);
+    } else {
+      SFX.playHit();
+      this.cameraRig.addTrauma(0.14);
+    }
     spawnDirectionalSparks(this, enemy.x, enemy.y - 4, hitAng, crit ? 0xffe066 : 0xffffff, crit ? 9 : 5);
     spawnFloatingText(
       this,
@@ -2060,10 +2121,12 @@ export class OverworldScene extends Phaser.Scene {
       crit ? 'crit' : 'damage',
     );
     spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, crit ? 8 : 5);
-    if (crit) triggerHitStop(this, 40, 0.05);
 
     const killed = enemy.takeDamage(dmg, dirX, dirY, (nx, ny) => this.isWalkable(nx, ny));
-    if (killed && enemy.def.isBoss) triggerHitStop(this, 60, 0.08);
+    const stopMs = killed ? 70 : crit ? 55 : 35;
+    this.player.applyHitstop(stopMs);
+    if (!killed) enemy.applyHitstop(stopMs);
+    if (killed && enemy.def.isBoss) this.cameraRig.zoomPunch(0.05, 130);
     if (killed) {
       SFX.playEnemyDeath();
       spawnDeathBurst(this, enemy.x, enemy.y, enemy.def.id, false);
@@ -2098,7 +2161,8 @@ export class OverworldScene extends Phaser.Scene {
     }
     const leveled = gameState.addXp(amount);
     if (leveled) {
-      SFX.playLevelUp();
+      this.fx.play('level_up', { x: this.player.x, y: this.player.y - 6 });
+      this.cameraRig.zoomPunch(0.05, 110);
       spawnSparklers(this, this.player.x, this.player.y - 8, 18);
       spawnShockwaveRing(this, this.player.x, this.player.y - 4, 0xffe066, 44, 380);
       spawnFloatingText(this, this.player.x, this.player.y - 22, `LEVEL ${gameState.level}! +1 SP`, '#ffe066', '10px');
@@ -2182,7 +2246,11 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // 2. Check nearby Ranch Creature (Pet & Collect Eggs) or Wild Animal (Pet for items) or Nest
-    for (const a of this.animals) {
+    // Skip petting animals/pets when holding a sword so cows/chickens can be harvested cleanly
+    const heldId = gameState.hotbar[gameState.selectedHotbarIndex] ?? '';
+    const holdingSword = heldId.startsWith('sword');
+    if (!holdingSword) {
+      for (const a of this.animals) {
       if (Math.hypot(a.x - this.player.x, a.y - this.player.y) <= 28) {
         if (this.petActionCooldownMs > 0) return true;
         this.petActionCooldownMs = 1000;
@@ -2212,6 +2280,10 @@ export class OverworldScene extends Phaser.Scene {
         const sp = getSpeciesById(rc.save.speciesId);
         const res = gameState.petRanchCreature(rc.save.id);
         SFX.playPickup();
+        showWorldEmote(this, rc.save.x, rc.save.y - 14, 'portraits/Emote_laughing', {
+          hearts: true,
+          durationMs: 1100,
+        });
         if (res.eggsCollected > 0 && sp) {
           gameState.addItem(sp.eggItemId, res.eggsCollected);
           spawnFloatingText(this, rc.save.x, rc.save.y - 16, `+${res.eggsCollected} Egg!`, '#ffe066');
@@ -2222,6 +2294,7 @@ export class OverworldScene extends Phaser.Scene {
         }
         return true;
       }
+    }
     }
 
     for (const b of this.buildings) {
@@ -2448,18 +2521,14 @@ export class OverworldScene extends Phaser.Scene {
     const isMobileBuild = Boolean(
       this.hud.isTouchEnabled() && gameState.pendingBuildRecipeId && this.hud.activeModal === 'none',
     );
-    const cam = this.cameras.main;
     const worldPx = WORLD_TILES * TILE_PX;
     const targetZoom = computeResponsiveZoom(this.scale.width, this.scale.height, {
       worldWidthPx: worldPx,
       worldHeightPx: worldPx,
       minZoom: isMobileBuild ? 1.85 : 3,
     });
-    if (Math.abs(cam.zoom - targetZoom) > 0.005) {
-      cam.setZoom(Phaser.Math.Linear(cam.zoom, targetZoom, Math.min(1, dt * 0.012)));
-    } else if (cam.zoom !== targetZoom) {
-      cam.setZoom(targetZoom);
-    }
+    this.cameraRig.update(dt, targetZoom);
+    const cam = this.cameras.main;
 
     if (isMobileBuild) {
       const rec = RECIPES.find((r) => r.id === gameState.pendingBuildRecipeId);
@@ -2589,14 +2658,24 @@ export class OverworldScene extends Phaser.Scene {
         infernal: 0xff7b54,
       };
       const stepCol = this.bridgeSet.has(`${ptx},${pty}`) ? 0xc99c6b : (stepPalette[biome] ?? 0xd8d2c5);
-      this.player.updatePlayer(dt, dir, this.isWalkable, onRoad ? 1.15 : 1, stepCol);
+      const surface: 'grass' | 'sand' | 'stone' | 'snow' =
+        onRoad || this.bridgeSet.has(`${ptx},${pty}`)
+          ? 'stone'
+          : biome === 'winter'
+            ? 'snow'
+            : biome === 'autumn'
+              ? 'sand'
+              : 'grass';
+      this.player.updatePlayer(dt, dir, this.isWalkable, onRoad ? 1.15 : 1, stepCol, surface);
 
-      // Subtle camera look-ahead in movement direction
-      const cam = this.cameras.main;
-      const targetOffX = dir.lengthSq() > 0.01 ? Phaser.Math.Clamp(dir.x, -1, 1) * -9 : 0;
-      const targetOffY = dir.lengthSq() > 0.01 ? Phaser.Math.Clamp(dir.y, -1, 1) * -6 : 0;
-      cam.followOffset.x = Phaser.Math.Linear(cam.followOffset.x, targetOffX, Math.min(1, dt * 0.008));
-      cam.followOffset.y = Phaser.Math.Linear(cam.followOffset.y, targetOffY, Math.min(1, dt * 0.008));
+      // Subtle camera look-ahead in movement/facing direction
+      if (dir.lengthSq() > 0.01) {
+        this.cameraRig.setLookAhead(dir.x, dir.y, 11);
+      } else {
+        const fMap = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] } as const;
+        const [fx, fy] = fMap[this.player.facing];
+        this.cameraRig.setLookAhead(fx, fy, 7);
+      }
 
       // Interactive foliage rustle when walking through berry bushes
       if (dir.lengthSq() > 0.01) {
@@ -2732,10 +2811,45 @@ export class OverworldScene extends Phaser.Scene {
       if (this.fishingBobber?.active) {
         this.fishingSplashTimerMs -= dt;
         if (this.fishingSplashTimerMs <= 0) {
-          this.fishingSplashTimerMs = 950;
-          this.ocean.spawnSplash(this.fishingBobber.x, this.fishingBobber.y, 0.58);
+          this.fishingSplashTimerMs = this.fishingMinigame.isHolding() ? 480 : 900;
+          this.ocean.spawnSplash(this.fishingBobber.x, this.fishingBobber.y, this.fishingMinigame.isHolding() ? 0.78 : 0.55);
         }
       }
+    }
+
+    // Live fishing line between rod hand and bobber (slack when idle, taut/vibrating when reeling)
+    if (this.fishingBobber?.active) {
+      if (!this.fishingLine) {
+        this.fishingLine = this.add.graphics().setDepth(5250);
+      }
+      const f = this.player.facing;
+      const rodX = this.player.x + (f === 'left' ? -8 : f === 'right' ? 8 : 2);
+      const rodY = this.player.y - (f === 'up' ? 12 : 8);
+      const bx = this.fishingBobber.x;
+      const by = this.fishingBobber.y - 2;
+      const holding = this.fishingMinigame.isHolding();
+      const sag = holding ? 1.5 : 8;
+      const vibX = holding ? (Math.random() - 0.5) * 1.4 : 0;
+      const vibY = holding ? (Math.random() - 0.5) * 1.4 : 0;
+      const midX = (rodX + bx) * 0.5 + vibX;
+      const midY = (rodY + by) * 0.5 + sag + vibY;
+
+      this.fishingLine.clear();
+      this.fishingLine.lineStyle(1, holding ? 0xdff6ff : 0xb8d8e8, holding ? 0.92 : 0.7);
+      this.fishingLine.beginPath();
+      this.fishingLine.moveTo(rodX, rodY);
+      const segs = 6;
+      for (let s = 1; s <= segs; s++) {
+        const t = s / segs;
+        const inv = 1 - t;
+        const px = inv * inv * rodX + 2 * inv * t * midX + t * t * bx;
+        const py = inv * inv * rodY + 2 * inv * t * midY + t * t * by;
+        this.fishingLine.lineTo(px, py);
+      }
+      this.fishingLine.strokePath();
+    } else if (this.fishingLine) {
+      this.fishingLine.destroy();
+      this.fishingLine = undefined;
     }
 
     // Station prompts & camera-prioritized building ticks
@@ -2952,6 +3066,14 @@ export class OverworldScene extends Phaser.Scene {
     const { nightFactor } = this.lighting.getAmbientColor();
     this.ocean.update(dt, this.weather.wind, nightFactor);
     this.weather.update(dt);
+    this.critters.update(
+      dt,
+      this.player.x,
+      this.player.y,
+      this.player.isDashing,
+      this.weather.currentBiome,
+      nightFactor,
+    );
     this.updateLighting(dt);
 
     // Blocked-out House Roof Fade: fade roofs when player steps inside a house
@@ -3028,7 +3150,13 @@ export class OverworldScene extends Phaser.Scene {
       const inRange = this.player ? Math.hypot(npc.x - this.player.x, npc.y - this.player.y) <= 34 : false;
       const nextTxt = this.getNpcPromptText(npc.spec.id, npc.spec.name, inRange);
       if (npc.prompt.text !== nextTxt) {
+        const wasEmpty = !npc.prompt.text.startsWith('[E]');
         npc.prompt.setText(nextTxt);
+        if (inRange && wasEmpty) {
+          const q = gameState.getNextQuestForNpc(npc.spec.id);
+          const emote = q ? 'portraits/Emote_question' : 'portraits/Emote_talking';
+          showWorldEmote(this, npc.x, npc.y - 22, emote, { durationMs: 950, scale: 0.68 });
+        }
       }
     }
   }
@@ -3039,6 +3167,11 @@ export class OverworldScene extends Phaser.Scene {
     const island = getIslandAt(gx, gy);
     if (island) {
       this.weather.setBiome(island.biome);
+      if (this.hud) {
+        if (island.biome === 'infernal') this.hud.setEnvironmentVignette('infernal');
+        else if (island.biome === 'winter' && this.weather.weather === 'snow') this.hud.setEnvironmentVignette('frost');
+        else this.hud.setEnvironmentVignette('none');
+      }
     }
   }
 
@@ -3055,16 +3188,18 @@ export class OverworldScene extends Phaser.Scene {
     for (const b of this.buildings) {
       if (!b.active) continue;
       if (b.structureType === 'bonfire') {
-        pointLights.push({ x: b.x, y: b.y, radius: 56 * flicker, color: 0xff8c3b, intensity: 1 });
-      } else if (b.structureType === 'furnace') {
-        pointLights.push({ x: b.x, y: b.y, radius: 22 * flicker, color: 0xff5f2e, intensity: 0.9 });
+        pointLights.push({ x: b.x, y: b.y, radius: 56 * flicker, color: 0xff8c3b, intensity: 1, flicker: true });
+      } else if (b.structureType === 'furnace' || b.structureType === 'infernal_forge') {
+        pointLights.push({ x: b.x, y: b.y, radius: 24 * flicker, color: 0xff5f2e, intensity: 0.95, flicker: true });
+      } else if (b.structureType === 'frost_kiln') {
+        pointLights.push({ x: b.x, y: b.y, radius: 22 * flicker, color: 0x7ce8ff, intensity: 0.9, flicker: true });
       } else if (b.structureType === 'mining_rod') {
-        pointLights.push({ x: b.x, y: b.y - 6, radius: 20, color: 0x5be6ff, intensity: 0.9 });
+        pointLights.push({ x: b.x, y: b.y - 6, radius: 20, color: 0x5be6ff, intensity: 0.9, dayVisible: true });
       } else if (b.structureType === 'furniture_lamp') {
-        pointLights.push({ x: b.x, y: b.y - 4, radius: 24, color: 0xffe08a, intensity: 0.85 });
+        pointLights.push({ x: b.x, y: b.y - 4, radius: 24, color: 0xffe08a, intensity: 0.85, flicker: true });
       } else if (b.structureType === 'lighthouse') {
         const beaconY = b.y - 11;
-        pointLights.push({ x: b.x, y: beaconY, radius: 28, color: 0xfff08a, intensity: 0.95 });
+        pointLights.push({ x: b.x, y: beaconY, radius: 28, color: 0xfff08a, intensity: 0.95, flicker: true });
         spotLights.push({
           x: b.x,
           y: beaconY,
@@ -3080,14 +3215,14 @@ export class OverworldScene extends Phaser.Scene {
     for (const n of this.nodes) {
       if (!n.active || !this.isNearCamera(n.x, n.y, 120)) continue;
       if (n.kind === 'crystal_vein') {
-        pointLights.push({ x: n.x, y: n.y, radius: 13, color: 0x6ce5ff, intensity: 0.75 });
+        pointLights.push({ x: n.x, y: n.y, radius: 15, color: 0x6ce5ff, intensity: 0.8, dayVisible: true });
       } else if (n.kind === 'obsidian_vein') {
-        pointLights.push({ x: n.x, y: n.y, radius: 13, color: 0xb86bff, intensity: 0.75 });
+        pointLights.push({ x: n.x, y: n.y, radius: 15, color: 0xb86bff, intensity: 0.8, dayVisible: true });
       }
     }
 
     for (const dp of this.dungeonPortals) {
-      pointLights.push({ x: dp.x, y: dp.y, radius: 18, color: 0xa275ff, intensity: 0.85 });
+      pointLights.push({ x: dp.x, y: dp.y, radius: 20, color: 0xa275ff, intensity: 0.9, dayVisible: true });
     }
 
     const dayWrapped = this.lighting.update(
@@ -3107,7 +3242,7 @@ export class OverworldScene extends Phaser.Scene {
 
   private detonateBomb(bx: number, by: number): void {
     SFX.playExplosion();
-    this.cameras.main.shake(160, 0.008);
+    this.cameraRig.addTrauma(0.65);
     const fx = this.add.sprite(bx, by, 'projectiles/Bomb_impact').setScale(3.5).setDepth(6000);
     fx.play('fx_bomb_impact');
     fx.once('animationcomplete', () => fx.destroy());
@@ -3178,6 +3313,9 @@ export class OverworldScene extends Phaser.Scene {
       }
 
       if (hit || p.lifeMs <= 0) {
+        if (hit) {
+          spawnProjectileImpact(this, p.sprite.x, p.sprite.y, p.kind);
+        }
         p.sprite.destroy();
         this.projectiles.splice(i, 1);
       }

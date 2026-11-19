@@ -130,6 +130,19 @@ export class OceanSystem {
     this.splashGfx = scene.add.graphics().setDepth(5200);
   }
 
+  public spawnRipple(x: number, y: number, maxRadius = 10, alpha = 0.5): void {
+    if (this.ripples.length > 64) return;
+    this.ripples.push({
+      x,
+      y,
+      radius: 2,
+      maxRadius,
+      alpha,
+      ageMs: 0,
+      lifeMs: 780,
+    });
+  }
+
   public spawnSplash(x: number, y: number, intensity = 1): void {
     const ringCount = intensity >= 1.2 ? 3 : 2;
     for (let i = 0; i < ringCount; i++) {

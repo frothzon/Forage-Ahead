@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { gameState, type CraftQueueJob } from '../core/GameState';
+import { SFX } from '../core/SoundFX';
 import { ITEMS } from '../data/items';
 import { RECIPES, type StructureType } from '../data/recipes';
 import { SPROUT_CROP_BY_STRUCTURE, type SproutCropDef } from '../data/sproutCrops';
@@ -453,8 +454,43 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     return true;
   }
 
+  public playPlacePop(): void {
+    const baseY = this.mainSprite.y;
+    const baseSx = this.mainSprite.scaleX;
+    const baseSy = this.mainSprite.scaleY;
+    this.mainSprite.y = baseY - 10;
+    this.scene.tweens.add({
+      targets: this.mainSprite,
+      y: baseY,
+      duration: 85,
+      ease: 'Quad.In',
+      onComplete: () => {
+        if (!this.mainSprite.active) return;
+        SFX.playBuildPlace();
+        this.mainSprite.setScale(baseSx * 1.25, baseSy * 0.75);
+        this.scene.tweens.add({
+          targets: this.mainSprite,
+          scaleX: baseSx,
+          scaleY: baseSy,
+          duration: 110,
+          ease: 'Back.easeOut',
+        });
+      },
+    });
+  }
+
   public harvestCrop(): { itemId: string; count: number } | null {
     if (!this.isCropRipe()) return null;
+    const baseSx = this.mainSprite.scaleX;
+    const baseSy = this.mainSprite.scaleY;
+    this.mainSprite.setScale(baseSx * 0.78, baseSy * 1.28);
+    this.scene.tweens.add({
+      targets: this.mainSprite,
+      scaleX: baseSx,
+      scaleY: baseSy,
+      duration: 95,
+      ease: 'Back.easeOut',
+    });
     this.cropStage = 1;
     this.syncCropFrame();
     const baseCount = gameState.hasSkill('foraging_farming') ? 4 : 2;

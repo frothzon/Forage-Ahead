@@ -8,6 +8,8 @@ export interface PointLightSource {
   intensity?: number;
   /** Optional subtle illumination even during overcast daytime */
   dayVisible?: boolean;
+  /** Optional sinusoidal+noise hearth flicker for torches/bonfires/furnaces */
+  flicker?: boolean;
 }
 
 export interface SpotLightSource {
@@ -175,9 +177,9 @@ export class LightingSystem {
   public getAmbientColor(): { color: number; nightFactor: number } {
     const t = this.timeOfDay;
     const DAY = 0xffffff;
-    const DAWN = 0xffa05c; // ~1hr warm orange morning tint
-    const DUSK = 0xff8547; // ~1hr warm orange evening tint
-    const NIGHT = 0x161d38; // Darker night so light sources are needed
+    const DAWN = 0xffbfa0; // Soft peach dawn
+    const DUSK = 0xd98aa8; // Amber-violet dusk
+    const NIGHT = 0x1b2247; // Deep indigo night so light sources pop without crushing readability
 
     if (t < 0.16) {
       const k = t / 0.16;
@@ -243,19 +245,28 @@ export class LightingSystem {
     this.lightmap.fill(ambient, 1);
     this.beamMap.clear();
 
-    const toScreenX = (wx: number) => (wx - cam.worldView.x) * cam.zoom;
-    const toScreenY = (wy: number) => (wy - cam.worldView.y) * cam.zoom;
+    const viewW = vw / cam.zoom;
+    const viewH = vh / cam.zoom;
+    const viewX = cam.scrollX + (vw - viewW) * 0.5;
+    const viewY = cam.scrollY + (vh - viewH) * 0.5;
+    const toScreenX = (wx: number) => (wx - viewX) * cam.zoom;
+    const toScreenY = (wy: number) => (wy - viewY) * cam.zoom;
 
     // Circular point lights
+    const tSec = this.scene.time.now * 0.001;
     if (nightFactor > 0.04 || pointLights.length > 0) {
       for (const pl of pointLights) {
         const sx = toScreenX(pl.x);
         const sy = toScreenY(pl.y);
-        const sr = pl.radius * cam.zoom;
+        const seed = pl.x * 0.13 + pl.y * 0.07;
+        const flicker = pl.flicker
+          ? 1 + Math.sin(tSec * 9.5 + seed) * 0.055 + Math.sin(tSec * 17.3 + seed * 1.7) * 0.035
+          : 1;
+        const sr = pl.radius * flicker * cam.zoom;
         if (sx < -sr || sy < -sr || sx > vw + sr || sy > vh + sr) continue;
 
         const scale = (sr * 2) / 128;
-        const baseInt = pl.intensity ?? 0.9;
+        const baseInt = (pl.intensity ?? 0.9) * flicker;
         const lightPower = Math.min(1, baseInt * Math.max(pl.dayVisible ? 0.22 : 0.12, nightFactor));
         if (nightFactor > 0.05) {
           this.stampImg
@@ -267,12 +278,13 @@ export class LightingSystem {
           this.lightmap.draw(this.stampImg);
         }
 
-        if (nightFactor > 0.14) {
+        if (nightFactor > 0.14 || pl.dayVisible) {
+          const haloAlpha = Math.max(pl.dayVisible ? 0.11 : 0, 0.16 * nightFactor) * baseInt;
           this.stampImg
             .setPosition(sx, sy)
             .setScale(scale * 0.85)
             .setTint(pl.color)
-            .setAlpha(0.16 * nightFactor * baseInt)
+            .setAlpha(haloAlpha)
             .setBlendMode(Phaser.BlendModes.ADD);
           this.beamMap.draw(this.stampImg);
         }
@@ -316,6 +328,19 @@ export class LightingSystem {
     }
 
     return dayWrapped;
+  }
+
+  public resize(width: number, height: number): void {
+    const vw = Math.max(320, width);
+    const vh = Math.max(200, height);
+    if (this.lightmap.width !== vw || this.lightmap.height !== vh) {
+      this.lightmap.resize(vw, vh);
+      this.beamMap.resize(vw, vh);
+    }
+    const cam = this.scene.cameras?.main;
+    const zoom = cam?.zoom ?? 1;
+    this.lightmap.setPosition(vw / 2, vh / 2).setScale(1 / zoom);
+    this.beamMap.setPosition(vw / 2, vh / 2).setScale(1 / zoom);
   }
 
   public destroy(): void {

@@ -7,6 +7,7 @@ import {
   type EquipmentSlotKey,
   type InventoryFeedEvent,
 } from '../core/GameState';
+import { Haptics } from '../core/Haptics';
 
 export type QueuedStationType =
   | 'furnace'
@@ -110,6 +111,14 @@ export class HudController {
   private toastMsg = '';
   private timeLabelText = 'Day 1 • Sunny';
   private bossInfo: { name: string; hp: number; maxHp: number; portrait?: string } | null = null;
+  private portraitMoodOverride: 'happy' | 'angry' | null = null;
+  private portraitMoodTimer?: number;
+  private isSleepingMood = false;
+  private sleepTimer?: number;
+  private lastHpSeen = gameState.hp;
+  private lastLevelSeen = gameState.level;
+  private lastHotbarPopIdx = -1;
+  private envVignetteMode: 'none' | 'frost' | 'infernal' = 'none';
   private touchMoveVec = { x: 0, y: 0 };
   private touchEnabled =
     typeof window !== 'undefined' &&
@@ -123,6 +132,7 @@ export class HudController {
     onSave: () => void;
     onExitToTitle?: () => void;
     onTouchAction?: () => void;
+    onTouchActionHold?: (holding: boolean) => void;
     onTouchInteract?: () => void;
     onTouchDash?: () => void;
     onTouchPlaceBuilding?: () => void;
@@ -142,6 +152,7 @@ export class HudController {
     onSave: () => void;
     onExitToTitle?: () => void;
     onTouchAction?: () => void;
+    onTouchActionHold?: (holding: boolean) => void;
     onTouchInteract?: () => void;
     onTouchDash?: () => void;
     onTouchPlaceBuilding?: () => void;
@@ -170,6 +181,11 @@ export class HudController {
       this.pushInventoryFeed(ev);
     });
     this.render();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pointerdown', this.onActivityHandler, { passive: true });
+      window.addEventListener('keydown', this.onActivityHandler, { passive: true });
+      this.onActivityHandler();
+    }
   }
 
   public isBlockingInput(): boolean {
@@ -266,12 +282,95 @@ export class HudController {
     };
     bindBtn('#hud-touch-act', this.callbacks.onTouchAction);
     bindBtn('#hud-touch-dash', this.callbacks.onTouchDash);
+
+    const actBtn = this.chromeLayer.querySelector<HTMLElement>('#hud-touch-act');
+    if (actBtn && this.callbacks.onTouchActionHold) {
+      const setHold = (h: boolean, e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.callbacks.onTouchActionHold?.(h);
+      };
+      actBtn.addEventListener('touchstart', (e) => setHold(true, e));
+      actBtn.addEventListener('touchend', (e) => setHold(false, e));
+      actBtn.addEventListener('touchcancel', (e) => setHold(false, e));
+      actBtn.addEventListener('mousedown', (e) => setHold(true, e));
+      actBtn.addEventListener('mouseup', (e) => setHold(false, e));
+      actBtn.addEventListener('mouseleave', () => this.callbacks.onTouchActionHold?.(false));
+    }
+  }
+
+  public setFishingMode(active: boolean): void {
+    const actBtn = this.chromeLayer?.querySelector<HTMLElement>('#hud-touch-act');
+    if (!actBtn) return;
+    const lbl = actBtn.querySelector<HTMLElement>('span');
+    if (lbl) lbl.textContent = active ? 'REEL' : 'ACT';
+    actBtn.style.filter = active ? 'drop-shadow(0 0 8px #7ce8ff)' : 'none';
+  }
+
+  private onActivityHandler = () => {
+    const wasSleeping = this.isSleepingMood;
+    this.isSleepingMood = false;
+    if (this.sleepTimer !== undefined) window.clearTimeout(this.sleepTimer);
+    this.sleepTimer = window.setTimeout(() => {
+      this.isSleepingMood = true;
+      this.syncPortrait();
+    }, 20000);
+    if (wasSleeping) this.syncPortrait();
+  };
+
+  public triggerPortraitMood(mood: 'happy' | 'angry', durationMs = 1500): void {
+    this.portraitMoodOverride = mood;
+    if (this.portraitMoodTimer !== undefined) window.clearTimeout(this.portraitMoodTimer);
+    this.syncPortrait();
+    this.portraitMoodTimer = window.setTimeout(() => {
+      this.portraitMoodOverride = null;
+      this.syncPortrait();
+    }, durationMs);
+  }
+
+  private syncPortrait(): void {
+    const img = this.chromeLayer?.querySelector<HTMLImageElement>('#hud-hero-portrait');
+    if (!img) return;
+    const hpPct = (gameState.hp / Math.max(1, gameState.getMaxHp())) * 100;
+    let mood: string | null = this.portraitMoodOverride;
+    if (!mood) {
+      if (hpPct > 0 && hpPct < 25) mood = 'nervous';
+      else if (this.isSleepingMood) mood = 'sleeping';
+    }
+    const suffix = mood ? ` (${mood})` : '';
+    const nextSrc = `assets/portraits/${gameState.heroClass}/${gameState.heroClass}_frame${suffix}.png`;
+    if (!img.src.endsWith(nextSrc)) {
+      img.src = nextSrc;
+    }
+  }
+
+  public pulseDamageVignette(): void {
+    const el = this.chromeLayer?.querySelector<HTMLElement>('#hud-damage-vignette');
+    if (!el) return;
+    el.style.opacity = '1';
+    window.setTimeout(() => {
+      if (el.isConnected) el.style.opacity = '0';
+    }, 220);
+  }
+
+  public setEnvironmentVignette(mode: 'none' | 'frost' | 'infernal'): void {
+    if (this.envVignetteMode === mode) return;
+    this.envVignetteMode = mode;
+    const el = this.chromeLayer?.querySelector<HTMLElement>('#hud-env-vignette');
+    if (!el) return;
+    el.className = mode === 'none' ? '' : mode;
   }
 
   public destroy(): void {
     this.unsubChange?.();
     this.unsubVitals?.();
     this.unsubFeed?.();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pointerdown', this.onActivityHandler);
+      window.removeEventListener('keydown', this.onActivityHandler);
+      if (this.sleepTimer !== undefined) window.clearTimeout(this.sleepTimer);
+      if (this.portraitMoodTimer !== undefined) window.clearTimeout(this.portraitMoodTimer);
+    }
     this.chromeBuilt = false;
     this.root.innerHTML = '';
   }
@@ -607,16 +706,70 @@ export class HudController {
         font-size: 10px;
         transition: transform 80ms ease, filter 80ms ease;
       }
-      .hotbar-slot:hover { filter: brightness(1.06); }
+      .hotbar-slot:hover { filter: brightness(1.06); transform: translateY(-2px); }
       .hotbar-slot.active {
         background-image: url('assets/sprout_ui/slots/slot_oct_light.png');
         transform: translateY(-3px);
       }
+      .hotbar-slot.active.pop { animation: hotbarPop 160ms ease-out; }
       .hotbar-slot.drag-over { filter: brightness(1.18) drop-shadow(0 0 6px #7ae398); }
       .hotbar-slot.rarity-uncommon:not(.active) { filter: drop-shadow(0 0 3px #469c60); }
       .hotbar-slot.rarity-rare:not(.active) { filter: drop-shadow(0 0 3px #3d7ec7); }
       .hotbar-slot.rarity-epic:not(.active) { filter: drop-shadow(0 0 4px #9353c9); }
       .hotbar-slot.rarity-relic:not(.active) { filter: drop-shadow(0 0 5px #cfa430); }
+      .hotbar-slot.rarity-rare,
+      .hotbar-slot.rarity-epic,
+      .hotbar-slot.rarity-relic,
+      .inv-slot.rarity-rare,
+      .inv-slot.rarity-epic,
+      .inv-slot.rarity-relic {
+        overflow: hidden;
+      }
+      .hotbar-slot.rarity-rare::after,
+      .hotbar-slot.rarity-epic::after,
+      .hotbar-slot.rarity-relic::after,
+      .inv-slot.rarity-rare::after,
+      .inv-slot.rarity-epic::after,
+      .inv-slot.rarity-relic::after {
+        content: '';
+        position: absolute;
+        inset: -30% -60%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+        pointer-events: none;
+        animation: raritySheen 3.6s ease-in-out infinite;
+      }
+      .cd-wipe {
+        position: absolute;
+        inset: 3px;
+        border-radius: 4px;
+        pointer-events: none;
+        z-index: 2;
+      }
+      #hud-damage-vignette {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+        background: radial-gradient(circle at center, transparent 52%, rgba(210, 28, 42, 0.58) 100%);
+        transition: opacity 160ms ease-out;
+        z-index: 19;
+      }
+      #hud-env-vignette {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 420ms ease;
+        z-index: 18;
+      }
+      #hud-env-vignette.frost {
+        opacity: 1;
+        background: radial-gradient(circle at center, transparent 58%, rgba(120, 205, 255, 0.32) 100%);
+      }
+      #hud-env-vignette.infernal {
+        opacity: 1;
+        background: radial-gradient(circle at center, transparent 58%, rgba(255, 95, 36, 0.28) 100%);
+      }
       .slot-corner {
         position: absolute;
         width: 10px;
@@ -717,6 +870,7 @@ export class HudController {
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        animation: modalSpringPop 160ms cubic-bezier(0.22, 1, 0.36, 1);
       }
       .ledger-tab-btn {
         border-style: solid;
@@ -726,6 +880,7 @@ export class HudController {
         border-width: 5px 8px 3px 8px;
         background: transparent;
         color: #f2d9b1;
+        text-shadow: -1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109;
         padding: 2px 10px 4px 10px;
         font-size: 11px;
         font-weight: 700;
@@ -871,7 +1026,7 @@ export class HudController {
         display: flex;
         gap: 10px;
         align-items: flex-end;
-        z-index: 26;
+        z-index: 45;
       }
       .touch-act-btn {
         width: 56px;
@@ -880,7 +1035,7 @@ export class HudController {
         background: url('assets/sprout_ui/buttons/round_md_blue_normal.png') no-repeat center / 100% 100%;
         image-rendering: pixelated;
         color: #fff6e5;
-        text-shadow: 0 1px 2px #000;
+        text-shadow: -1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109, 0 1px 2px #000;
         font-size: 11px;
         font-weight: 800;
         display: flex;
@@ -963,8 +1118,10 @@ export class HudController {
     const xpPct = Math.max(0, Math.min(100, (gameState.xp / nextXp) * 100));
 
     const hpFill = this.chromeLayer.querySelector<HTMLElement>('#hud-hp-fill');
+    const hpGhost = this.chromeLayer.querySelector<HTMLElement>('#hud-hp-ghost');
     const hpText = this.chromeLayer.querySelector<HTMLElement>('#hud-hp-text');
     const enFill = this.chromeLayer.querySelector<HTMLElement>('#hud-en-fill');
+    const enGhost = this.chromeLayer.querySelector<HTMLElement>('#hud-en-ghost');
     const enText = this.chromeLayer.querySelector<HTMLElement>('#hud-en-text');
     const xpFill = this.chromeLayer.querySelector<HTMLElement>('#hud-xp-fill');
     const xpText = this.chromeLayer.querySelector<HTMLElement>('#hud-xp-text');
@@ -972,7 +1129,21 @@ export class HudController {
     const coinsEl = this.chromeLayer.querySelector<HTMLElement>('#hud-coins-val');
     const spBadge = this.chromeLayer.querySelector<HTMLElement>('#hud-sp-badge');
 
+    if (gameState.hp < this.lastHpSeen) {
+      this.pulseDamageVignette();
+      this.triggerPortraitMood('angry', 1500);
+      Haptics.impactHeavy();
+    }
+    this.lastHpSeen = gameState.hp;
+
+    if (gameState.level > this.lastLevelSeen) {
+      this.lastLevelSeen = gameState.level;
+      this.triggerPortraitMood('happy', 2500);
+      Haptics.notifySuccess();
+    }
+
     if (hpFill) hpFill.style.width = `${hpPct}%`;
+    if (hpGhost) hpGhost.style.width = `${hpPct}%`;
     if (hpText) hpText.textContent = `${Math.ceil(gameState.hp)}/${maxHp}`;
     const hpHeart = this.chromeLayer.querySelector<HTMLImageElement>('#hud-hp-heart');
     if (hpHeart) {
@@ -980,6 +1151,8 @@ export class HudController {
       hpHeart.src = `assets/sprout_ui/vitals/heart_wood_${hState}.png`;
     }
     if (enFill) enFill.style.width = `${enPct}%`;
+    if (enGhost) enGhost.style.width = `${enPct}%`;
+    this.syncPortrait();
     if (enText) enText.textContent = `${Math.ceil(gameState.energy)}/${maxEn}`;
     if (xpFill) xpFill.style.width = `${xpPct}%`;
     if (xpText) xpText.textContent = `${gameState.xp}/${nextXp}`;
@@ -1048,25 +1221,27 @@ export class HudController {
 
     if (!this.chromeBuilt) {
       this.chromeLayer.innerHTML = `
+        <div id="hud-env-vignette" class="${this.envVignetteMode === 'none' ? '' : this.envVignetteMode}"></div>
+        <div id="hud-damage-vignette"></div>
         <div id="hud-low-hp-vignette"></div>
         <div id="hud-vitals-panel" class="hud-panel hud-interactive" style="position:absolute; top:10px; left:10px; padding:5px 8px; display:flex; gap:9px; align-items:center;">
           <div class="sl-frame-wood" style="width:54px; height:54px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <img src="${portrait}" class="px-icon" style="width:38px; height:38px;" />
+            <img id="hud-hero-portrait" src="${portrait}" class="px-icon" style="width:38px; height:38px;" />
           </div>
           <div style="display:flex; flex-direction:column; gap:2px;">
             <div style="display:flex; align-items:center; gap:7px; font-size:12px; font-weight:800; color:#3b2316;">
               <span id="hud-level-label"></span>
-              <span style="color:#fff6e5; background:url('assets/sprout_ui/frames/coin_plate_md.png') no-repeat center / 100% 100%; padding:1px 8px 2px 6px; display:inline-flex; align-items:center; gap:4px; font-size:11px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" /><span id="hud-coins-val"></span></span>
-              <span id="hud-sp-badge" style="background:url('assets/sprout_ui/buttons/round_sm_green_normal.png') no-repeat center / 100% 100%; color:#fff6e5; padding:1px 7px; font-size:10px; display:none;"></span>
+              <span style="color:#fff6e5; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109; background:url('assets/sprout_ui/frames/coin_plate_md.png') no-repeat center / 100% 100%; padding:1px 8px 2px 6px; display:inline-flex; align-items:center; gap:4px; font-size:11px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" /><span id="hud-coins-val"></span></span>
+              <span id="hud-sp-badge" style="background:url('assets/sprout_ui/buttons/round_sm_green_normal.png') no-repeat center / 100% 100%; color:#fff6e5; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109; padding:1px 7px; font-size:10px; display:none;"></span>
             </div>
             <div style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#3b2316;">
               <img id="hud-hp-heart" src="assets/sprout_ui/vitals/heart_wood_full.png" class="px-icon" style="width:16px; height:16px;" title="HP" />
-              <div class="bar-track"><div id="hud-hp-fill" class="bar-fill hp"></div></div>
+              <div class="bar-track"><div id="hud-hp-ghost" class="bar-ghost"></div><div id="hud-hp-fill" class="bar-fill hp"></div></div>
               <span id="hud-hp-text"></span>
             </div>
             <div style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#3b2316;">
               <img src="assets/sprout_ui/icons/brown_outline_tan/sprout_2.png" class="px-icon" style="width:16px; height:16px;" title="Energy" />
-              <div class="bar-track"><div id="hud-en-fill" class="bar-fill en"></div></div>
+              <div class="bar-track"><div id="hud-en-ghost" class="bar-ghost"></div><div id="hud-en-fill" class="bar-fill en"></div></div>
               <span id="hud-en-text"></span>
             </div>
             <div style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#3b2316;">
@@ -1321,18 +1496,24 @@ export class HudController {
 
   private renderHotbar(): void {
     const eqValues = new Set(Object.values(gameState.equipment).filter(Boolean));
+    const shouldPop = this.lastHotbarPopIdx !== gameState.selectedHotbarIndex;
+    this.lastHotbarPopIdx = gameState.selectedHotbarIndex;
     let html = `<div class="hotbar-dock hud-interactive">`;
     for (let i = 0; i < 9; i++) {
       const itemId = gameState.hotbar[i];
       const def = itemId ? ITEMS[itemId] : undefined;
       const count = itemId ? gameState.getItemCount(itemId) : 0;
       const active = gameState.selectedHotbarIndex === i;
-      const showCount = def && !def.equipSlot && def.category !== 'gadget' && count > 0;
+      const isStackable = Boolean(def && !def.equipSlot && def.category !== 'gadget');
+      const showCount = isStackable;
+      const isDepleted = isStackable && count <= 0;
       const cdMs = def?.category === 'gadget' ? gameState.getGadgetRemainingMs(itemId) : 0;
+      const cdTotal = 5000;
+      const cdPct = cdMs > 0 ? Math.min(100, Math.round((cdMs / Math.max(1, cdTotal)) * 100)) : 0;
       const isEq = Boolean(itemId && eqValues.has(itemId));
       const rarityCls = def ? `rarity-${def.rarity}` : '';
       html += `
-        <div class="hotbar-slot ${rarityCls} ${active ? 'active' : ''}" data-hotbar="${i}" draggable="${itemId ? 'true' : 'false'}">
+        <div class="hotbar-slot ${rarityCls} ${active ? 'active' : ''} ${active && shouldPop ? 'pop' : ''}" data-hotbar="${i}" draggable="${itemId ? 'true' : 'false'}">
           ${active ? `<img src="assets/sprout_ui/selectors/selector_c_tl.png" class="slot-corner tl" /><img src="assets/sprout_ui/selectors/selector_c_tr.png" class="slot-corner tr" /><img src="assets/sprout_ui/selectors/selector_c_bl.png" class="slot-corner bl" /><img src="assets/sprout_ui/selectors/selector_c_br.png" class="slot-corner br" />` : ''}
           <span style="position:absolute; top:2px; left:4px; font-size:9px; font-weight:800; color:#5c3a24;">${i + 1}</span>
           ${isEq ? `<span class="hotbar-eq">EQ</span>` : ''}
@@ -1340,14 +1521,14 @@ export class HudController {
             def
               ? `${
                   def.iconKey
-                    ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:22px; height:22px; pointer-events:none; ${cdMs > 0 ? 'opacity:0.45;' : ''}" />`
+                    ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:22px; height:22px; pointer-events:none; ${cdMs > 0 ? 'opacity:0.45;' : ''}${isDepleted ? 'filter:grayscale(1); opacity:0.42;' : ''}" />`
                     : ''
                 }
-                 <span style="font-size:8px; margin-top:1px; max-width:42px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#3b2316; font-weight:800; pointer-events:none;">${def.name.split(' ').pop()}</span>`
+                 <span style="font-size:8px; margin-top:1px; max-width:42px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:${isDepleted ? '#7a685b' : '#3b2316'}; ${isDepleted ? 'opacity:0.65;' : ''} font-weight:800; pointer-events:none;">${def.name.split(' ').pop()}</span>`
               : ''
           }
-          ${cdMs > 0 ? `<span style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#ffd242; text-shadow:0 1px 3px #000; pointer-events:none;">${(cdMs / 1000).toFixed(1)}s</span>` : ''}
-          ${showCount ? `<span style="position:absolute; bottom:2px; right:4px; font-size:9px; color:#3b2316; font-weight:800; pointer-events:none;">${count}</span>` : ''}
+          ${cdMs > 0 ? `<div class="cd-wipe" style="background:conic-gradient(rgba(16,12,8,0.62) ${cdPct * 3.6}deg, transparent 0deg);"></div><span style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#ffd242; text-shadow:0 1px 3px #000; pointer-events:none; z-index:3;">${(cdMs / 1000).toFixed(1)}s</span>` : ''}
+          ${showCount ? `<span style="position:absolute; top:1px; right:2px; font-size:12px; line-height:1.05; padding:0 3px; border-radius:3px; background:rgba(22,13,8,0.88); border:1px solid ${isDepleted ? 'rgba(200,110,110,0.45)' : 'rgba(255,224,160,0.35)'}; color:${isDepleted ? '#c8b8ad' : '#fff6e5'}; font-weight:800; text-shadow:0 1px 1px #000; pointer-events:none; z-index:3;">${count}</span>` : ''}
         </div>
       `;
     }
@@ -1388,6 +1569,7 @@ export class HudController {
       );
       el.onclick = () => {
         this.hideItemTooltip();
+        Haptics.impactLight();
         if (gameState.selectedHotbarIndex !== idx) SFX.playHotbarSelect();
         gameState.selectedHotbarIndex = idx;
         this.renderHotbar();

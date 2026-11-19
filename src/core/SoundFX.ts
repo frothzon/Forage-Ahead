@@ -51,6 +51,8 @@ class SoundFXManager {
 
   private noiseBuffers: Partial<Record<NoiseColor, AudioBuffer>> = {};
   private cooldowns = new Map<string, number>();
+  private comboState = new Map<string, { step: number; lastMs: number }>();
+  private pitchScale = 1;
   private roomSpace: RoomSpace = 'overworld';
 
   public muted = false;
@@ -292,6 +294,29 @@ class SoundFXManager {
     return 1 + (Math.random() * 2 - 1) * jitter;
   }
 
+  public withPitchScale(scale: number, fn: () => void): void {
+    const prev = this.pitchScale;
+    this.pitchScale = Math.max(0.4, Math.min(2.5, scale));
+    try {
+      fn();
+    } finally {
+      this.pitchScale = prev;
+    }
+  }
+
+  private getComboPitch(key: string, explicitStep?: number): number {
+    const curve = [1.0, 1.12, 1.25, 1.33, 1.5];
+    if (typeof explicitStep === 'number' && Number.isFinite(explicitStep)) {
+      const idx = Math.max(0, Math.min(curve.length - 1, Math.floor(explicitStep)));
+      return curve[idx];
+    }
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const prev = this.comboState.get(key);
+    const nextStep = prev && now - prev.lastMs <= 1200 ? Math.min(curve.length - 1, prev.step + 1) : 0;
+    this.comboState.set(key, { step: nextStep, lastMs: now });
+    return curve[nextStep];
+  }
+
   private routeNode(node: AudioNode, reverbAmount = 0.2): void {
     if (!this.sfxBus) return;
     node.connect(this.sfxBus);
@@ -307,7 +332,7 @@ class SoundFXManager {
     const ctx = this.ensureGraph();
     if (!ctx || !this.sfxBus || this.masterVolume <= 0.01) return;
 
-    const jit = this.randFactor(opts.jitter ?? 0);
+    const jit = this.randFactor(opts.jitter ?? 0) * this.pitchScale;
     const t0 = ctx.currentTime + (opts.delay ?? 0);
     const dur = Math.max(0.015, opts.duration);
     const atk = Math.min(dur * 0.4, opts.attack ?? 0.005);
@@ -349,7 +374,7 @@ class SoundFXManager {
     const ctx = this.ensureGraph();
     if (!ctx || !this.sfxBus || this.masterVolume <= 0.01) return;
 
-    const jit = this.randFactor(opts.jitter ?? 0);
+    const jit = this.randFactor(opts.jitter ?? 0) * this.pitchScale;
     const t0 = ctx.currentTime + (opts.delay ?? 0);
     const dur = Math.max(0.02, opts.duration);
     const c0 = Math.max(20, opts.carrierStart * jit);
@@ -400,7 +425,7 @@ class SoundFXManager {
     const buf = this.noiseBuffers[opts.color ?? 'pink'] ?? this.noiseBuffers.white;
     if (!buf) return;
 
-    const jit = this.randFactor(opts.jitter ?? 0);
+    const jit = this.randFactor(opts.jitter ?? 0) * this.pitchScale;
     const t0 = ctx.currentTime + (opts.delay ?? 0);
     const dur = Math.max(0.015, opts.duration);
     const atk = Math.min(dur * 0.35, opts.attack ?? 0.004);
@@ -442,20 +467,26 @@ class SoundFXManager {
   // FORAGING & WORLD INTERACTION
   // =========================================================================
 
-  public playChop(): void {
+  public playChop(comboStep?: number): void {
     if (!this.canPlay('chop', 45)) return;
-    // Wood crack transient + hollow trunk thud
-    this.playNoise({ color: 'white', duration: 0.028, filterType: 'highpass', freqStart: 1600, q: 1.0, gain: 0.14, jitter: 0.12 });
-    this.playTone({ freqStart: 195, freqEnd: 78, duration: 0.085, type: 'triangle', gain: 0.14, jitter: 0.1, saturate: true });
-    this.playNoise({ color: 'pink', duration: 0.06, filterType: 'bandpass', freqStart: 620, freqEnd: 280, q: 2.2, gain: 0.08, delay: 0.01 });
+    const pitch = this.getComboPitch('chop', comboStep);
+    this.withPitchScale(pitch, () => {
+      // Wood crack transient + hollow trunk thud
+      this.playNoise({ color: 'white', duration: 0.028, filterType: 'highpass', freqStart: 1600, q: 1.0, gain: 0.14, jitter: 0.12 });
+      this.playTone({ freqStart: 195, freqEnd: 78, duration: 0.085, type: 'triangle', gain: 0.14, jitter: 0.1, saturate: true });
+      this.playNoise({ color: 'pink', duration: 0.06, filterType: 'bandpass', freqStart: 620, freqEnd: 280, q: 2.2, gain: 0.08, delay: 0.01 });
+    });
   }
 
-  public playMine(): void {
+  public playMine(comboStep?: number): void {
     if (!this.canPlay('mine', 45)) return;
-    // Metallic pickaxe clink + stone chip crumble
-    this.playFM({ carrierStart: 1480, carrierEnd: 1320, modFreq: 2190, modIndex: 380, duration: 0.14, gain: 0.11, jitter: 0.09, reverb: 0.35 });
-    this.playTone({ freqStart: 220, freqEnd: 95, duration: 0.055, type: 'triangle', gain: 0.08, jitter: 0.1 });
-    this.playNoise({ color: 'pink', duration: 0.1, filterType: 'bandpass', freqStart: 950, freqEnd: 380, q: 1.6, gain: 0.11, delay: 0.018, jitter: 0.12 });
+    const pitch = this.getComboPitch('mine', comboStep);
+    this.withPitchScale(pitch, () => {
+      // Metallic pickaxe clink + stone chip crumble
+      this.playFM({ carrierStart: 1480, carrierEnd: 1320, modFreq: 2190, modIndex: 380, duration: 0.14, gain: 0.11, jitter: 0.09, reverb: 0.35 });
+      this.playTone({ freqStart: 220, freqEnd: 95, duration: 0.055, type: 'triangle', gain: 0.08, jitter: 0.1 });
+      this.playNoise({ color: 'pink', duration: 0.1, filterType: 'bandpass', freqStart: 950, freqEnd: 380, q: 1.6, gain: 0.11, delay: 0.018, jitter: 0.12 });
+    });
   }
 
   public playBreakProp(kind: 'box' | 'pot' = 'box'): void {
@@ -489,11 +520,14 @@ class SoundFXManager {
     this.playNoise({ color: 'white', duration: 0.09, filterType: 'bandpass', freqStart: 2800, freqEnd: 1200, q: 2.6, gain: 0.12, attack: 0.004, jitter: 0.1 });
   }
 
-  public playHit(): void {
+  public playHit(comboStep?: number): void {
     if (!this.canPlay('hit', 40)) return;
-    // Crisp impact snap + saturated low punch
-    this.playNoise({ color: 'white', duration: 0.032, filterType: 'bandpass', freqStart: 1900, freqEnd: 650, q: 1.4, gain: 0.14, jitter: 0.12 });
-    this.playTone({ freqStart: 145, freqEnd: 42, duration: 0.11, type: 'triangle', gain: 0.18, saturate: true, jitter: 0.1 });
+    const pitch = this.getComboPitch('hit', comboStep);
+    this.withPitchScale(pitch, () => {
+      // Crisp impact snap + saturated low punch
+      this.playNoise({ color: 'white', duration: 0.032, filterType: 'bandpass', freqStart: 1900, freqEnd: 650, q: 1.4, gain: 0.14, jitter: 0.12 });
+      this.playTone({ freqStart: 145, freqEnd: 42, duration: 0.11, type: 'triangle', gain: 0.18, saturate: true, jitter: 0.1 });
+    });
   }
 
   public playPlayerHurt(): void {
@@ -538,17 +572,23 @@ class SoundFXManager {
   // LOOT, CRAFTING, FISHING & PROGRESSION
   // =========================================================================
 
-  public playPickup(): void {
+  public playPickup(comboStep?: number): void {
     if (!this.canPlay('pickup', 35)) return;
-    this.playTone({ freqStart: 520, freqEnd: 790, duration: 0.075, type: 'sine', gain: 0.09, jitter: 0.08 });
-    this.playTone({ freqStart: 1040, freqEnd: 1580, duration: 0.065, type: 'sine', gain: 0.04, delay: 0.018, jitter: 0.08, reverb: 0.28 });
+    const pitch = this.getComboPitch('pickup', comboStep);
+    this.withPitchScale(pitch, () => {
+      this.playTone({ freqStart: 520, freqEnd: 790, duration: 0.075, type: 'sine', gain: 0.09, jitter: 0.08 });
+      this.playTone({ freqStart: 1040, freqEnd: 1580, duration: 0.065, type: 'sine', gain: 0.04, delay: 0.018, jitter: 0.08, reverb: 0.28 });
+    });
   }
 
-  public playCoin(): void {
+  public playCoin(comboStep?: number): void {
     if (!this.canPlay('coin', 35)) return;
-    // Crisp 2-note metallic coin clink (B5 -> E6)
-    this.playFM({ carrierStart: 987.77, modFreq: 2469, modIndex: 180, duration: 0.09, gain: 0.09, jitter: 0.05, reverb: 0.3 });
-    this.playFM({ carrierStart: 1318.5, modFreq: 3296, modIndex: 140, duration: 0.14, gain: 0.09, delay: 0.048, jitter: 0.05, reverb: 0.32 });
+    const pitch = this.getComboPitch('coin', comboStep);
+    this.withPitchScale(pitch, () => {
+      // Crisp 2-note metallic coin clink (B5 -> E6)
+      this.playFM({ carrierStart: 987.77, modFreq: 2469, modIndex: 180, duration: 0.09, gain: 0.09, jitter: 0.05, reverb: 0.3 });
+      this.playFM({ carrierStart: 1318.5, modFreq: 3296, modIndex: 140, duration: 0.14, gain: 0.09, delay: 0.048, jitter: 0.05, reverb: 0.32 });
+    });
   }
 
   public playCraft(): void {
@@ -633,6 +673,7 @@ class SoundFXManager {
 
   public playLevelUp(): void {
     if (!this.canPlay('levelUp', 200)) return;
+    musicEngine.duck(0.25, 700, 600);
     const notes = [523.25, 659.25, 783.99, 1046.5];
     notes.forEach((n, i) => {
       const delay = i * 0.08;
@@ -643,6 +684,7 @@ class SoundFXManager {
 
   public playQuestComplete(): void {
     if (!this.canPlay('questComplete', 200)) return;
+    musicEngine.duck(0.28, 680, 580);
     const notes = [440, 554.37, 659.25, 880];
     notes.forEach((n, i) => {
       this.playTone({ freqStart: n, duration: 0.25, type: 'triangle', gain: 0.1, delay: i * 0.075, reverb: 0.38 });
@@ -652,6 +694,7 @@ class SoundFXManager {
 
   public playIslandUnlock(): void {
     if (!this.canPlay('islandUnlock', 250)) return;
+    musicEngine.duck(0.22, 850, 700);
     this.playNoise({ color: 'pink', duration: 0.35, filterType: 'lowpass', freqStart: 450, freqEnd: 1200, gain: 0.11, attack: 0.05, reverb: 0.4 });
     [392, 493.88, 587.33, 783.99, 987.77].forEach((n, i) => {
       this.playTone({ freqStart: n, duration: 0.28, type: 'triangle', gain: 0.095, delay: i * 0.07, reverb: 0.42 });
@@ -660,6 +703,7 @@ class SoundFXManager {
 
   public playBossDefeat(): void {
     if (!this.canPlay('bossDefeat', 300)) return;
+    musicEngine.duck(0.18, 1100, 850);
     this.playExplosion();
     [392, 493.88, 587.33, 783.99, 1046.5].forEach((n, i) => {
       const delay = 0.14 + i * 0.09;
@@ -782,6 +826,7 @@ class SoundFXManager {
 
   public playRevealBounce(): void {
     if (!this.canPlay('revealBounce', 250)) return;
+    musicEngine.duck(0.3, 620, 520);
     // Bouncy pop + sparkling chime
     this.playTone({ freqStart: 320, freqEnd: 880, duration: 0.14, type: 'sine', gain: 0.14, attack: 0.004, reverb: 0.3 });
     this.playTone({ freqStart: 880, freqEnd: 620, duration: 0.12, type: 'triangle', gain: 0.1, delay: 0.09, reverb: 0.35 });

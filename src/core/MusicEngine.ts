@@ -503,6 +503,7 @@ export class MusicEngine {
 
   private schedulerTimer?: number;
   private fadeSwapTimer?: number;
+  private duckTimer?: number;
   private fadingOut = false;
   private activeTrack: CompiledTrack | null = null;
   private stepIdx = 0;
@@ -552,6 +553,24 @@ export class MusicEngine {
     if (!this.enabled || this.muted) return;
     const targetSit = paused ? 'pause' : this.situation;
     this.crossfadeTo(this.getTrackForSituation(targetSit, this.activeTrack?.id), 0.55);
+  }
+
+  public duck(factor = 0.25, holdMs = 750, releaseMs = 650): void {
+    if (!this.ctx || !this.musicBus || !this.enabled || this.muted) return;
+    const baseTarget = this.masterVolume * 0.28;
+    const ducked = baseTarget * Math.max(0, Math.min(1, factor));
+    const now = this.ctx.currentTime;
+    this.musicBus.gain.cancelScheduledValues(now);
+    this.musicBus.gain.setTargetAtTime(ducked, now, 0.025);
+    if (this.duckTimer !== undefined) {
+      window.clearTimeout(this.duckTimer);
+    }
+    this.duckTimer = window.setTimeout(() => {
+      this.duckTimer = undefined;
+      if (!this.ctx || !this.musicBus) return;
+      const restore = !this.enabled || this.muted ? 0 : this.masterVolume * 0.28;
+      this.musicBus.gain.setTargetAtTime(restore, this.ctx.currentTime, Math.max(0.05, releaseMs / 3000));
+    }, Math.max(50, holdMs));
   }
 
   private ensureContext(): AudioContext | null {

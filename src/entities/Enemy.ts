@@ -3,6 +3,7 @@ import { gameState } from '../core/GameState';
 import { HALF_ISLAND_AGGRO_PX, MONSTERS, type MonsterDef } from '../data/monsters';
 import { vectorToDirection, type Direction } from './AnimationRegistry';
 import { applySafeKnockback } from './knockback';
+import { showWorldEmote } from '../vfx/WorldEmote';
 import manifest from '../data/assetManifest.json';
 
 export class Enemy extends Phaser.GameObjects.Container {
@@ -26,11 +27,13 @@ export class Enemy extends Phaser.GameObjects.Container {
   private wanderTimerMs = 0;
   private wanderVec = new Phaser.Math.Vector2(0, 0);
   private hitStunMs = 0;
+  private hitstopMs = 0;
 
   // Brief attack wind-up telegraph so player can react & dash
   private telegraphMs = 0;
   private pendingAttackType: 'melee' | 'ranged' | null = null;
   private baseScale = 1;
+  private hasAggroEmoted = false;
 
   // Obstacle detour steering memory
   private detourSign: 1 | -1 = 1;
@@ -127,6 +130,14 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.slowMs = Math.max(this.slowMs, ms);
   }
 
+  public applyHitstop(ms: number): void {
+    if (this.isDead || ms <= 0) return;
+    this.hitstopMs = Math.max(this.hitstopMs, ms);
+    if (this.sprite.anims?.isPlaying) {
+      this.sprite.anims.pause();
+    }
+  }
+
   public takeDamage(
     amount: number,
     knockX: number,
@@ -150,12 +161,25 @@ export class Enemy extends Phaser.GameObjects.Container {
       ease: 'Quad.Out',
     });
 
+    // 2-frame white hit-flash -> brief red damage tint + elastic squash-and-stretch
     this.sprite.setTintFill(0xffffff);
-    this.scene.time.delayedCall(90, () => {
-      if (this.sprite.active && !this.isDead) {
+    this.scene.time.delayedCall(55, () => {
+      if (!this.sprite.active || this.isDead) return;
+      this.sprite.setTint(0xff6b6b);
+      this.scene.time.delayedCall(65, () => {
+        if (!this.sprite.active || this.isDead) return;
         if (this.slowMs > 0) this.sprite.setTint(0x74e5ff);
         else this.sprite.clearTint();
-      }
+      });
+    });
+
+    this.sprite.setScale(this.baseScale * 1.18, this.baseScale * 0.82);
+    this.scene.tweens.add({
+      targets: this.sprite,
+      scaleX: this.baseScale,
+      scaleY: this.baseScale,
+      duration: 90,
+      ease: 'Back.easeOut',
     });
 
     applySafeKnockback(this, knockX, knockY, this.def.isBoss ? 3 : 9, isWalkable, 4);
@@ -191,6 +215,13 @@ export class Enemy extends Phaser.GameObjects.Container {
     opts?: { aggroMult?: number; maxAggroPx?: number },
   ): void {
     if (this.isDead) return;
+    if (this.hitstopMs > 0) {
+      this.hitstopMs = Math.max(0, this.hitstopMs - dtMs);
+      if (this.hitstopMs <= 0 && this.sprite.anims?.isPaused) {
+        this.sprite.anims.resume();
+      }
+      return;
+    }
     const dt = dtMs / 1000;
 
     if (this.attackCooldownMs > 0) this.attackCooldownMs -= dtMs;
@@ -243,24 +274,43 @@ export class Enemy extends Phaser.GameObjects.Container {
     const effectiveAggro = Math.min(this.def.aggroRange, cap) * (opts?.aggroMult ?? 1);
 
     if (dist <= effectiveAggro) {
+      if (!this.hasAggroEmoted) {
+        this.hasAggroEmoted = true;
+        showWorldEmote(this.scene, this.x, this.y - (this.def.isBoss ? 34 : 20), 'portraits/Emote_alert', {
+          durationMs: 850,
+          scale: 0.65,
+        });
+      }
       const nx = dist > 0.01 ? dx / dist : 0;
       const ny = dist > 0.01 ? dy / dist : 1;
       this.facing = vectorToDirection(nx, ny, this.facing);
 
-      // Boss Special Abilities (with 380ms ground danger telegraph)
+      // Boss Special Abilities (with 380ms ground danger telegraph: outer ring + expanding fill + 100ms white flash)
       if (this.def.isBoss && this.specialCooldownMs <= 0) {
         this.specialCooldownMs = 4600;
         this.playMonAnim('special', true);
-        const dangerRing = this.scene.add
-          .circle(this.x, this.y, 18, 0xff4757, 0.14)
+        const radius = 26;
+        const outerRing = this.scene.add
+          .circle(this.x, this.y, radius, 0xff4757, 0.08)
           .setStrokeStyle(1.5, 0xff6b81, 0.9)
           .setDepth(this.y - 1);
+        const innerFill = this.scene.add
+          .circle(this.x, this.y, radius, 0xff4757, 0.34)
+          .setScale(0.05)
+          .setDepth(this.y - 1);
         this.scene.tweens.add({
-          targets: dangerRing,
-          scale: { from: 0.4, to: 1.45 },
-          alpha: 0,
-          duration: 380,
-          onComplete: () => dangerRing.destroy(),
+          targets: innerFill,
+          scale: 1,
+          duration: 340,
+          ease: 'Linear',
+        });
+        this.scene.time.delayedCall(240, () => {
+          if (innerFill.active) innerFill.setFillStyle(0xffffff, 0.72);
+          if (outerRing.active) outerRing.setStrokeStyle(2, 0xffffff, 1);
+        });
+        this.scene.time.delayedCall(380, () => {
+          if (outerRing.active) outerRing.destroy();
+          if (innerFill.active) innerFill.destroy();
         });
         const fireX = this.x;
         const fireY = this.y;
@@ -315,6 +365,7 @@ export class Enemy extends Phaser.GameObjects.Container {
         }
       }
     } else {
+      this.hasAggroEmoted = false;
       // Idle / Wander near home
       this.wanderTimerMs -= dtMs;
       if (this.wanderTimerMs <= 0) {

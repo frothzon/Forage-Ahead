@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { gameState } from '../core/GameState';
+import { Haptics } from '../core/Haptics';
 import { SFX } from '../core/SoundFX';
 import manifest from '../data/assetManifest.json';
 import { ITEMS } from '../data/items';
@@ -27,6 +28,7 @@ export class Player extends Phaser.GameObjects.Container {
   private footstepTimerMs = 0;
   private dashTrailTimerMs = 0;
   private exhaustedTimerMs = 0;
+  private hitstopMs = 0;
   private baseFeetOffset = 8;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -110,6 +112,14 @@ export class Player extends Phaser.GameObjects.Container {
     this.sprite.play(target, true);
   }
 
+  public applyHitstop(ms: number): void {
+    if (ms <= 0) return;
+    this.hitstopMs = Math.max(this.hitstopMs, ms);
+    if (this.sprite.anims?.isPlaying) {
+      this.sprite.anims.pause();
+    }
+  }
+
   public grantDodgeMomentum(ms = 2200): void {
     this.dodgeMomentumMs = Math.max(this.dodgeMomentumMs, ms);
     this.sprite.setTint(0xffe57f);
@@ -139,7 +149,11 @@ export class Player extends Phaser.GameObjects.Container {
     this.invulnerableMs = Math.max(this.invulnerableMs, 220);
     this.dashCooldownMs = gameState.getDashCooldownMs();
     SFX.playDash();
+    Haptics.impactMedium();
     this.playHeroAnim('dash', true);
+    // Stretch along the dash velocity vector
+    const horiz = Math.abs(this.dashDir.x) >= Math.abs(this.dashDir.y);
+    this.sprite.setScale(horiz ? 1.22 : 0.84, horiz ? 0.82 : 1.2);
     gameState.emitVitals();
     return true;
   }
@@ -226,9 +240,14 @@ export class Player extends Phaser.GameObjects.Container {
     gameState.hp = Math.max(0, gameState.hp - mitigated);
     this.invulnerableMs = 650;
     SFX.playPlayerHurt();
-    this.sprite.setTintFill(0xff6b6b);
-    this.scene.time.delayedCall(120, () => {
-      if (this.sprite.active) this.sprite.clearTint();
+    Haptics.impactHeavy();
+    this.sprite.setTintFill(0xffffff);
+    this.scene.time.delayedCall(55, () => {
+      if (!this.sprite.active) return;
+      this.sprite.setTint(0xff6b6b);
+      this.scene.time.delayedCall(65, () => {
+        if (this.sprite.active) this.sprite.clearTint();
+      });
     });
     applySafeKnockback(this, knockX, knockY, 8, isWalkable, 4);
     gameState.emitVitals();
@@ -241,7 +260,15 @@ export class Player extends Phaser.GameObjects.Container {
     isWalkable: (nx: number, ny: number) => boolean,
     speedBonus = 1,
     stepColor = 0xd8d2c5,
+    surface: 'grass' | 'sand' | 'stone' | 'snow' = 'grass',
   ): void {
+    if (this.hitstopMs > 0) {
+      this.hitstopMs = Math.max(0, this.hitstopMs - dtMs);
+      if (this.hitstopMs <= 0 && this.sprite.anims?.isPaused) {
+        this.sprite.anims.resume();
+      }
+      return;
+    }
     const dt = dtMs / 1000;
     if (this.dodgeMomentumMs > 0) this.dodgeMomentumMs = Math.max(0, this.dodgeMomentumMs - dtMs);
     if (this.exhaustedTimerMs > 0) this.exhaustedTimerMs = Math.max(0, this.exhaustedTimerMs - dtMs);
@@ -281,6 +308,13 @@ export class Player extends Phaser.GameObjects.Container {
       }
       if (this.dashTimerMs <= 0) {
         this.isDashing = false;
+        this.scene.tweens.add({
+          targets: this.sprite,
+          scaleX: 1,
+          scaleY: 1,
+          duration: 90,
+          ease: 'Back.easeOut',
+        });
       }
     } else if (inputDir.lengthSq() > 0.01) {
       const spd = gameState.getMoveSpeed() * speedBonus * (this.isActionLocked ? 0.45 : 1);
@@ -294,16 +328,26 @@ export class Player extends Phaser.GameObjects.Container {
         this.footstepTimerMs -= dtMs;
         if (this.footstepTimerMs <= 0) {
           this.footstepTimerMs = 260;
-          SFX.playFootstep('grass');
-          const dust = this.scene.add.circle(this.x + Phaser.Math.Between(-3, 3), this.y + 1, 1.8, stepColor, 0.5).setDepth(this.y - 1);
-          this.scene.tweens.add({
-            targets: dust,
-            y: dust.y - 4,
-            scale: 0.3,
-            alpha: 0,
-            duration: 240,
-            onComplete: () => dust.destroy(),
-          });
+          SFX.playFootstep(surface);
+          const puffCount = Math.random() < 0.45 ? 2 : 1;
+          for (let i = 0; i < puffCount; i++) {
+            const dustKey = Math.random() < 0.5 ? 'extras/Particle_dust_3' : 'extras/Particle_dust_4';
+            const px = this.x + Phaser.Math.Between(-3, 3);
+            const py = this.y + 1;
+            const dust = this.scene.textures.exists(dustKey)
+              ? this.scene.add.image(px, py, dustKey).setTint(stepColor).setScale(0.55).setAlpha(0.65)
+              : this.scene.add.circle(px, py, 1.8, stepColor, 0.5);
+            dust.setDepth(this.y - 1);
+            this.scene.tweens.add({
+              targets: dust,
+              x: px + Phaser.Math.Between(-3, 3),
+              y: py - Phaser.Math.Between(3, 6),
+              scale: 0.2,
+              alpha: 0,
+              duration: 240,
+              onComplete: () => dust.destroy(),
+            });
+          }
         }
       }
     } else if (!this.isActionLocked) {

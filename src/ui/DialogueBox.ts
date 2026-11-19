@@ -295,7 +295,10 @@ class DialogueBoxManager {
     this.tokens.forEach((tok, idx) => {
       const span = document.createElement('span');
       span.textContent = tok.ch === ' ' && tok.effect ? '\u00A0' : tok.ch;
-      if (tok.color) span.style.color = tok.color;
+      if (tok.color) {
+        span.style.color = tok.color;
+        span.style.textShadow = '-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109';
+      }
       if (tok.effect) {
         span.className = `dlg-char-${tok.effect}`;
         span.style.animationDelay = `${(idx % 8) * 55}ms`;

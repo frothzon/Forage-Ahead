@@ -15,11 +15,13 @@ import {
   spawnDeathBurst,
   spawnDirectionalSparks,
   spawnFloatingText,
+  spawnProjectileImpact,
   spawnShockwaveRing,
   spawnSparklers,
-  triggerHitStop,
   type ActiveProjectile,
 } from '../entities/CombatHelpers';
+import { CameraRig } from '../vfx/CameraRig';
+import { EffectSequencer } from '../vfx/EffectSequencer';
 import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
 import { FoxCompanion, Player } from '../entities/Player';
@@ -124,6 +126,8 @@ export class DungeonScene extends Phaser.Scene {
   private player!: Player;
   private fox?: FoxCompanion;
   private hud!: HudController;
+  private cameraRig!: CameraRig;
+  private fx!: EffectSequencer;
   private enemies: Enemy[] = [];
   private drops: LootDrop[] = [];
   private projectiles: ActiveProjectile[] = [];
@@ -223,6 +227,11 @@ export class DungeonScene extends Phaser.Scene {
     );
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
     this.cameras.main.roundPixels = true;
+    this.cameraRig = new CameraRig(this, { maxLookAheadPx: 12 });
+    this.fx = new EffectSequencer(this, {
+      cameraRig: this.cameraRig,
+      onHitstop: (ms) => this.player.applyHitstop(ms),
+    });
 
     const onResize = (gameSize: Phaser.Structs.Size) => {
       this.cameras.main.setSize(gameSize.width, gameSize.height);
@@ -622,7 +631,14 @@ export class DungeonScene extends Phaser.Scene {
     const scale = gameState.getDamageScaleVsEnemy(enemy.def.level);
     const rawDmg = crit ? Math.round(baseDmg * 2) : baseDmg;
     const dmg = Math.max(1, Math.round(rawDmg * scale.dealMult));
-    SFX.playHit();
+    this.cameraRig.kick(dirX, dirY, crit ? 3.5 : 2.2, 80);
+    if (crit) {
+      this.fx.play('crit_strike', { x: enemy.x, y: enemy.y - 4 });
+      this.hud.triggerPortraitMood('angry', 1500);
+    } else {
+      SFX.playHit();
+      this.cameraRig.addTrauma(0.14);
+    }
     spawnDirectionalSparks(this, enemy.x, enemy.y - 4, Math.atan2(dirY, dirX), crit ? 0xffe066 : 0xffffff, crit ? 9 : 5);
     spawnFloatingText(
       this,
@@ -635,16 +651,18 @@ export class DungeonScene extends Phaser.Scene {
     );
     spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, crit ? 8 : 5);
 
-    if (crit) triggerHitStop(this, 38, 0.05);
     const killed = enemy.takeDamage(dmg, dirX, dirY, this.isWalkable);
-    if (killed && enemy.def.isBoss) triggerHitStop(this, 60, 0.08);
+    const stopMs = killed ? 70 : crit ? 55 : 35;
+    this.player.applyHitstop(stopMs);
+    if (!killed) enemy.applyHitstop(stopMs);
 
     // Boss Enrage Phase 2 below 50% HP
     if (!killed && enemy === this.boss && !this.bossEnraged && enemy.hp <= enemy.maxHp * 0.5) {
       this.bossEnraged = true;
       SFX.playBossEnrage();
       spawnShockwaveRing(this, enemy.x, enemy.y - 4, 0xff5e6c, 54, 380);
-      this.cameras.main.shake(200, 0.008);
+      this.cameraRig.addTrauma(0.45);
+      this.cameraRig.zoomPunch(0.05, 110);
       enemy.sprite.setTint(0xff8a8a);
       this.hud.showToast(`${enemy.def.name} ENRAGED! Phase 2!`);
       const proj = enemy.def.projectileKey ?? 'monster_projectiles/FireballBig';
@@ -685,6 +703,8 @@ export class DungeonScene extends Phaser.Scene {
 
       if (enemy === this.boss && !this.relicSpawned) {
         this.relicSpawned = true;
+        this.fx.play('boss_defeat', { x: enemy.x, y: enemy.y - 4 });
+        this.cameraRig.zoomPunch(0.05, 150);
         this.hud.setBossBar(null);
         if (this.cfg.id === 'void_spire') {
           gameState.voidSpireHighestFloor = Math.max(gameState.voidSpireHighestFloor, this.voidFloor);
@@ -771,7 +791,15 @@ export class DungeonScene extends Phaser.Scene {
           }
         }
       }
-      this.player.updatePlayer(dt, dir, this.isWalkable);
+      this.player.updatePlayer(dt, dir, this.isWalkable, 1, 0xa8a8b8, 'stone');
+      if (dir.lengthSq() > 0.01) {
+        this.cameraRig.setLookAhead(dir.x, dir.y, 12);
+      } else {
+        const fMap = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] } as const;
+        const [fx, fy] = fMap[this.player.facing];
+        this.cameraRig.setLookAhead(fx, fy, 8);
+      }
+      this.cameraRig.update(dt);
       if (this.fox) {
         this.fox.updateCompanion(dt, this.player.x, this.player.y, {
           findTarget: () => {
@@ -822,6 +850,8 @@ export class DungeonScene extends Phaser.Scene {
         this.gateOpen = true;
         this.bossGateGroup?.clear(true, true);
         SFX.playGateUnlock();
+        this.cameraRig.addTrauma(0.32);
+        this.cameraRig.zoomPunch(0.05, 110);
         spawnShockwaveRing(this, 20 * TILE_PX + 8, 7.5 * TILE_PX, 0xffe066, 48, 420);
         this.hud.showToast('Boss Gate Unsealed!');
       }
@@ -929,6 +959,9 @@ export class DungeonScene extends Phaser.Scene {
       }
 
       if (hit || p.lifeMs <= 0) {
+        if (hit) {
+          spawnProjectileImpact(this, p.sprite.x, p.sprite.y, p.kind);
+        }
         p.sprite.destroy();
         this.projectiles.splice(i, 1);
       }

@@ -34,6 +34,7 @@ export const SPROUT_UI_CSS = `
     border-width: calc(5px * var(--ui-scale)) calc(5px * var(--ui-scale)) calc(7px * var(--ui-scale)) calc(5px * var(--ui-scale));
     background: transparent;
     color: var(--sl-text-dark);
+    text-shadow: 0 1px 0 rgba(255, 246, 229, 0.72);
     box-shadow: 0 6px 18px rgba(16, 10, 4, 0.45);
     image-rendering: pixelated;
   }
@@ -47,6 +48,7 @@ export const SPROUT_UI_CSS = `
     border-width: calc(5px * var(--ui-scale)) calc(5px * var(--ui-scale)) calc(7px * var(--ui-scale)) calc(5px * var(--ui-scale));
     background: transparent;
     color: var(--sl-text-light);
+    text-shadow: -1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109, 0 2px 3px rgba(0, 0, 0, 0.55);
     image-rendering: pixelated;
   }
 
@@ -149,7 +151,7 @@ export const SPROUT_UI_CSS = `
   .hud-btn.danger {
     border-image-source: url('assets/sprout_ui/buttons/rect_wide_dark_normal.png');
     color: #ffd8dc;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+    text-shadow: -1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109, 0 1px 2px rgba(0, 0, 0, 0.55);
   }
   .hud-btn.danger:active:not(:disabled) {
     border-image-source: url('assets/sprout_ui/buttons/rect_wide_dark_pressed.png');
@@ -191,10 +193,37 @@ export const SPROUT_UI_CSS = `
   }
   .bar-fill {
     height: 100%;
+    position: relative;
+    z-index: 1;
     transition: width 120ms ease;
     background-size: 100% 100%;
     background-repeat: no-repeat;
     image-rendering: pixelated;
+  }
+  .bar-ghost {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 0;
+    background: linear-gradient(90deg, rgba(255, 245, 200, 0.85), rgba(255, 210, 110, 0.92));
+    transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1) 220ms;
+    pointer-events: none;
+  }
+  @keyframes modalSpringPop {
+    0% { transform: scale(0.92); opacity: 0.7; }
+    65% { transform: scale(1.02); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes hotbarPop {
+    0% { transform: translateY(-3px) scale(0.92); }
+    60% { transform: translateY(-4px) scale(1.1); }
+    100% { transform: translateY(-3px) scale(1); }
+  }
+  @keyframes raritySheen {
+    0%, 72% { transform: translateX(-140%) rotate(25deg); opacity: 0; }
+    78% { opacity: 0.55; }
+    100% { transform: translateX(180%) rotate(25deg); opacity: 0; }
   }
   .bar-fill.hp { background-image: url('assets/sprout_ui/bars/bar_fill_red.png'); }
   .bar-fill.en { background-image: url('assets/sprout_ui/bars/bar_fill_green.png'); }

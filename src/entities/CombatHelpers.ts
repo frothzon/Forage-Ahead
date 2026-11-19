@@ -14,11 +14,11 @@ export interface ActiveProjectile {
 export type FloatingTextStyle = 'default' | 'damage' | 'crit' | 'xp' | 'exhausted';
 
 export function getWeaponSlashColor(itemId: string): number {
-  if (itemId === 'sword_obsidian' || itemId === 'sword_wyrmheart') return 0xff6b3d;
-  if (itemId === 'sword_sun') return 0xffe066;
-  if (itemId === 'sword_astral') return 0xd28eff;
-  if (itemId === 'sword_iron') return 0xdbe9ff;
-  if (itemId.startsWith('sword')) return 0xfff0a8;
+  if (itemId === 'sword_obsidian' || itemId === 'sword_wyrmheart') return 0xc84bff;
+  if (itemId === 'sword_gold' || itemId === 'sword_sun') return 0xffe066;
+  if (itemId === 'sword_astral') return 0x6ce5ff;
+  if (itemId === 'sword_iron' || itemId === 'sword') return 0xe8f1ff;
+  if (itemId.startsWith('sword')) return 0xe8f1ff;
   if (itemId === 'pickaxe_crystal') return 0x7ce8ff;
   if (itemId === 'pickaxe_gold') return 0xffdf78;
   return 0xb5e2ff;
@@ -51,54 +51,81 @@ export function spawnFloatingText(
   fontSize = '8px',
   style: FloatingTextStyle = 'default',
 ): void {
+  const isCrit = style === 'crit';
+  const displayText = isCrit && !text.endsWith('!') ? `${text}!` : text;
+  const fontFamily = isCrit ? 'SproutLandsDisplay, monospace' : 'SproutLandsCompact, monospace';
+  const baseScale = isCrit ? 1.4 : style === 'damage' ? 1.0 : style === 'xp' ? 0.92 : 0.95;
+
   const txt = scene.add
-    .text(x, y, text, {
-      fontSize,
+    .text(x, y, displayText, {
+      fontFamily,
+      fontSize: isCrit ? '11px' : fontSize,
       fontStyle: 'bold',
-      color,
+      color: isCrit ? '#ffffff' : color,
       stroke: '#0b1018',
-      strokeThickness: style === 'crit' ? 3 : 2,
+      strokeThickness: isCrit ? 3.5 : 2.5,
       resolution: 4,
     })
     .setOrigin(0.5)
-    .setScale(style === 'crit' ? 2.1 : style === 'damage' ? 1.75 : style === 'xp' ? 1.4 : 1.45)
+    .setScale(baseScale * 1.25)
     .setDepth(9999);
 
-  if (style === 'damage' || style === 'crit') {
+  if (style === 'damage' || isCrit) {
+    if (isCrit) {
+      // Brief gold-to-white flash
+      scene.time.delayedCall(65, () => {
+        if (txt.active) txt.setColor('#ffe066');
+      });
+      scene.time.delayedCall(145, () => {
+        if (txt.active) txt.setColor(color === '#ffffff' ? '#ffe066' : color);
+      });
+    }
+
+    // Ballistic arc: initial upward + horizontal velocity with gravity
     const dir = Math.random() < 0.5 ? -1 : 1;
-    const driftX = dir * Phaser.Math.Between(8, 15);
-    const rot = dir * (style === 'crit' ? 10 : 6);
+    const vx = dir * Phaser.Math.FloatBetween(18, 34);
+    let vy = isCrit ? -68 : -54;
+    const gravity = 190;
+    const startX = x;
+    const startY = y;
+    const dur = isCrit ? 640 : 520;
+    let prevT = 0;
+
     scene.tweens.add({
       targets: txt,
-      scale: style === 'crit' ? 1.15 : 0.98,
-      angle: { from: -rot, to: rot },
-      duration: 180,
+      scale: baseScale,
+      duration: 130,
       ease: 'Back.Out',
-      yoyo: style === 'crit',
-      repeat: style === 'crit' ? 1 : 0,
     });
-    scene.tweens.add({
-      targets: txt,
-      x: x + driftX,
-      y: y - (style === 'crit' ? 24 : 19),
-      duration: 240,
-      ease: 'Quad.Out',
-      onComplete: () => {
+
+    scene.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: dur,
+      onUpdate: (tw) => {
         if (!txt.active) return;
-        scene.tweens.add({
-          targets: txt,
-          y: txt.y - 6,
-          alpha: 0,
-          duration: 420,
-          ease: 'Cubic.In',
-          onComplete: () => txt.destroy(),
-        });
+        const t = tw.getValue() ?? 0;
+        const dt = ((t - prevT) * dur) / 1000;
+        prevT = t;
+        vy += gravity * dt;
+        txt.x = startX + vx * (t * (dur / 1000));
+        txt.y += vy * dt;
+        if (txt.y > startY + 8) txt.y = startY + 8;
+        if (t > 0.65) {
+          txt.alpha = Math.max(0, 1 - (t - 0.65) / 0.35);
+        }
+      },
+      onComplete: () => {
+        if (txt.active) txt.destroy();
       },
     });
     return;
   }
 
   if (style === 'xp') {
+    const slotIdx = allocPopupSlot(scene);
+    const baseY = y - slotIdx * 10;
+    txt.setPosition(x, baseY);
     const sway = Phaser.Math.Between(-6, 6);
     scene.tweens.add({
       targets: txt,
@@ -111,11 +138,14 @@ export function spawnFloatingText(
     scene.tweens.add({
       targets: txt,
       x: x + sway,
-      y: y - 26,
+      y: baseY - 24,
       alpha: { from: 1, to: 0 },
       duration: 920,
       ease: 'Sine.Out',
-      onComplete: () => txt.destroy(),
+      onComplete: () => {
+        releasePopupSlot(scene, slotIdx);
+        txt.destroy();
+      },
     });
     return;
   }
@@ -157,6 +187,130 @@ export function spawnFloatingText(
     ease: 'Cubic.Out',
     onComplete: () => txt.destroy(),
   });
+}
+
+interface RollingHarvestEntry {
+  txt: Phaser.GameObjects.Text;
+  total: number;
+  label: string;
+  slotIdx: number;
+  fadeTimer?: Phaser.Time.TimerEvent;
+}
+
+const rollingHarvestMap = new WeakMap<Phaser.Scene, Map<string, RollingHarvestEntry>>();
+const popupSlotsMap = new WeakMap<Phaser.Scene, Set<number>>();
+
+function allocPopupSlot(scene: Phaser.Scene): number {
+  let used = popupSlotsMap.get(scene);
+  if (!used) {
+    used = new Set<number>();
+    popupSlotsMap.set(scene, used);
+  }
+  let idx = 0;
+  while (used.has(idx) && idx < 12) idx++;
+  used.add(idx);
+  return idx;
+}
+
+function releasePopupSlot(scene: Phaser.Scene, idx: number): void {
+  popupSlotsMap.get(scene)?.delete(idx);
+}
+
+export function spawnRollingHarvestText(
+  scene: Phaser.Scene,
+  key: string,
+  x: number,
+  y: number,
+  label: string,
+  amount = 1,
+  color = '#a6ffbe',
+): void {
+  let map = rollingHarvestMap.get(scene);
+  if (!map) {
+    map = new Map();
+    rollingHarvestMap.set(scene, map);
+  }
+
+  const existing = map.get(key);
+  if (existing && existing.txt.active) {
+    existing.total += amount;
+    existing.txt.setText(`+${existing.total} ${existing.label}`);
+    existing.txt.setPosition(x, y - existing.slotIdx * 10);
+    existing.txt.setAlpha(1);
+    existing.fadeTimer?.remove(false);
+    scene.tweens.killTweensOf(existing.txt);
+    existing.txt.setScale(1.32);
+    scene.tweens.add({
+      targets: existing.txt,
+      scale: 1,
+      duration: 130,
+      ease: 'Back.Out',
+    });
+    existing.fadeTimer = scene.time.delayedCall(1200, () => {
+      if (!existing.txt.active) {
+        releasePopupSlot(scene, existing.slotIdx);
+        map?.delete(key);
+        return;
+      }
+      scene.tweens.add({
+        targets: existing.txt,
+        y: existing.txt.y - 12,
+        alpha: 0,
+        duration: 360,
+        onComplete: () => {
+          releasePopupSlot(scene, existing.slotIdx);
+          if (existing.txt.active) existing.txt.destroy();
+          map?.delete(key);
+        },
+      });
+    });
+    return;
+  }
+
+  const slotIdx = allocPopupSlot(scene);
+  const stackY = y - slotIdx * 10;
+
+  const txt = scene.add
+    .text(x, stackY, `+${amount} ${label}`, {
+      fontFamily: 'SproutLandsCompact, monospace',
+      fontSize: '8px',
+      fontStyle: 'bold',
+      color,
+      stroke: '#0b1018',
+      strokeThickness: 2.5,
+      resolution: 4,
+    })
+    .setOrigin(0.5)
+    .setScale(1.25)
+    .setDepth(9999);
+
+  scene.tweens.add({
+    targets: txt,
+    scale: 1,
+    duration: 120,
+    ease: 'Back.Out',
+  });
+
+  const entry: RollingHarvestEntry = { txt, total: amount, label, slotIdx };
+  entry.fadeTimer = scene.time.delayedCall(1200, () => {
+    if (!txt.active) {
+      releasePopupSlot(scene, slotIdx);
+      map?.delete(key);
+      return;
+    }
+    scene.tweens.add({
+      targets: txt,
+      y: txt.y - 12,
+      alpha: 0,
+      duration: 360,
+      onComplete: () => {
+        releasePopupSlot(scene, slotIdx);
+        if (txt.active) txt.destroy();
+        map?.delete(key);
+      },
+    });
+  });
+  map.set(key, entry);
 }
 
 export function spawnBurstParticles(
@@ -293,6 +447,36 @@ export function spawnProjectileTrail(
   });
 }
 
+export function spawnProjectileImpact(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  kind: ActiveProjectile['kind'],
+): void {
+  const texMap: Record<ActiveProjectile['kind'], string> = {
+    arrow: 'projectiles/Arrow_impact',
+    fire: 'projectiles/Fireball_impact',
+    ice: 'projectiles/IceShard_impact',
+    thunder: 'projectiles/LightningBolt_impact',
+    necro: 'projectiles/MagicMissile_impact',
+    enemy: 'projectiles/MagicMissile_impact',
+  };
+  const key = texMap[kind] ?? 'projectiles/MagicMissile_impact';
+  if (scene.textures.exists(key)) {
+    const img = scene.add.image(x, y, key).setDepth(y + 18).setScale(0.9);
+    scene.tweens.add({
+      targets: img,
+      scale: 1.25,
+      alpha: 0,
+      duration: 190,
+      ease: 'Quad.Out',
+      onComplete: () => img.destroy(),
+    });
+  } else {
+    spawnShockwaveRing(scene, x, y, 0xffffff, 14, 180);
+  }
+}
+
 export function spawnDeathBurst(
   scene: Phaser.Scene,
   x: number,
@@ -366,18 +550,50 @@ export function drawSlashArc(
   color = 0xfff0a8,
 ): void {
   const gfx = scene.add.graphics().setDepth(y + 12);
-  gfx.lineStyle(3.5, color, 0.9);
-  gfx.beginPath();
-  gfx.arc(x, y, range * 0.72, angle - 0.85, angle + 0.85, false);
-  gfx.strokePath();
-  gfx.lineStyle(1.5, 0xffffff, 0.95);
-  gfx.beginPath();
-  gfx.arc(x, y, range * 0.76, angle - 0.65, angle + 0.65, false);
-  gfx.strokePath();
-  scene.tweens.add({
-    targets: gfx,
-    alpha: 0,
-    duration: 140,
-    onComplete: () => gfx.destroy(),
+  const rOuter = range * 0.78;
+  const rInner = range * 0.56;
+  const startA = angle - 0.95;
+  const endA = angle + 0.95;
+
+  // 3-frame tapered crescent smear
+  const renderFrame = (frame: number) => {
+    if (!gfx.active) return;
+    gfx.clear();
+    const alpha = frame === 0 ? 0.92 : frame === 1 ? 0.68 : 0.35;
+    const sweepStart = startA + frame * 0.25;
+    const steps = 10;
+    gfx.fillStyle(color, alpha);
+    gfx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const a = Phaser.Math.Linear(sweepStart, endA, t);
+      const px = x + Math.cos(a) * rOuter;
+      const py = y + Math.sin(a) * rOuter;
+      if (i === 0) gfx.moveTo(px, py);
+      else gfx.lineTo(px, py);
+    }
+    for (let i = steps; i >= 0; i--) {
+      const t = i / steps;
+      const a = Phaser.Math.Linear(sweepStart, endA, t);
+      const taper = Math.sin(t * Math.PI);
+      const r = Phaser.Math.Linear(rOuter, rInner, taper);
+      gfx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+    }
+    gfx.closePath();
+    gfx.fillPath();
+
+    if (frame < 2) {
+      gfx.lineStyle(1.5, 0xffffff, alpha);
+      gfx.beginPath();
+      gfx.arc(x, y, rOuter * 0.98, sweepStart + 0.15, endA - 0.1, false);
+      gfx.strokePath();
+    }
+  };
+
+  renderFrame(0);
+  scene.time.delayedCall(45, () => renderFrame(1));
+  scene.time.delayedCall(90, () => renderFrame(2));
+  scene.time.delayedCall(135, () => {
+    if (gfx.active) gfx.destroy();
   });
 }

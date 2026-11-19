@@ -41,4 +41,24 @@ describe('selectBestAimTarget', () => {
     ]);
     expect(onlyNpc?.item).toBe('npc');
   });
+
+  it('eliminates the dead zone at the player feet using a player-width cylinder cast', () => {
+    // Facing right (1, 0), target is 3px ahead and 7px to the side (outside 45deg cone, inside 8px cylinder radius)
+    const sideFeet = selectBestAimTarget(0, 0, 1, 0, 40, [
+      { item: 'feet_side', x: 3, y: 7, priority: 2 },
+    ]);
+    expect(sideFeet?.item).toBe('feet_side');
+
+    // Target slightly overlapping player feet (-2px behind, 5px side) still connects
+    const overlapFeet = selectBestAimTarget(0, 0, 0, 1, 40, [
+      { item: 'feet_overlap', x: 5, y: -2, priority: 3 },
+    ]);
+    expect(overlapFeet?.item).toBe('feet_overlap');
+
+    // Target clearly behind the player is still rejected
+    const behind = selectBestAimTarget(0, 0, 1, 0, 40, [
+      { item: 'behind_far', x: -10, y: 0, priority: 3 },
+    ]);
+    expect(behind).toBeNull();
+  });
 });
