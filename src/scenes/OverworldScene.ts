@@ -3,6 +3,7 @@ import { gameState, type RanchCreatureSave } from '../core/GameState';
 import { computeResponsiveZoom } from '../core/ViewportScaler';
 import { getSpeciesByEgg, getSpeciesById, RANCH_SPECIES } from '../data/ranchCreatures';
 import { SFX } from '../core/SoundFX';
+import { startSceneAndWaitCreate, transitionManager } from '../core/TransitionManager';
 import { ITEMS } from '../data/items';
 import {
   ISLANDS,
@@ -58,6 +59,7 @@ import {
   type TerrainType,
 } from '../world/AutoTiler';
 import { BuildingEntity, getStructurePreviewSpec } from '../world/BuildingEntity';
+import { createOverworldPromoTimeline, getPromoConfig, markPromoReady, type PromoTimeline } from '../promo/PromoDirector';
 import { INNER_ISLAND_SIZE, generateIslandMask } from '../world/IslandGenerator';
 import {
   LightingSystem,
@@ -191,6 +193,7 @@ export class OverworldScene extends Phaser.Scene {
   private minimapTimerMs = 0;
   private lowEnergyToastMs = 0;
   private petActionCooldownMs = 0;
+  private promoTimeline: PromoTimeline | null = null;
   private sandstormBonusTimerMs = 0;
   private autosaveTimerMs = 60000;
 
@@ -286,7 +289,7 @@ export class OverworldScene extends Phaser.Scene {
       }),
     );
     this.cameras.main.startFollow(this.player, true, 0.14, 0.14);
-    this.cameras.main.roundPixels = true;
+    this.cameras.main.roundPixels = false;
 
     const onResize = (gameSize: Phaser.Structs.Size) => {
       this.cameras.main.setSize(gameSize.width, gameSize.height);
@@ -820,17 +823,34 @@ export class OverworldScene extends Phaser.Scene {
     // 6. Spawn Biome Monsters (avoid player & starter center)
     const monCount = spec.starterOwned ? 1 : spec.maxMonsters;
     for (let m = 0; m < monCount; m++) {
+      this.trySpawnMonsterOnIsland(gx, gy, spec.starterOwned ? centerTx : -1, spec.starterOwned ? centerTy : -1);
+    }
+  }
+
+  private trySpawnMonsterOnIsland(
+    gx: number,
+    gy: number,
+    avoidTx = -1,
+    avoidTy = -1,
+  ): boolean {
+    const spec = getIslandAt(gx, gy);
+    if (!spec || spec.monsterPool.length === 0) return false;
+    const ox = gx * ISLAND_CELL_TILES;
+    const oy = gy * ISLAND_CELL_TILES;
+    for (let attempt = 0; attempt < 10; attempt++) {
       const mtx = ox + Phaser.Math.Between(1, ISLAND_CELL_TILES - 2);
       const mty = oy + Phaser.Math.Between(1, ISLAND_CELL_TILES - 2);
       if (!isLand(this.terrainGrid[mty]?.[mtx])) continue;
       if (this.hasNodeAt(mtx, mty) || this.hasBuildingAt(mtx, mty)) continue;
-      if (spec.starterOwned && Math.hypot(mtx - centerTx, mty - centerTy) < 4) continue;
+      if (avoidTx >= 0 && Math.hypot(mtx - avoidTx, mty - avoidTy) < 4) continue;
       const wx = mtx * TILE_PX + 8;
       const wy = mty * TILE_PX + 8;
       if (this.player && Math.hypot(wx - this.player.x, wy - this.player.y) < 56) continue;
       const monId = Phaser.Utils.Array.GetRandom(spec.monsterPool);
       this.enemies.push(new Enemy(this, monId, wx, wy));
+      return true;
     }
+    return false;
   }
 
   private trySpawnNodeOnIsland(
@@ -995,11 +1015,18 @@ export class OverworldScene extends Phaser.Scene {
         this.hud.showToast(`File ${gameState.activeSlotIndex + 1} Saved!`);
       },
       onExitToTitle: () => {
-        gameState.playerPos = { x: this.player.x, y: this.player.y };
-        this.syncBuildingQueuesToSave();
-        gameState.save();
-        this.hud.destroy();
-        this.scene.start('TitleScene', { skipSplash: true });
+        if (transitionManager.isActive) return;
+        SFX.playPortalWarp();
+        void transitionManager.transitionTo({
+          onMidpoint: async () => {
+            gameState.playerPos = { x: this.player.x, y: this.player.y };
+            this.syncBuildingQueuesToSave();
+            gameState.save();
+            this.hud.destroy();
+            SFX.setMusicSituation('title');
+            await startSceneAndWaitCreate(this, 'TitleScene', { skipSplash: true });
+          },
+        });
       },
       onTouchAction: () => {
         if (this.fishingMinigame.isActive()) return;
@@ -1149,6 +1176,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private setupInput(): void {
+    this.input.addPointer(2);
     const kb = this.input.keyboard!;
     this.keys = {
       W: kb.addKey('W'),
@@ -1284,6 +1312,68 @@ export class OverworldScene extends Phaser.Scene {
         window.removeEventListener('pagehide', onPageHide);
       }
     });
+
+    const promo = getPromoConfig();
+    if (promo.shotId && promo.shotId !== '07_void_dragon_climax' && promo.shotId !== '08_outro_cta') {
+      this.promoTimeline = createOverworldPromoTimeline(promo.shotId, {
+        scene: this,
+        player: this.player,
+        hud: this.hud,
+        lighting: this.lighting,
+        weather: this.weather,
+        nodes: this.nodes,
+        enemies: this.enemies,
+        buildings: this.buildings,
+        spawnNode: (tx, ty, kind, biome) => {
+          const n = new ResourceNode(this, tx, ty, kind, biome);
+          this.nodes.push(n);
+          return n;
+        },
+        spawnEnemy: (monsterId, wx, wy) => {
+          const e = new Enemy(this, monsterId, wx, wy);
+          this.enemies.push(e);
+          return e;
+        },
+        spawnBuilding: (type, tx, ty) => {
+          const id = `promo_${type}_${tx}_${ty}`;
+          const b = new BuildingEntity(this, id, type, tx, ty);
+          this.buildings.push(b);
+          return b;
+        },
+        detonateBombAt: (wx, wy) => this.detonateBomb(wx, wy),
+        fireWeaponAt: (itemId, wx, wy) => {
+          const idx = gameState.hotbar.indexOf(itemId);
+          if (idx !== -1) gameState.selectedHotbarIndex = idx;
+          else gameState.hotbar[0] = itemId;
+          gameState.selectedHotbarIndex = idx !== -1 ? idx : 0;
+          this.handlePrimaryAction(wx, wy, false);
+        },
+        teleportIsland: (gx, gy) => {
+          const key = `${gx},${gy}`;
+          if (!gameState.ownedIslands.has(key)) {
+            gameState.ownedIslands.add(key);
+            this.stampIslandTerrain(gx, gy);
+            const ox = gx * ISLAND_CELL_TILES;
+            const oy = gy * ISLAND_CELL_TILES;
+            this.refreshAutoTiles(ox - 1, oy - 1, ox + ISLAND_CELL_TILES, oy + ISLAND_CELL_TILES);
+            this.populateIslandContent(gx, gy);
+            this.refreshPurchaseMarkers();
+          }
+          const half = Math.floor(ISLAND_CELL_TILES / 2);
+          const tile = this.findNearestLandTileOnIsland(gx, gy, half, half);
+          const pt = this.findNearestWalkablePoint(tile.tx * TILE_PX + 8, tile.ty * TILE_PX + 8);
+          this.player.setPosition(pt.x, pt.y);
+          this.cameras.main.centerOn(pt.x, pt.y);
+        },
+        buyIsland: (gx, gy) => this.attemptBuyIsland(gx, gy),
+        setZoom: (zoom) => this.cameras.main.setZoom(zoom),
+        panCameraTo: (wx, wy) => {
+          this.cameras.main.stopFollow();
+          this.cameras.main.pan(wx, wy, 260, 'Sine.easeOut');
+        },
+      });
+      markPromoReady();
+    }
   }
 
   private drawPlacementGizmo(gfx: Phaser.GameObjects.Graphics, cx: number, cy: number, valid: boolean): void {
@@ -2231,16 +2321,30 @@ export class OverworldScene extends Phaser.Scene {
           this.hud.showToast('Clear the Infernal Sanctum (4th Dungeon) first to unlock the Void Spire!');
           return true;
         }
-        gameState.playerPos = { x: this.player.x, y: this.player.y + 16 };
-        this.syncBuildingQueuesToSave();
-        gameState.save();
-        this.hud.destroy();
-        if (dp.dungeonId === 'void_spire') {
-          const checkpointFloor = Math.max(1, Math.floor(gameState.voidSpireHighestFloor / 5) * 5 + 1);
-          this.scene.start('DungeonScene', { dungeonId: 'void_spire', floor: checkpointFloor });
-        } else {
-          this.scene.start('DungeonScene', { dungeonId: dp.dungeonId });
-        }
+        SFX.playPortalWarp();
+        const targetData =
+          dp.dungeonId === 'void_spire'
+            ? {
+                dungeonId: 'void_spire' as DungeonId,
+                floor: Math.max(1, Math.floor(gameState.voidSpireHighestFloor / 5) * 5 + 1),
+              }
+            : { dungeonId: dp.dungeonId };
+        // Save playerPos just outside the portal so returning places player cleanly at the entrance
+        const offX = this.player.x - dp.x;
+        const offY = this.player.y - dp.y;
+        const len = Math.hypot(offX, offY);
+        const safeX = len > 1 ? dp.x + (offX / len) * 32 : dp.x;
+        const safeY = len > 1 ? dp.y + (offY / len) * 32 : dp.y + 32;
+        void transitionManager.transitionTo({
+          onMidpoint: async () => {
+            gameState.playerPos = { x: safeX, y: safeY };
+            this.syncBuildingQueuesToSave();
+            gameState.save();
+            this.hud.destroy();
+            SFX.setMusicSituation('dungeon');
+            await startSceneAndWaitCreate(this, 'DungeonScene', targetData);
+          },
+        });
         return true;
       }
     }
@@ -2468,7 +2572,9 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   update(_time: number, dtMs: number): void {
+    if (transitionManager.isActive) return;
     const dt = Math.min(dtMs, 50);
+    this.promoTimeline?.update(dt);
 
     // Passive HP/Energy trickle (only emit lightweight vitals update when values actually change)
     this.regenTimerMs += dt;
@@ -3042,20 +3148,45 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    // Periodic Per-Island Resource Respawn on owned islands
+    // Periodic Per-Island Resource & Night Monster Respawn on owned islands
     this.respawnTimerMs += dt;
     if (this.respawnTimerMs >= NODE_RESPAWN_INTERVAL_MS) {
       this.respawnTimerMs = 0;
+      const { nightFactor: curNight } = this.lighting.getAmbientColor();
+      const isNight = curNight >= 0.45;
       const countsByIsland = new Map<string, number>();
       for (const n of this.nodes) {
         if (!n.active) continue;
         const key = `${Math.floor(n.tx / ISLAND_CELL_TILES)},${Math.floor(n.ty / ISLAND_CELL_TILES)}`;
         countsByIsland.set(key, (countsByIsland.get(key) ?? 0) + 1);
       }
+      const enemiesByIsland = new Map<string, number>();
+      for (const e of this.enemies) {
+        if (!e.active || e.isDead) continue;
+        const key = `${Math.floor(e.x / TILE_PX / ISLAND_CELL_TILES)},${Math.floor(e.y / TILE_PX / ISLAND_CELL_TILES)}`;
+        enemiesByIsland.set(key, (enemiesByIsland.get(key) ?? 0) + 1);
+      }
       for (const key of gameState.ownedIslands) {
-        if ((countsByIsland.get(key) ?? 0) < MAX_NODES_PER_ISLAND) {
-          const [gx, gy] = key.split(',').map(Number);
-          this.trySpawnNodeOnIsland(gx, gy);
+        const [gx, gy] = key.split(',').map(Number);
+        const spec = getIslandAt(gx, gy);
+        const curNodes = countsByIsland.get(key) ?? 0;
+        const curMonsters = enemiesByIsland.get(key) ?? 0;
+        const maxMon = (spec?.maxMonsters ?? 2) + (isNight ? 2 : 0);
+
+        if (isNight) {
+          // Skew heavily toward spawning monsters at night instead of plants/rocks
+          if (curMonsters < maxMon && Math.random() < 0.78) {
+            this.trySpawnMonsterOnIsland(gx, gy);
+          } else if (curNodes < MAX_NODES_PER_ISLAND && Math.random() < 0.25) {
+            this.trySpawnNodeOnIsland(gx, gy);
+          }
+        } else {
+          if (curNodes < MAX_NODES_PER_ISLAND) {
+            this.trySpawnNodeOnIsland(gx, gy);
+          }
+          if (curMonsters < maxMon && Math.random() < 0.25) {
+            this.trySpawnMonsterOnIsland(gx, gy);
+          }
         }
       }
     }

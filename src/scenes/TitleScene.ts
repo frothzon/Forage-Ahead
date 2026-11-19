@@ -6,6 +6,9 @@ import {
   type SaveSlotIndex,
 } from '../core/GameState';
 import { SFX } from '../core/SoundFX';
+import { startSceneAndWaitCreate, transitionManager } from '../core/TransitionManager';
+import { dialogueBox } from '../ui/DialogueBox';
+import { revealSequence } from '../ui/RevealSequence';
 import { addSproutNineSlice, createSproutButton } from '../ui/PhaserNineSlice';
 
 interface ClassMeta {
@@ -81,7 +84,9 @@ export class TitleScene extends Phaser.Scene {
     super('TitleScene');
   }
 
-  create(data?: { skipSplash?: boolean }): void {
+  create(data?: { skipSplash?: boolean; promoOutro?: boolean }): void {
+    dialogueBox.close(false);
+    revealSequence.forceClose();
     const hud = document.getElementById('hud-root');
     if (hud) hud.innerHTML = '';
     SFX.setMusicPaused(false);
@@ -131,6 +136,56 @@ export class TitleScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.scale.off('resize', onResize);
     });
+
+    if (data?.promoOutro) {
+      this.splashSkipped = true;
+      const heroes = ['Gladiator', 'Beastmaster', 'Sorcerer', 'Swashbuckler'];
+      const spacing = Math.min(130, width / 7);
+      const startX = width / 2 - ((heroes.length - 1) * spacing) / 2;
+      const heroY = this.groundY - 12;
+      this.add
+        .text(width / 2, height * 0.24, 'FORAGE AHEAD', {
+          fontFamily: 'SproutLandsDisplay, monospace, sans-serif',
+          fontSize: '58px',
+          fontStyle: 'bold',
+          color: '#ffe596',
+          stroke: '#3b2316',
+          strokeThickness: 10,
+          resolution: 2,
+        })
+        .setOrigin(0.5)
+        .setDepth(30);
+      this.add
+        .text(width / 2, height * 0.35, 'FORAGE • CRAFT • CONQUER 25 ISLANDS', {
+          fontFamily: 'SproutLandsDisplay, monospace, sans-serif',
+          fontSize: '20px',
+          color: '#9ee6ff',
+          stroke: '#0d192a',
+          strokeThickness: 5,
+          resolution: 2,
+        })
+        .setOrigin(0.5)
+        .setDepth(30);
+      heroes.forEach((cls, i) => {
+        const spr = this.add.sprite(startX + i * spacing, heroY, `hero_${cls.toLowerCase()}_idle_down`).setScale(3.5).setDepth(25);
+        const animKey = `${cls.toLowerCase()}_attack_down`;
+        if (this.anims.exists(animKey)) spr.play(animKey);
+        this.add
+          .text(startX + i * spacing, heroY + 46, cls.toUpperCase(), {
+            fontFamily: 'SproutLandsDisplay, monospace, sans-serif',
+            fontSize: '12px',
+            color: '#f6eedc',
+            stroke: '#1b110b',
+            strokeThickness: 4,
+          })
+          .setOrigin(0.5)
+          .setDepth(26);
+      });
+      if (typeof window !== 'undefined') {
+        (window as unknown as { __PROMO_READY?: boolean }).__PROMO_READY = true;
+      }
+      return;
+    }
 
     if (data?.skipSplash) {
       this.splashSkipped = true;
@@ -505,9 +560,16 @@ export class TitleScene extends Phaser.Scene {
         const btnH = compact ? 28 : 34;
 
         const launchSlot = () => {
+          if (transitionManager.isActive) return;
           SFX.playUiClick();
           if (gameState.load(slot)) {
-            this.scene.start('OverworldScene');
+            SFX.playPortalWarp();
+            void transitionManager.transitionTo({
+              onMidpoint: async () => {
+                SFX.setMusicSituation('overworld');
+                await startSceneAndWaitCreate(this, 'OverworldScene');
+              },
+            });
           }
         };
 
@@ -753,11 +815,18 @@ export class TitleScene extends Phaser.Scene {
       textColor: '#214f26',
       fontSize: compact ? '11px' : '13px',
       onClick: () => {
+        if (transitionManager.isActive) return;
         SFX.playUiClick();
+        SFX.playPortalWarp();
         gameState.setActiveSlot(targetSlot);
         gameState.reset(this.selected);
         gameState.save(targetSlot);
-        this.scene.start('OverworldScene');
+        void transitionManager.transitionTo({
+          onMidpoint: async () => {
+            SFX.setMusicSituation('overworld');
+            await startSceneAndWaitCreate(this, 'OverworldScene');
+          },
+        });
       },
     });
 

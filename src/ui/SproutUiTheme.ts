@@ -25,6 +25,25 @@ export const SPROUT_UI_CSS = `
     font-family: 'SproutLandsCompact', 'SproutLandsUI', monospace, sans-serif;
   }
 
+  .sl-pixel-text {
+    font-family: 'SproutLandsUI', 'SproutLandsDisplay', monospace;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+  }
+
+  .hud-panel-wood {
+    border-style: solid;
+    border-image-source: url('assets/sprout_ui/panels/panel_wood_tan.png');
+    border-image-slice: 4 4 8 4 fill;
+    border-image-width: calc(4px * var(--ui-scale)) calc(4px * var(--ui-scale)) calc(8px * var(--ui-scale)) calc(4px * var(--ui-scale));
+    border-image-repeat: stretch;
+    border-width: calc(4px * var(--ui-scale)) calc(4px * var(--ui-scale)) calc(8px * var(--ui-scale)) calc(4px * var(--ui-scale));
+    background: transparent;
+    color: var(--sl-text-dark);
+    box-shadow: 0 6px 18px rgba(16, 10, 4, 0.45);
+    image-rendering: pixelated;
+  }
+
   .hud-panel {
     border-style: solid;
     border-image-source: url('assets/sprout_ui/docks/tray_med_enclosed.png');
@@ -103,6 +122,9 @@ export const SPROUT_UI_CSS = `
     border-width: 5px 7px 8px 7px;
     background: transparent;
     color: var(--sl-text-dark);
+    font-family: 'SproutLandsUI', monospace, sans-serif;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
     padding: 2px 8px;
     font-size: 12px;
     font-weight: 700;
@@ -139,11 +161,13 @@ export const SPROUT_UI_CSS = `
     border-image-slice: 3 4 4 4 fill;
     border-image-width: 6px 8px 8px 8px;
   }
-  .hud-btn.gold {
+  .hud-btn.gold,
+  .hud-btn.tan {
     border-image-source: url('assets/sprout_ui/buttons/rect_wide_tan_normal.png');
     color: #3b2316;
   }
-  .hud-btn.gold:active:not(:disabled) {
+  .hud-btn.gold:active:not(:disabled),
+  .hud-btn.tan:active:not(:disabled) {
     border-image-source: url('assets/sprout_ui/buttons/rect_wide_tan_pressed.png');
     border-image-slice: 3 4 4 4 fill;
     border-image-width: 6px 8px 8px 8px;
@@ -276,5 +300,9 @@ export const SPROUT_UI_CSS = `
   .ledger-body::-webkit-scrollbar-thumb:active,
   .sl-scroll::-webkit-scrollbar-thumb:active {
     border-image-source: url('assets/sprout_ui/controls/scrollbar_v_thumb_dark.png');
+  }
+  .ledger-body::-webkit-scrollbar-corner,
+  .sl-scroll::-webkit-scrollbar-corner {
+    background: transparent;
   }
 `;

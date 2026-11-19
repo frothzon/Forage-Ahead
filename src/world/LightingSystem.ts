@@ -53,6 +53,9 @@ function multiplyColors(c1: number, c2: number): number {
  * point lights and smooth-fading spotlights illuminate the world naturally.
  */
 export class LightingSystem {
+  private static readonly EDGE_PAD = 48;
+  private static readonly MAX_DARKNESS_OPACITY = 0.25;
+
   private scene: Phaser.Scene;
   private lightmap: Phaser.GameObjects.RenderTexture;
   private beamMap: Phaser.GameObjects.RenderTexture;
@@ -62,7 +65,7 @@ export class LightingSystem {
   /** 0.00..0.20 Dawn, 0.20..0.60 Day, 0.60..0.78 Dusk, 0.78..1.00 Night */
   public timeOfDay = 0.32;
   public dayNumber = 1;
-  public cycleDurationSec = 120;
+  public cycleDurationSec = 360;
   public paused = false;
 
   constructor(scene: Phaser.Scene) {
@@ -71,16 +74,17 @@ export class LightingSystem {
 
     const w = Math.max(320, scene.scale.width);
     const h = Math.max(200, scene.scale.height);
+    const pad = LightingSystem.EDGE_PAD;
 
     this.lightmap = scene.add
-      .renderTexture(w / 2, h / 2, w, h)
+      .renderTexture(w / 2, h / 2, w + pad * 2, h + pad * 2)
       .setOrigin(0.5, 0.5)
       .setScrollFactor(0)
       .setDepth(8900)
       .setBlendMode(Phaser.BlendModes.MULTIPLY);
 
     this.beamMap = scene.add
-      .renderTexture(w / 2, h / 2, w, h)
+      .renderTexture(w / 2, h / 2, w + pad * 2, h + pad * 2)
       .setOrigin(0.5, 0.5)
       .setScrollFactor(0)
       .setDepth(8901)
@@ -227,11 +231,14 @@ export class LightingSystem {
     const cam = this.scene.cameras.main;
     const vw = Math.max(320, this.scene.scale.width);
     const vh = Math.max(200, this.scene.scale.height);
-    if (this.lightmap.width !== vw || this.lightmap.height !== vh) {
-      this.lightmap.resize(vw, vh);
-      this.beamMap.resize(vw, vh);
+    const pad = LightingSystem.EDGE_PAD;
+    const rtW = vw + pad * 2;
+    const rtH = vh + pad * 2;
+    if (this.lightmap.width !== rtW || this.lightmap.height !== rtH) {
+      this.lightmap.resize(rtW, rtH);
+      this.beamMap.resize(rtW, rtH);
     }
-    // Keep lightmap/beamMap 1:1 with screen pixels regardless of camera zoom
+    // Keep lightmap/beamMap 1:1 with screen pixels + edge padding regardless of camera zoom
     this.lightmap.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
     this.beamMap.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
 
@@ -241,6 +248,11 @@ export class LightingSystem {
       ambient = multiplyColors(ambient, weatherMod.tint);
     }
     const nightFactor = Math.min(1, base.nightFactor + (weatherMod?.darknessBoost ?? 0));
+    if (weatherMod?.darknessBoost && weatherMod.darknessBoost > 0) {
+      ambient = lerpColor(ambient, 0x0a1024, Math.min(1, weatherMod.darknessBoost));
+    }
+    // Cap darkness overlay so it bottoms out at 25% opacity (75% brightness)
+    ambient = lerpColor(0xffffff, ambient, LightingSystem.MAX_DARKNESS_OPACITY);
 
     this.lightmap.fill(ambient, 1);
     this.beamMap.clear();
@@ -249,8 +261,8 @@ export class LightingSystem {
     const viewH = vh / cam.zoom;
     const viewX = cam.scrollX + (vw - viewW) * 0.5;
     const viewY = cam.scrollY + (vh - viewH) * 0.5;
-    const toScreenX = (wx: number) => (wx - viewX) * cam.zoom;
-    const toScreenY = (wy: number) => (wy - viewY) * cam.zoom;
+    const toScreenX = (wx: number) => (wx - viewX) * cam.zoom + pad;
+    const toScreenY = (wy: number) => (wy - viewY) * cam.zoom + pad;
 
     // Circular point lights
     const tSec = this.scene.time.now * 0.001;

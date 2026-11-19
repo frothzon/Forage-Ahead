@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import manifest from '../data/assetManifest.json';
 import { registerAllAnimations } from '../entities/AnimationRegistry';
+import { getPromoBootTarget } from '../promo/PromoDirector';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -138,6 +139,11 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     registerAllAnimations(this);
+    const promo = getPromoBootTarget();
+    if (promo) {
+      this.scene.start(promo.scene, promo.data);
+      return;
+    }
     this.scene.start('TitleScene');
   }
 }

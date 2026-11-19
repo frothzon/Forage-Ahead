@@ -112,6 +112,8 @@ export interface SaveData {
   ranchCreatures?: RanchCreatureSave[];
   voidSpireHighestFloor?: number;
   finalBossDefeated?: boolean;
+  seenMilestones?: string[];
+  activeAlerts?: Record<string, string>;
   savedAt?: number;
   playerPos?: { x: number; y: number };
 }
@@ -197,6 +199,8 @@ export class GameState {
   public ranchCreatures: RanchCreatureSave[] = [];
   public voidSpireHighestFloor = 0;
   public finalBossDefeated = false;
+  public seenMilestones = new Set<string>();
+  public activeAlerts = new Map<string, string>();
   public playerPos?: { x: number; y: number };
 
   private listeners: Array<() => void> = [];
@@ -329,6 +333,8 @@ export class GameState {
     this.ranchCreatures = [];
     this.voidSpireHighestFloor = 0;
     this.finalBossDefeated = false;
+    this.seenMilestones = new Set();
+    this.activeAlerts = new Map();
     this.playerPos = undefined;
     this.hp = this.getMaxHp();
     this.energy = this.getMaxEnergy();
@@ -588,6 +594,43 @@ export class GameState {
     return Math.round(100 + this.level * 50 + this.level * this.level * 4);
   }
 
+  public triggerAlert(alertKey: string, buttonId = 'menu'): void {
+    this.activeAlerts.set(alertKey, buttonId);
+    this.emit();
+  }
+
+  public triggerMilestoneAlert(milestoneKey: string, buttonId = 'menu'): boolean {
+    if (this.seenMilestones.has(milestoneKey)) return false;
+    this.seenMilestones.add(milestoneKey);
+    this.activeAlerts.set(milestoneKey, buttonId);
+    this.emit();
+    return true;
+  }
+
+  public hasAlertForButton(buttonId: string): boolean {
+    for (const target of this.activeAlerts.values()) {
+      if (target === buttonId) return true;
+    }
+    return false;
+  }
+
+  public clearButtonAlerts(buttonId: string): void {
+    let changed = false;
+    for (const [k, target] of this.activeAlerts.entries()) {
+      if (target === buttonId) {
+        this.activeAlerts.delete(k);
+        changed = true;
+      }
+    }
+    if (changed) this.emit();
+  }
+
+  public clearAlert(alertKey: string): void {
+    if (this.activeAlerts.delete(alertKey)) {
+      this.emit();
+    }
+  }
+
   public addXp(amount: number): boolean {
     this.xp += amount;
     let leveled = false;
@@ -598,6 +641,9 @@ export class GameState {
       this.hp = this.getMaxHp();
       this.energy = this.getMaxEnergy();
       leveled = true;
+    }
+    if (leveled && this.skillPoints > 0) {
+      this.triggerMilestoneAlert('first_skill_point', 'menu');
     }
     this.emit();
     return leveled;
@@ -802,6 +848,7 @@ export class GameState {
     if (!rec || rec.unlockMode !== 'blueprint') return false;
     this.unlockedBlueprints.add(recipeId);
     this.emitFeed('blueprint', `Blueprint: ${rec.name}`, rec.iconKey ?? 'ui_icons/scroll', 1, this.unlockedBlueprints.size);
+    this.triggerMilestoneAlert('first_blueprint', 'menu');
     this.emit();
     return true;
   }
@@ -1208,18 +1255,30 @@ export class GameState {
       ranchCreatures: this.ranchCreatures,
       voidSpireHighestFloor: this.voidSpireHighestFloor,
       finalBossDefeated: this.finalBossDefeated,
+      seenMilestones: [...this.seenMilestones],
+      activeAlerts: Object.fromEntries(this.activeAlerts.entries()),
       savedAt: Date.now(),
       playerPos: this.playerPos,
     };
     const key = this.getSlotKey(slot);
     const serialized = JSON.stringify(data);
-    const prev = localStorage.getItem(key);
-    if (prev) {
-      localStorage.setItem(`${key}_backup`, prev);
+    try {
+      const prev = localStorage.getItem(key);
+      if (prev) {
+        localStorage.setItem(`${key}_backup`, prev);
+      }
+      localStorage.setItem(`${key}_tmp`, serialized);
+      localStorage.setItem(key, serialized);
+      localStorage.removeItem(`${key}_tmp`);
+    } catch {
+      try {
+        localStorage.removeItem(`${key}_tmp`);
+        localStorage.removeItem(`${key}_backup`);
+        localStorage.setItem(key, serialized);
+      } catch {
+        // Ignore storage quota errors so saving never freezes gameplay
+      }
     }
-    localStorage.setItem(`${key}_tmp`, serialized);
-    localStorage.setItem(key, serialized);
-    localStorage.removeItem(`${key}_tmp`);
   }
 
   public hasSavedGame(slot: SaveSlotIndex = this.activeSlotIndex): boolean {
@@ -1390,6 +1449,10 @@ export class GameState {
       this.ranchCreatures = Array.isArray(data.ranchCreatures) ? data.ranchCreatures : [];
       this.voidSpireHighestFloor = data.voidSpireHighestFloor ?? 0;
       this.finalBossDefeated = data.finalBossDefeated ?? false;
+      this.seenMilestones = new Set(Array.isArray(data.seenMilestones) ? data.seenMilestones : []);
+      this.activeAlerts = new Map(
+        data.activeAlerts && typeof data.activeAlerts === 'object' ? Object.entries(data.activeAlerts) : [],
+      );
       this.playerPos = data.playerPos;
       this.emit();
       return true;

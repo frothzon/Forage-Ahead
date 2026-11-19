@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { gameState } from '../core/GameState';
 import { computeResponsiveZoom } from '../core/ViewportScaler';
 import { SFX } from '../core/SoundFX';
+import { startSceneAndWaitCreate, transitionManager } from '../core/TransitionManager';
 import { ITEMS } from '../data/items';
 import { tryActivateGadget } from '../entities/GadgetHelper';
 import { getBlueprintsForMonster, tryUnlockBlueprintFromPool } from '../data/blueprints';
@@ -28,6 +29,7 @@ import { FoxCompanion, Player } from '../entities/Player';
 import { selectBestAimTarget, type AimCandidate } from '../entities/targeting';
 import { HudController } from '../ui/HudController';
 import { revealSequence } from '../ui/RevealSequence';
+import { createDungeonPromoTimeline, getPromoConfig, markPromoReady, type PromoTimeline } from '../promo/PromoDirector';
 
 interface DungeonConfig {
   id: DungeonId;
@@ -140,6 +142,7 @@ export class DungeonScene extends Phaser.Scene {
   private bossGateGroup?: Phaser.GameObjects.Group;
   private gateOpen = false;
   private relicSpawned = false;
+  private promoTimeline: PromoTimeline | null = null;
 
   private keys!: {
     W: Phaser.Input.Keyboard.Key;
@@ -226,7 +229,7 @@ export class DungeonScene extends Phaser.Scene {
       }),
     );
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
-    this.cameras.main.roundPixels = true;
+    this.cameras.main.roundPixels = false;
     this.cameraRig = new CameraRig(this, { maxLookAheadPx: 12 });
     this.fx = new EffectSequencer(this, {
       cameraRig: this.cameraRig,
@@ -282,14 +285,19 @@ export class DungeonScene extends Phaser.Scene {
       onDebugAction: (act) => {
         if (act === 'reset_run') {
           gameState.reset(gameState.heroClass);
-          this.hud.setBossBar(null);
-          this.hud.destroy();
-          this.scene.start('OverworldScene');
+          this.transitionToOverworld();
         } else if (act === 'erase_save') {
+          if (transitionManager.isActive) return;
           gameState.eraseAllSavedData();
-          this.hud.setBossBar(null);
-          this.hud.destroy();
-          this.scene.start('TitleScene');
+          SFX.playPortalWarp();
+          void transitionManager.transitionTo({
+            onMidpoint: async () => {
+              this.hud.setBossBar(null);
+              this.hud.destroy();
+              SFX.setMusicSituation('title');
+              await startSceneAndWaitCreate(this, 'TitleScene');
+            },
+          });
         }
       },
     });
@@ -298,6 +306,32 @@ export class DungeonScene extends Phaser.Scene {
     SFX.setMusicSituation('dungeon');
 
     this.setupInput();
+
+    const promo = getPromoConfig();
+    if (promo.shotId === '07_void_dragon_climax') {
+      this.gateOpen = true;
+      this.bossGateGroup?.clear(true, true);
+      this.player.setPosition(22 * TILE_PX + 8, (ROOM_H / 2) * TILE_PX);
+      this.cameras.main.centerOn(this.player.x + 36, this.player.y);
+      this.promoTimeline = createDungeonPromoTimeline({
+        scene: this,
+        player: this.player,
+        boss: this.boss,
+        enemies: this.enemies,
+        hud: this.hud,
+        projectiles: this.projectiles,
+        damageEnemy: (enemy, dmg, dirX, dirY) => this.damageEnemy(enemy, dmg, dirX, dirY),
+        fireWeaponAt: (itemId, wx, wy) => {
+          const idx = gameState.hotbar.indexOf(itemId);
+          if (idx !== -1) gameState.selectedHotbarIndex = idx;
+          else gameState.hotbar[0] = itemId;
+          gameState.selectedHotbarIndex = idx !== -1 ? idx : 0;
+          this.handleAttack(wx, wy);
+        },
+        setZoom: (zoom) => this.cameras.main.setZoom(zoom),
+      });
+      markPromoReady();
+    }
   }
 
   private buildRoom(): void {
@@ -404,6 +438,7 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private setupInput(): void {
+    this.input.addPointer(2);
     const kb = this.input.keyboard!;
     this.keys = {
       W: kb.addKey('W'),
@@ -490,17 +525,36 @@ export class DungeonScene extends Phaser.Scene {
     }
   }
 
+  private transitionToOverworld(): void {
+    if (transitionManager.isActive) return;
+    SFX.playPortalWarp();
+    void transitionManager.transitionTo({
+      onMidpoint: async () => {
+        this.hud.setBossBar(null);
+        this.hud.destroy();
+        SFX.setMusicSituation('overworld');
+        await startSceneAndWaitCreate(this, 'OverworldScene');
+      },
+    });
+  }
+
   private tryInteractPortal(): boolean {
     if (this.nextFloorPortal && Math.hypot(this.nextFloorPortal.x - this.player.x, this.nextFloorPortal.y - this.player.y) <= 28) {
-      this.hud.setBossBar(null);
-      this.hud.destroy();
-      this.scene.restart({ dungeonId: 'void_spire', floor: this.voidFloor + 1 });
+      if (transitionManager.isActive) return true;
+      SFX.playPortalWarp();
+      const nextFloor = this.voidFloor + 1;
+      void transitionManager.transitionTo({
+        onMidpoint: async () => {
+          this.hud.setBossBar(null);
+          this.hud.destroy();
+          SFX.setMusicSituation('dungeon');
+          await startSceneAndWaitCreate(this, 'DungeonScene', { dungeonId: 'void_spire', floor: nextFloor });
+        },
+      });
       return true;
     }
     if (Math.hypot(this.exitPortal.x - this.player.x, this.exitPortal.y - this.player.y) <= 28) {
-      this.hud.setBossBar(null);
-      this.hud.destroy();
-      this.scene.start('OverworldScene');
+      this.transitionToOverworld();
       return true;
     }
     if (
@@ -761,7 +815,9 @@ export class DungeonScene extends Phaser.Scene {
   };
 
   update(_time: number, dtMs: number): void {
+    if (transitionManager.isActive) return;
     const dt = Math.min(dtMs, 50);
+    this.promoTimeline?.update(dt * (this.time.timeScale || 1));
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.E)) {
       this.tryInteractPortal();
@@ -883,9 +939,7 @@ export class DungeonScene extends Phaser.Scene {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${dmg}`, '#ff5e6c');
             if (gameState.hp <= 0) {
               gameState.hp = Math.round(gameState.getMaxHp() * 0.6);
-              this.hud.setBossBar(null);
-              this.hud.destroy();
-              this.scene.start('OverworldScene');
+              this.transitionToOverworld();
             }
           }
         },
@@ -948,9 +1002,7 @@ export class DungeonScene extends Phaser.Scene {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${p.damage}`, '#ff5e6c');
             if (gameState.hp <= 0) {
               gameState.hp = Math.round(gameState.getMaxHp() * 0.6);
-              this.hud.setBossBar(null);
-              this.hud.destroy();
-              this.scene.start('OverworldScene');
+              this.transitionToOverworld();
               return;
             }
           }

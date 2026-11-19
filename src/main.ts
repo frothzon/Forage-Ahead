@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { transitionManager } from './core/TransitionManager';
 import { BootScene } from './scenes/BootScene';
 import { DungeonScene } from './scenes/DungeonScene';
 import { OverworldScene } from './scenes/OverworldScene';
@@ -11,7 +12,7 @@ const config: Phaser.Types.Core.GameConfig = {
   height: '100%',
   backgroundColor: '#0d1624',
   pixelArt: true,
-  roundPixels: true,
+  roundPixels: false,
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.NO_CENTER,
@@ -19,4 +20,5 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: [BootScene, TitleScene, OverworldScene, DungeonScene],
 };
 
+transitionManager.mount();
 new Phaser.Game(config);

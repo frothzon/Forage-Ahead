@@ -21,6 +21,19 @@ class RevealSequenceManager {
     return this.active;
   }
 
+  public forceClose(): void {
+    this.queue = [];
+    this.timers.forEach((t) => window.clearTimeout(t));
+    this.timers = [];
+    if (this.keyHandler) {
+      window.removeEventListener('keydown', this.keyHandler);
+      this.keyHandler = undefined;
+    }
+    this.activeEl?.remove();
+    this.activeEl = null;
+    this.active = false;
+  }
+
   public show(opts: RevealOptions): void {
     if (typeof document === 'undefined') return;
     if (this.active) {

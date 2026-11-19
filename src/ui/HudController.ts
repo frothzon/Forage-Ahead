@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import {
   ALL_EQUIP_SLOTS,
   BAG_COLS,
@@ -25,6 +26,7 @@ export interface StationQueueView {
   craftQueue: CraftQueueJob[];
 }
 import { SFX } from '../core/SoundFX';
+import { transitionManager } from '../core/TransitionManager';
 import { dialogueBox } from './DialogueBox';
 import { revealSequence } from './RevealSequence';
 import { SPROUT_UI_CSS } from './SproutUiTheme';
@@ -92,6 +94,7 @@ export class HudController {
   private mobileBuildLabelEl?: HTMLElement;
   private tooltipEl!: HTMLElement;
   private questTrackerCollapsed = false;
+  private promoChromeHidden = false;
 
   public activeModal: HudModal = 'none';
   private lastMenuTab: Exclude<HudModal, 'none'> = 'inventory';
@@ -170,6 +173,11 @@ export class HudController {
     this.root = el;
     this.injectStyles();
     this.setupLayers();
+    this.applyResponsiveHudScale();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', this.handleResize);
+      window.addEventListener('orientationchange', this.handleResize);
+    }
 
     this.unsubChange = gameState.onChange(() => this.render());
     this.unsubVitals = gameState.onVitalsChange(() => this.updateVitalsInPlace());
@@ -188,8 +196,44 @@ export class HudController {
     }
   }
 
+  private hudScale = 1;
+
+  private handleResize = (): void => {
+    this.applyResponsiveHudScale();
+  };
+
+  private applyResponsiveHudScale(): void {
+    if (typeof window === 'undefined' || !this.root) return;
+    const parentRect = this.root.parentElement?.getBoundingClientRect();
+    const vw = Math.max(320, parentRect?.width || window.innerWidth);
+    const vh = Math.max(200, parentRect?.height || window.innerHeight);
+    const scale = vw < 1150 || vh < 540 ? Math.min(1, vw / 1150, vh / 540) : 1;
+    this.hudScale = scale;
+    if (scale < 0.999) {
+      this.root.style.inset = 'auto';
+      this.root.style.top = '0';
+      this.root.style.left = '0';
+      this.root.style.right = 'auto';
+      this.root.style.bottom = 'auto';
+      this.root.style.width = `${Math.ceil(vw / scale) + 1}px`;
+      this.root.style.height = `${Math.ceil(vh / scale) + 1}px`;
+      this.root.style.transformOrigin = '0 0';
+      this.root.style.transform = `scale(${scale})`;
+    } else {
+      this.root.style.inset = '0';
+      this.root.style.top = '';
+      this.root.style.left = '';
+      this.root.style.right = '';
+      this.root.style.bottom = '';
+      this.root.style.width = '';
+      this.root.style.height = '';
+      this.root.style.transformOrigin = '';
+      this.root.style.transform = '';
+    }
+  }
+
   public isBlockingInput(): boolean {
-    return this.activeModal !== 'none' || dialogueBox.isActive() || revealSequence.isActive();
+    return transitionManager.isActive || this.activeModal !== 'none' || dialogueBox.isActive() || revealSequence.isActive();
   }
 
   private bindTouchControls(): void {
@@ -215,12 +259,13 @@ export class HudController {
     if (joy && knob) {
       let activeTouchId: number | null = null;
       const updateStick = (clientX: number, clientY: number) => {
+        const s = this.hudScale || 1;
         const rect = joy.getBoundingClientRect();
         const cx = rect.left + rect.width / 2;
         const cy = rect.top + rect.height / 2;
-        const maxR = 36;
-        const dx = clientX - cx;
-        const dy = clientY - cy;
+        const maxR = Math.max(36, Math.round((rect.width / s) * 0.38));
+        const dx = (clientX - cx) / s;
+        const dy = (clientY - cy) / s;
         const dist = Math.hypot(dx, dy);
         const clamped = Math.min(maxR, dist);
         const ang = Math.atan2(dy, dx);
@@ -362,6 +407,16 @@ export class HudController {
   }
 
   public destroy(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', this.handleResize);
+      window.removeEventListener('orientationchange', this.handleResize);
+    }
+    if (this.toastTimer) {
+      window.clearTimeout(this.toastTimer);
+      this.toastTimer = undefined;
+    }
+    dialogueBox.close(false);
+    revealSequence.forceClose();
     this.unsubChange?.();
     this.unsubVitals?.();
     this.unsubFeed?.();
@@ -404,6 +459,11 @@ export class HudController {
         this.selectedInspect = { kind: 'equip', slot: 'weapon', itemId: gameState.equipment.weapon };
       }
     }
+    this.render();
+  }
+
+  public setPromoChromeHidden(hidden: boolean): void {
+    this.promoChromeHidden = hidden;
     this.render();
   }
 
@@ -456,10 +516,12 @@ export class HudController {
 
   public toggleMinimap(): void {
     this.minimapVisible = !this.minimapVisible;
+    const wrap = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-wrap');
     const body = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-body');
     const btn = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-toggle');
+    if (wrap) wrap.classList.toggle('minimap-collapsed', !this.minimapVisible);
     if (body) body.style.display = this.minimapVisible ? 'block' : 'none';
-    if (btn) btn.textContent = this.minimapVisible ? 'Hide' : 'Show';
+    if (btn) btn.textContent = this.minimapVisible ? 'Hide' : this.isTouchDevice() ? 'MAP' : 'Show';
   }
 
   public updateMinimap(data: MinimapSnapshot): void {
@@ -624,10 +686,85 @@ export class HudController {
     };
     this.root.addEventListener('pointerdown', stopCanvasLeak);
     this.root.addEventListener('mousedown', stopCanvasLeak);
+    this.root.addEventListener('touchstart', stopCanvasLeak, { passive: true });
     this.root.addEventListener('contextmenu', (e) => {
       const target = e.target as HTMLElement | null;
       if (target && target.closest('.hud-interactive')) e.preventDefault();
     });
+  }
+
+  /**
+   * Binds an independent multi-touch tap (scoped by touch identifier so it works
+   * concurrently while another finger holds the virtual joystick) plus deduplicated click.
+   */
+  private bindMultiTouchTap(el: HTMLElement | null | undefined, onTap: () => void): void {
+    if (!el) return;
+    let activeTouchId: number | null = null;
+    let lastTouchTapMs = 0;
+
+    el.addEventListener(
+      'touchstart',
+      (e) => {
+        if (activeTouchId !== null || e.changedTouches.length === 0) return;
+        activeTouchId = e.changedTouches[0].identifier;
+        e.stopPropagation();
+      },
+      { passive: true },
+    );
+
+    el.addEventListener('touchend', (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === activeTouchId) {
+          activeTouchId = null;
+          const r = el.getBoundingClientRect();
+          if (t.clientX >= r.left - 8 && t.clientX <= r.right + 8 && t.clientY >= r.top - 8 && t.clientY <= r.bottom + 8) {
+            e.preventDefault();
+            e.stopPropagation();
+            lastTouchTapMs = performance.now();
+            onTap();
+          }
+          break;
+        }
+      }
+    });
+
+    el.addEventListener('touchcancel', (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === activeTouchId) {
+          activeTouchId = null;
+          break;
+        }
+      }
+    });
+
+    el.onclick = () => {
+      if (performance.now() - lastTouchTapMs < 400) return;
+      onTap();
+    };
+  }
+
+  public attachAlertBadge(btn: HTMLElement | null | undefined, active: boolean): void {
+    if (!btn) return;
+    let badge = btn.querySelector<HTMLElement>('.hud-alert-badge');
+    if (active) {
+      if (getComputedStyle(btn).position === 'static') {
+        btn.style.position = 'relative';
+      }
+      btn.style.overflow = 'visible';
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'hud-alert-badge';
+        badge.textContent = '!';
+        btn.appendChild(badge);
+      }
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+
+  public triggerButtonAlert(alertKey: string, buttonId = 'menu'): void {
+    gameState.triggerAlert(alertKey, buttonId);
   }
 
   private pushInventoryFeed(ev: InventoryFeedEvent): void {
@@ -793,7 +930,24 @@ export class HudController {
         padding: 1px 3px;
         line-height: 1.1;
         pointer-events: none;
+        z-index: 2;
       }
+      .hotbar-slot-num,
+      .hotbar-slot-count {
+        position: absolute;
+        font-family: 'SproutLandsUI', monospace;
+        font-size: 10px;
+        font-weight: 800;
+        color: #fff8e7;
+        text-shadow: 1px 0 0 #23140d, -1px 0 0 #23140d, 0 1px 0 #23140d, 0 -1px 0 #23140d;
+        pointer-events: none;
+        line-height: 1;
+        z-index: 2;
+        -webkit-font-smoothing: none;
+        font-smooth: never;
+      }
+      .hotbar-slot-num { top: 3px; left: 4px; }
+      .hotbar-slot-count { bottom: 3px; right: 4px; }
       #hud-item-tooltip {
         position: fixed;
         z-index: 60;
@@ -814,6 +968,38 @@ export class HudController {
       @keyframes readyPulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.55; }
+      }
+      @keyframes hudAlertPulse {
+        0%, 100% {
+          transform: scale(1);
+          box-shadow: 0 0 6px 1px rgba(255, 210, 66, 0.85), 0 1px 3px rgba(0, 0, 0, 0.7);
+        }
+        50% {
+          transform: scale(1.2);
+          box-shadow: 0 0 14px 4px rgba(255, 196, 36, 1), 0 1px 4px rgba(0, 0, 0, 0.8);
+        }
+      }
+      .hud-alert-badge {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        min-width: 17px;
+        height: 17px;
+        padding: 0 4px;
+        border-radius: 999px;
+        background: radial-gradient(circle at 35% 30%, #fff3a1 0%, #ffbe2e 55%, #e87a14 100%);
+        border: 2px solid #3b2316;
+        color: #3b2316;
+        font-family: 'SproutLandsUI', monospace;
+        font-size: 11px;
+        font-weight: 900;
+        line-height: 13px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        z-index: 12;
+        animation: hudAlertPulse 1.1s ease-in-out infinite;
       }
       .quest-ready-pill {
         font-size: 9px;
@@ -849,9 +1035,15 @@ export class HudController {
         }
         #hud-top-nav .hud-btn { padding: 2px 6px; font-size: 11px; }
         .nav-key { display: none; }
-        .hotbar-dock { bottom: max(6px, env(safe-area-inset-bottom)); gap: 3px; padding: 3px 4px; }
-        .hotbar-slot { width: 40px; height: 40px; }
-        #hud-minimap-wrap { bottom: max(6px, env(safe-area-inset-bottom)) !important; right: max(6px, env(safe-area-inset-right)) !important; }
+        .hotbar-dock { bottom: max(6px, env(safe-area-inset-bottom)); gap: 4px; padding: 4px 5px; }
+        .hotbar-slot { width: 48px; height: 48px; }
+        #hud-minimap-wrap {
+          top: max(6px, env(safe-area-inset-top)) !important;
+          bottom: auto !important;
+          left: 50% !important;
+          right: auto !important;
+          transform: translateX(-50%);
+        }
       }
       .modal-backdrop {
         position: absolute;
@@ -860,17 +1052,40 @@ export class HudController {
         display: flex;
         align-items: stretch;
         justify-content: stretch;
-        padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(68px, calc(env(safe-area-inset-bottom) + 64px)) max(8px, env(safe-area-inset-left));
+        padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(62px, calc(env(safe-area-inset-bottom) + 58px)) max(8px, env(safe-area-inset-left));
         z-index: 25;
       }
       .ledger-window {
+        position: relative;
         width: 100%;
         height: 100%;
-        max-height: none;
+        max-height: 100%;
         display: flex;
         flex-direction: column;
         overflow: hidden;
         animation: modalSpringPop 160ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .ledger-tabs {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding: 4px 42px 0 8px;
+        gap: 8px;
+        flex-wrap: nowrap;
+        flex-shrink: 0;
+        min-width: 0;
+      }
+      .ledger-tab-strip {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: flex-end;
+        gap: 4px;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .ledger-tab-strip::-webkit-scrollbar {
+        display: none;
       }
       .ledger-tab-btn {
         border-style: solid;
@@ -880,12 +1095,17 @@ export class HudController {
         border-width: 5px 8px 3px 8px;
         background: transparent;
         color: #f2d9b1;
+        font-family: 'SproutLandsUI', monospace, sans-serif;
         text-shadow: -1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109;
         padding: 2px 10px 4px 10px;
         font-size: 11px;
         font-weight: 700;
+        white-space: nowrap;
+        flex-shrink: 0;
         cursor: url('/assets/sprout_ui/cursors/cursor_catpaw_pointing_2x.png') 8 4, pointer;
         image-rendering: pixelated;
+        -webkit-font-smoothing: none;
+        font-smooth: never;
       }
       .ledger-tab-btn.active {
         border-image-source: url('assets/sprout_ui/docks/dock_bar_light_sm.png');
@@ -893,9 +1113,38 @@ export class HudController {
         font-weight: 800;
         transform: translateY(2px);
       }
+      .modal-close-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 26px;
+        height: 26px;
+        z-index: 6;
+        background-image: url('assets/sprout_ui/buttons/ic_btn_close_normal.png');
+      }
+      .modal-close-btn:active:not(:disabled) {
+        background-image: url('assets/sprout_ui/buttons/ic_btn_close_pressed.png');
+      }
+      .modal-status-bar {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: 'SproutLandsUI', 'SproutLandsDisplay', monospace;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.1;
+        color: #fff6e5;
+        background: rgba(36, 20, 12, 0.55);
+        padding: 3px 8px;
+        border-radius: 4px;
+        white-space: nowrap;
+        -webkit-font-smoothing: none;
+        font-smooth: never;
+      }
       .ledger-body {
         padding: 10px 12px;
         overflow-y: auto;
+        overflow-x: hidden;
         flex: 1;
         min-height: 0;
         color: #3b2316;
@@ -911,19 +1160,23 @@ export class HudController {
       .equip-grid-2x3 {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 6px;
+        gap: 5px;
       }
       .bag-grid {
         display: grid;
-        grid-template-columns: repeat(${BAG_COLS}, clamp(44px, 6.6vh, 60px));
-        gap: 6px;
+        grid-template-columns: repeat(${BAG_COLS}, clamp(40px, 6.2vh, 56px));
+        gap: 5px;
         justify-content: center;
-        align-content: center;
-        padding: 10px;
+        align-content: start;
+        padding: 8px 10px 12px 10px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        max-height: 100%;
+        width: 100%;
       }
       .inv-slot {
-        width: clamp(44px, 6.6vh, 60px);
-        height: clamp(44px, 6.6vh, 60px);
+        width: clamp(40px, 6.2vh, 56px);
+        height: clamp(40px, 6.2vh, 56px);
         background: url('assets/sprout_ui/slots/slot_round_light.png') no-repeat center / 100% 100%;
         image-rendering: pixelated;
         display: flex;
@@ -1060,27 +1313,50 @@ export class HudController {
       @media (max-width: 1120px), (max-height: 540px) {
         .nav-full, .nav-key { display: none; }
         .nav-short { display: inline; }
-        #hud-vitals-panel { padding: 3px 5px !important; gap: 5px !important; max-width: 245px; }
-        #hud-vitals-panel .bar-track { width: 84px; height: 11px; }
-        #hud-time-badge { font-size: 9px !important; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        #hud-top-nav { max-width: calc(100vw - 265px) !important; gap: 4px !important; }
-        #hud-top-nav .hud-btn { padding: 2px 6px; font-size: 10px; }
-        #hud-minimap-canvas { width: 80px !important; height: 80px !important; }
-        .touch-actions-wrap { right: 118px; bottom: 68px; gap: 7px; }
-        .touch-act-btn { width: 46px; height: 46px; font-size: 10px; }
-        .touch-act-btn.primary { width: 54px; height: 54px; }
-        .touch-joy-base { left: 16px; bottom: 68px; width: 92px; height: 92px; }
-        .touch-joy-knob { left: 28px; top: 28px; width: 36px; height: 36px; }
-        .hotbar-dock { padding: 3px; gap: 3px; }
-        .hotbar-slot { width: 38px; height: 38px; }
+        #hud-vitals-panel { padding: 4px 7px !important; gap: 6px !important; max-width: none !important; }
+        #hud-vitals-panel .bar-track { width: 108px; height: 12px; }
+        #hud-time-badge { font-size: 10px !important; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #hud-top-nav { max-width: none !important; gap: 5px !important; }
+        #hud-top-nav .hud-btn { padding: 2px 7px; font-size: 11px; }
+        #hud-minimap-wrap {
+          top: max(6px, env(safe-area-inset-top)) !important;
+          bottom: auto !important;
+          left: 50% !important;
+          right: auto !important;
+          transform: translateX(-50%);
+        }
+        #hud-minimap-canvas { width: 120px !important; height: 120px !important; }
+        #hud-minimap-wrap.minimap-collapsed {
+          border: none !important;
+          border-image: none !important;
+          background: transparent !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+        }
+        #hud-minimap-wrap.minimap-collapsed #hud-minimap-header { margin-bottom: 0 !important; }
+        #hud-minimap-wrap.minimap-collapsed #hud-minimap-title { display: none !important; }
+        #hud-minimap-wrap.minimap-collapsed #hud-minimap-toggle { padding: 4px 12px !important; font-size: 12px !important; }
+        .touch-actions-wrap { right: 24px; bottom: 28px; gap: 15px; }
+        .touch-act-btn { width: 115px; height: 115px; font-size: 16px; }
+        .touch-act-btn img { width: 45px !important; height: 45px !important; }
+        .touch-act-btn span { font-size: 15px !important; }
+        .touch-act-btn.primary { width: 135px; height: 135px; font-size: 16px; }
+        .touch-act-btn.primary img { width: 50px !important; height: 50px !important; }
+        .touch-joy-base { left: 24px; bottom: 28px; width: 230px; height: 230px; }
+        .touch-joy-knob { left: 70px; top: 70px; width: 90px; height: 90px; }
+        .hotbar-dock { padding: 4px 5px; gap: 4px; }
+        .hotbar-slot { width: 48px; height: 48px; }
+        .modal-backdrop { padding-bottom: max(80px, calc(env(safe-area-inset-bottom) + 76px)); }
         .modal-box { width: 98vw; max-height: 94vh; }
-        .ledger-window { width: 98vw; height: 94vh; max-height: 94vh; }
-        .ledger-tabs { padding: 4px 8px; gap: 4px; flex-wrap: nowrap; overflow-x: auto; }
-        .ledger-tabs .hud-btn { padding: 3px 6px; font-size: 11px; white-space: nowrap; }
-        .ledger-body { -webkit-overflow-scrolling: touch; padding: 8px; }
-        .diablo-grid { grid-template-columns: 185px 1fr !important; gap: 8px !important; }
-        .inv-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; gap: 4px !important; }
-        .inv-slot { width: 100%; height: 38px; }
+        .ledger-window { width: 100%; height: 100%; max-height: 100%; }
+        .ledger-tabs { padding: 4px 40px 0 6px; gap: 4px; flex-wrap: nowrap; }
+        .ledger-tab-btn { padding: 2px 6px 4px 6px; font-size: 11px; }
+        .modal-status-bar { font-size: 14px; gap: 6px; padding: 2px 7px; }
+        .ledger-tabs .hud-btn { padding: 2px 6px; font-size: 11px; white-space: nowrap; }
+        .ledger-body { -webkit-overflow-scrolling: touch; padding: 8px 10px; }
+        .diablo-layout { grid-template-columns: minmax(260px, 1fr) minmax(310px, 1.15fr) minmax(260px, 1fr); gap: 10px; }
+        .bag-grid { grid-template-columns: repeat(${BAG_COLS}, 42px); gap: 5px; padding: 8px 8px 12px 8px; overflow: hidden; }
+        .inv-slot { width: 42px; height: 42px; }
       }
     `;
     document.head.appendChild(style);
@@ -1094,14 +1370,56 @@ export class HudController {
     return this.touchEnabled;
   }
 
+  private isTouchDevice(): boolean {
+    const isNative = typeof Capacitor?.isNativePlatform === 'function' && Capacitor.isNativePlatform();
+    const isCoarse =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(pointer: coarse)').matches;
+    return isNative || isCoarse || this.touchEnabled;
+  }
+
+  private applyMobileTextOutlines(container: HTMLElement): void {
+    if (!this.isTouchDevice() && this.hudScale >= 0.999) return;
+    const skipSelector = '.hotbar-slot-num, .hotbar-slot-count, .hud-btn, .ledger-tab-btn, .touch-act-btn';
+    const els = container.querySelectorAll<HTMLElement>('*');
+    els.forEach((el) => {
+      if (el.closest(skipSelector) || el.style.textShadow) return;
+      let hasText = false;
+      for (let i = 0; i < el.childNodes.length; i++) {
+        const n = el.childNodes[i];
+        if (n.nodeType === 3 && (n.textContent?.trim().length ?? 0) > 0) {
+          hasText = true;
+          break;
+        }
+      }
+      if (!hasText) return;
+      const m = getComputedStyle(el).color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!m) return;
+      const r = Number(m[1]);
+      const g = Number(m[2]);
+      const b = Number(m[3]);
+      const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      const mixTarget = lum < 0.45 ? 255 : 0;
+      const or = Math.round((r + mixTarget) / 2);
+      const og = Math.round((g + mixTarget) / 2);
+      const ob = Math.round((b + mixTarget) / 2);
+      const oc = `rgb(${or}, ${og}, ${ob})`;
+      el.style.textShadow = `0.75px 0 0 ${oc}, -0.75px 0 0 ${oc}, 0 0.75px 0 ${oc}, 0 -0.75px 0 ${oc}`;
+    });
+  }
+
   public render(): void {
     this.renderChrome();
     this.renderBanners();
     this.renderModal();
     this.renderHotbar();
+    this.applyMobileTextOutlines(this.root);
     const modalOpen = this.activeModal !== 'none';
-    if (this.chromeLayer) this.chromeLayer.style.display = modalOpen ? 'none' : 'block';
-    if (this.feedLayer) this.feedLayer.style.display = modalOpen ? 'none' : 'flex';
+    const hideChrome = modalOpen || this.promoChromeHidden;
+    if (this.chromeLayer) this.chromeLayer.style.display = hideChrome ? 'none' : 'block';
+    if (this.feedLayer) this.feedLayer.style.display = hideChrome ? 'none' : 'flex';
+    if (this.hotbarLayer) this.hotbarLayer.style.display = this.promoChromeHidden && !modalOpen ? 'none' : 'block';
     const touchEl = this.chromeLayer?.querySelector<HTMLElement>('#hud-touch-controls');
     if (touchEl) {
       touchEl.style.display = this.touchEnabled && !modalOpen ? 'block' : 'none';
@@ -1214,10 +1532,13 @@ export class HudController {
         }
       }
     }
+    this.applyMobileTextOutlines(this.chromeLayer);
   }
 
   private renderChrome(): void {
     const portrait = `assets/portraits/${gameState.heroClass}/${gameState.heroClass}_frame.png`;
+
+    const showKeys = !this.isTouchDevice();
 
     if (!this.chromeBuilt) {
       this.chromeLayer.innerHTML = `
@@ -1228,23 +1549,23 @@ export class HudController {
           <div class="sl-frame-wood" style="width:54px; height:54px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
             <img id="hud-hero-portrait" src="${portrait}" class="px-icon" style="width:38px; height:38px;" />
           </div>
-          <div style="display:flex; flex-direction:column; gap:2px;">
-            <div style="display:flex; align-items:center; gap:7px; font-size:12px; font-weight:800; color:#3b2316;">
+          <div class="sl-pixel-text" style="display:flex; flex-direction:column; gap:2px;">
+            <div style="display:flex; align-items:center; gap:7px; font-size:14px; font-weight:800; color:#3b2316;">
               <span id="hud-level-label"></span>
-              <span style="color:#fff6e5; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109; background:url('assets/sprout_ui/frames/coin_plate_md.png') no-repeat center / 100% 100%; padding:1px 8px 2px 6px; display:inline-flex; align-items:center; gap:4px; font-size:11px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" /><span id="hud-coins-val"></span></span>
-              <span id="hud-sp-badge" style="background:url('assets/sprout_ui/buttons/round_sm_green_normal.png') no-repeat center / 100% 100%; color:#fff6e5; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109; padding:1px 7px; font-size:10px; display:none;"></span>
+              <span style="color:#fff6e5; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109; background:url('assets/sprout_ui/frames/coin_plate_md.png') no-repeat center / 100% 100%; padding:1px 8px 2px 6px; display:inline-flex; align-items:center; gap:4px; font-size:14px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" /><span id="hud-coins-val"></span></span>
+              <span id="hud-sp-badge" style="background:url('assets/sprout_ui/buttons/round_sm_green_normal.png') no-repeat center / 100% 100%; color:#fff6e5; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109; padding:1px 7px; font-size:14px; display:none;"></span>
             </div>
-            <div style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#3b2316;">
+            <div style="display:flex; align-items:center; gap:5px; font-size:14px; font-weight:700; color:#3b2316;">
               <img id="hud-hp-heart" src="assets/sprout_ui/vitals/heart_wood_full.png" class="px-icon" style="width:16px; height:16px;" title="HP" />
               <div class="bar-track"><div id="hud-hp-ghost" class="bar-ghost"></div><div id="hud-hp-fill" class="bar-fill hp"></div></div>
               <span id="hud-hp-text"></span>
             </div>
-            <div style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#3b2316;">
+            <div style="display:flex; align-items:center; gap:5px; font-size:14px; font-weight:700; color:#3b2316;">
               <img src="assets/sprout_ui/icons/brown_outline_tan/sprout_2.png" class="px-icon" style="width:16px; height:16px;" title="Energy" />
               <div class="bar-track"><div id="hud-en-ghost" class="bar-ghost"></div><div id="hud-en-fill" class="bar-fill en"></div></div>
               <span id="hud-en-text"></span>
             </div>
-            <div style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:#3b2316;">
+            <div style="display:flex; align-items:center; gap:5px; font-size:14px; font-weight:700; color:#3b2316;">
               <img src="assets/sprout_ui/vitals/star_wood_full.png" class="px-icon" style="width:15px; height:15px;" title="XP" />
               <div class="bar-track" style="height:12px;"><div id="hud-xp-fill" class="bar-fill xp"></div></div>
               <span id="hud-xp-text"></span>
@@ -1257,8 +1578,8 @@ export class HudController {
         </div>
 
         <div id="hud-top-nav" class="hud-interactive" style="position:absolute; top:10px; right:10px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; align-items:center;">
-          <button class="hud-btn gold" data-nav="menu" id="hud-menu-btn"><img src="assets/hud_icons/menu.png" class="px-icon" style="width:14px; height:14px;" /><span>Menu<span class="nav-key"> [I/Tab]</span></span></button>
-          <button class="hud-btn primary" data-action="save" title="Save to File ${gameState.activeSlotIndex + 1}"><img src="assets/hud_icons/save.png" class="px-icon" style="width:14px; height:14px;" /><span>Save #${gameState.activeSlotIndex + 1}</span></button>
+          <button class="hud-btn gold" data-nav="menu" id="hud-menu-btn"><img src="assets/hud_icons/menu.png" class="px-icon" style="width:14px; height:14px;" /><span>Menu${showKeys ? '<span class="nav-key"> [I/Tab]</span>' : ''}</span></button>
+          <button class="hud-btn tan" data-action="save" title="Save to File ${gameState.activeSlotIndex + 1}"><img src="assets/hud_icons/save.png" class="px-icon" style="width:14px; height:14px;" /><span>Save #${gameState.activeSlotIndex + 1}</span></button>
           <button class="hud-btn" data-action="files" id="hud-files-btn" style="${this.callbacks.onExitToTitle ? '' : 'display:none;'}" title="Save & Return to File Select"><img src="assets/sprout_ui/icons/brown_outline_dark/logout.png" class="px-icon" style="width:14px; height:14px;" /><span>Files</span></button>
           <button class="sl-icon-btn" data-action="music" id="hud-music-btn" title="Toggle Music" style="background-image:url('assets/sprout_ui/buttons/ic_btn_music_off_normal.png');"></button>
           <button class="sl-icon-btn" data-action="mute" id="hud-mute-btn" title="Toggle SFX" style="background-image:url('assets/sprout_ui/buttons/ic_btn_sfx_on_normal.png');"></button>
@@ -1267,8 +1588,8 @@ export class HudController {
         <div id="hud-quest-tracker" class="hud-panel hud-interactive" style="position:absolute; top:54px; right:10px; width:222px; padding:5px 8px; display:none; z-index:14; cursor:pointer;" title="Click to open Quest Log [Q]"></div>
 
         <div id="hud-minimap-wrap" class="sl-frame-big hud-interactive" style="position:absolute; bottom:12px; right:12px; padding:3px; z-index:25;">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:3px;">
-            <span style="font-size:10px; font-weight:800; color:#3b2316;">Map [N]</span>
+          <div id="hud-minimap-header" style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:3px;">
+            <span id="hud-minimap-title" style="font-size:10px; font-weight:800; color:#3b2316;">Map [N]</span>
             <button class="hud-btn" id="hud-minimap-toggle" style="padding:0px 5px; font-size:9px;">Hide</button>
           </div>
           <div id="hud-minimap-body" style="display:block;">
@@ -1281,48 +1602,52 @@ export class HudController {
             <div id="hud-touch-knob" class="touch-joy-knob"></div>
           </div>
           <div class="touch-actions-wrap hud-interactive">
-            <button id="hud-touch-dash" class="touch-act-btn" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;"><img src="assets/hud_icons/dash.png" class="px-icon" style="width:20px; height:20px; pointer-events:none;" /><span style="font-size:9px;">DASH</span></button>
-            <button id="hud-touch-act" class="touch-act-btn primary" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;"><img id="hud-touch-act-icon" src="assets/hud_icons/sword.png" class="px-icon" style="width:22px; height:22px; pointer-events:none;" /><span style="font-size:9px;">ACT</span></button>
+            <button id="hud-touch-dash" class="touch-act-btn" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;"><img src="assets/hud_icons/dash.png" class="px-icon" style="width:36px; height:36px; pointer-events:none;" /><span style="font-size:13px;">DASH</span></button>
+            <button id="hud-touch-act" class="touch-act-btn primary" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;"><img id="hud-touch-act-icon" src="assets/hud_icons/sword.png" class="px-icon" style="width:40px; height:40px; pointer-events:none;" /><span style="font-size:13px;">ACT</span></button>
           </div>
         </div>
       `;
 
       this.chromeLayer.querySelectorAll<HTMLElement>('[data-nav]').forEach((el) => {
-        el.onclick = () => {
+        this.bindMultiTouchTap(el, () => {
           SFX.playUiClick();
           const nav = el.dataset.nav;
           if (nav === 'menu') {
+            gameState.clearButtonAlerts('menu');
             this.toggleModal(this.activeModal === 'none' ? this.lastMenuTab : 'none');
           } else {
+            if (nav) gameState.clearButtonAlerts(nav);
             this.toggleModal(nav as HudModal);
           }
-        };
+        });
       });
-      this.chromeLayer.querySelector<HTMLElement>('#hud-quest-tracker')?.addEventListener('click', () => {
+      this.bindMultiTouchTap(this.chromeLayer.querySelector<HTMLElement>('#hud-quest-tracker'), () => {
         SFX.playUiClick();
         this.toggleModal('quests');
       });
-      this.chromeLayer.querySelector<HTMLElement>('[data-action="save"]')!.onclick = () => this.callbacks.onSave();
-      this.chromeLayer.querySelector<HTMLElement>('[data-action="files"]')?.addEventListener('click', () => {
+      this.bindMultiTouchTap(this.chromeLayer.querySelector<HTMLElement>('[data-action="save"]'), () =>
+        this.callbacks.onSave(),
+      );
+      this.bindMultiTouchTap(this.chromeLayer.querySelector<HTMLElement>('[data-action="files"]'), () => {
         SFX.playUiClick();
         this.callbacks.onExitToTitle?.();
       });
-      this.chromeLayer.querySelector<HTMLElement>('[data-action="music"]')!.onclick = () => {
+      this.bindMultiTouchTap(this.chromeLayer.querySelector<HTMLElement>('[data-action="music"]'), () => {
         SFX.setMusicEnabled(!SFX.musicEnabled);
         this.renderChrome();
-      };
-      this.chromeLayer.querySelector<HTMLElement>('[data-action="mute"]')!.onclick = () => {
+      });
+      this.bindMultiTouchTap(this.chromeLayer.querySelector<HTMLElement>('[data-action="mute"]'), () => {
         SFX.setMuted(!SFX.muted);
         this.renderChrome();
-      };
+      });
       this.minimapCanvas = this.chromeLayer.querySelector<HTMLCanvasElement>('#hud-minimap-canvas') ?? undefined;
       if (this.minimapCanvas) {
         this.minimapCanvas.style.cursor = 'pointer';
         this.minimapCanvas.title = 'Click to open Islands Map [M]';
-        this.minimapCanvas.onclick = () => {
+        this.bindMultiTouchTap(this.minimapCanvas, () => {
           SFX.playUiClick();
           this.toggleModal('map');
-        };
+        });
       }
       // Hidden 7-tap QA debug unlock on level label
       let lvlTapCount = 0;
@@ -1340,7 +1665,7 @@ export class HudController {
           this.render();
         }
       });
-      this.chromeLayer.querySelector('#hud-minimap-toggle')?.addEventListener('click', () => {
+      this.bindMultiTouchTap(this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-toggle'), () => {
         this.toggleMinimap();
       });
       this.bindTouchControls();
@@ -1364,6 +1689,8 @@ export class HudController {
         el.textContent = gameState.debugMode ? 'Progress & Debug [P]' : 'Progress [P]';
       }
     });
+    const menuBtn = this.chromeLayer.querySelector<HTMLElement>('#hud-menu-btn');
+    this.attachAlertBadge(menuBtn, gameState.hasAlertForButton('menu'));
     const muteBtn = this.chromeLayer.querySelector<HTMLElement>('#hud-mute-btn');
     if (muteBtn) {
       muteBtn.style.backgroundImage = `url('assets/sprout_ui/buttons/${SFX.muted ? 'ic_btn_sfx_off_pressed' : 'ic_btn_sfx_on_normal'}.png')`;
@@ -1395,7 +1722,7 @@ export class HudController {
       const rec = RECIPES.find((r) => r.id === gameState.pendingBuildRecipeId);
       if (this.touchEnabled) {
         html += `
-          <div class="hud-dock-light" style="position:absolute; bottom:78px; left:50%; transform:translateX(-50%); padding:4px 12px; font-size:11px; z-index:25; white-space:nowrap;">
+          <div class="hud-dock-light" style="position:absolute; bottom:88px; left:50%; transform:translateX(-50%); padding:4px 12px; font-size:11px; z-index:25; white-space:nowrap;">
             Placing: <strong>${rec?.name ?? ''}</strong> — Drag gizmo to position
           </div>
         `;
@@ -1480,12 +1807,13 @@ export class HudController {
       ${def.sellValue > 0 ? `<div style="margin-top:4px; font-size:9px; color:#ffd95a;">Sell: ${def.sellValue}g</div>` : ''}
     `;
     this.tooltipEl.style.display = 'block';
+    const s = this.hudScale || 1;
     const rect = anchorEl.getBoundingClientRect();
     const tw = this.tooltipEl.offsetWidth || 200;
     const th = this.tooltipEl.offsetHeight || 80;
-    const vw = window.innerWidth;
-    const left = Math.max(8, Math.min(vw - tw - 8, rect.left + rect.width / 2 - tw / 2));
-    const top = Math.max(8, rect.top - th - 8);
+    const vw = window.innerWidth / s;
+    const left = Math.max(8, Math.min(vw - tw - 8, (rect.left + rect.width / 2) / s - tw / 2));
+    const top = Math.max(8, rect.top / s - th - 8);
     this.tooltipEl.style.left = `${Math.round(left)}px`;
     this.tooltipEl.style.top = `${Math.round(top)}px`;
   }
@@ -1515,7 +1843,7 @@ export class HudController {
       html += `
         <div class="hotbar-slot ${rarityCls} ${active ? 'active' : ''} ${active && shouldPop ? 'pop' : ''}" data-hotbar="${i}" draggable="${itemId ? 'true' : 'false'}">
           ${active ? `<img src="assets/sprout_ui/selectors/selector_c_tl.png" class="slot-corner tl" /><img src="assets/sprout_ui/selectors/selector_c_tr.png" class="slot-corner tr" /><img src="assets/sprout_ui/selectors/selector_c_bl.png" class="slot-corner bl" /><img src="assets/sprout_ui/selectors/selector_c_br.png" class="slot-corner br" />` : ''}
-          <span style="position:absolute; top:2px; left:4px; font-size:9px; font-weight:800; color:#5c3a24;">${i + 1}</span>
+          <span class="hotbar-slot-num">${i + 1}</span>
           ${isEq ? `<span class="hotbar-eq">EQ</span>` : ''}
           ${
             def
@@ -1547,32 +1875,86 @@ export class HudController {
       const idx = Number(el.dataset.hotbar);
       const itemId = gameState.hotbar[idx];
       let longPressTimer: number | null = null;
+      let activeTouchId: number | null = null;
+      let longPressed = false;
+      let lastTouchTapMs = 0;
+
+      const selectSlot = () => {
+        Haptics.impactLight();
+        if (gameState.selectedHotbarIndex !== idx) SFX.playHotbarSelect();
+        gameState.selectedHotbarIndex = idx;
+        this.renderHotbar();
+        if (itemId && this.isTouchDevice()) {
+          const freshSlot = this.hotbarLayer.querySelector<HTMLElement>(`[data-hotbar="${idx}"]`);
+          if (freshSlot) {
+            this.showItemTooltip(itemId, freshSlot);
+            window.setTimeout(() => this.hideItemTooltip(), 1600);
+          }
+        } else {
+          this.hideItemTooltip();
+        }
+      };
+
       el.onmouseenter = () => {
         if (itemId) this.showItemTooltip(itemId, el);
       };
       el.onmouseleave = () => this.hideItemTooltip();
       el.addEventListener(
         'touchstart',
-        () => {
-          if (!itemId) return;
-          longPressTimer = window.setTimeout(() => this.showItemTooltip(itemId, el), 380);
+        (e) => {
+          if (activeTouchId !== null || e.changedTouches.length === 0) return;
+          activeTouchId = e.changedTouches[0].identifier;
+          longPressed = false;
+          e.stopPropagation();
+          if (itemId) {
+            longPressTimer = window.setTimeout(() => {
+              longPressed = true;
+              this.showItemTooltip(itemId, el);
+            }, 380);
+          }
         },
         { passive: true },
       );
-      el.addEventListener(
-        'touchend',
-        () => {
-          if (longPressTimer !== null) clearTimeout(longPressTimer);
-          this.hideItemTooltip();
-        },
-        { passive: true },
-      );
+      el.addEventListener('touchend', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.identifier === activeTouchId) {
+            activeTouchId = null;
+            if (longPressTimer !== null) {
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+            }
+            if (!longPressed) {
+              const r = el.getBoundingClientRect();
+              if (t.clientX >= r.left - 4 && t.clientX <= r.right + 4 && t.clientY >= r.top - 4 && t.clientY <= r.bottom + 4) {
+                e.preventDefault();
+                e.stopPropagation();
+                lastTouchTapMs = performance.now();
+                selectSlot();
+              }
+            } else {
+              this.hideItemTooltip();
+            }
+            break;
+          }
+        }
+      });
+      el.addEventListener('touchcancel', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activeTouchId) {
+            activeTouchId = null;
+            if (longPressTimer !== null) {
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+            }
+            this.hideItemTooltip();
+            break;
+          }
+        }
+      });
       el.onclick = () => {
-        this.hideItemTooltip();
-        Haptics.impactLight();
-        if (gameState.selectedHotbarIndex !== idx) SFX.playHotbarSelect();
-        gameState.selectedHotbarIndex = idx;
-        this.renderHotbar();
+        if (performance.now() - lastTouchTapMs < 400) return;
+        selectSlot();
       };
       el.oncontextmenu = (e) => {
         e.preventDefault();
@@ -1611,14 +1993,15 @@ export class HudController {
       return;
     }
 
+    const showKeys = !this.isTouchDevice();
     const activeCount = Object.keys(gameState.activeQuests).length;
     const tabs: Array<{ id: HudModal; label: string }> = [
-      { id: 'inventory', label: 'Character & Bag [I]' },
-      { id: 'craft', label: 'Craft & Build [Tab]' },
-      { id: 'skills', label: `Skills [K]${gameState.skillPoints > 0 ? ` (+${gameState.skillPoints})` : ''}` },
-      { id: 'quests', label: `Quests [Q]${activeCount > 0 ? ` (${activeCount})` : ''}` },
-      { id: 'map', label: `World Map [M] (${gameState.ownedIslands.size}/25)` },
-      { id: 'progress', label: gameState.debugMode ? 'Progress & Debug [P]' : 'Progress [P]' },
+      { id: 'inventory', label: `Character${showKeys ? ' [I]' : ''}` },
+      { id: 'craft', label: `Craft${showKeys ? ' [Tab]' : ''}` },
+      { id: 'skills', label: `Skills${showKeys ? ' [K]' : ''}${gameState.skillPoints > 0 ? ` (+${gameState.skillPoints})` : ''}` },
+      { id: 'quests', label: `Quests${showKeys ? ' [Q]' : ''}${activeCount > 0 ? ` (${activeCount})` : ''}` },
+      { id: 'map', label: `Map${showKeys ? ' [M]' : ''} (${gameState.ownedIslands.size}/25)` },
+      { id: 'progress', label: `${gameState.debugMode ? 'Progress & Debug' : 'Progress'}${showKeys ? ' [P]' : ''}` },
     ];
 
     let bodyHtml = '';
@@ -1633,9 +2016,10 @@ export class HudController {
     const maxEn = gameState.getMaxEnergy();
     this.modalLayer.innerHTML = `
       <div class="modal-backdrop hud-interactive" data-action="close-backdrop">
-        <div class="hud-panel ledger-window" onclick="event.stopPropagation()">
-          <div class="hud-panel-inset ledger-tabs" style="display:flex; justify-content:space-between; align-items:flex-end; padding:4px 8px 0 8px; gap:8px; flex-wrap:wrap;">
-            <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:flex-end;">
+        <div class="hud-panel-wood ledger-window" onclick="event.stopPropagation()">
+          <button class="sl-icon-btn modal-close-btn" data-action="close-modal" title="${showKeys ? 'Close [Esc]' : 'Close'}"></button>
+          <div class="hud-panel-inset ledger-tabs">
+            <div class="ledger-tab-strip">
               ${tabs
                 .map((t) => {
                   const isActive = this.activeModal === t.id;
@@ -1643,18 +2027,17 @@ export class HudController {
                 })
                 .join('')}
             </div>
-            <div style="display:flex; align-items:center; gap:8px; padding-bottom:4px; flex-wrap:wrap;">
-              <span style="display:inline-flex; align-items:center; gap:8px; font-size:11px; font-weight:700; color:#fff6e5; background:rgba(36,20,12,0.55); padding:2px 8px; border-radius:4px;">
-                <span style="color:#ffe066;">Lv.${gameState.level} ${gameState.heroClass}</span>
+            <div style="display:flex; align-items:center; gap:6px; padding-bottom:4px; flex-shrink:0;">
+              <span class="modal-status-bar">
+                <span style="color:#ffe066;">LV.${gameState.level} ${gameState.heroClass.toUpperCase()}</span>
                 <span>♥ ${Math.ceil(gameState.hp)}/${maxHp}</span>
                 <span>⚡ ${Math.ceil(gameState.energy)}/${maxEn}</span>
                 <span style="color:#ffd95a; display:inline-flex; align-items:center; gap:3px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" />${gameState.coins}g</span>
                 ${gameState.skillPoints > 0 ? `<span style="color:#8ef5a7;">+${gameState.skillPoints} SP</span>` : ''}
               </span>
-              <button class="hud-btn primary" data-modal-action="save" style="padding:1px 7px; font-size:10px;"><img src="assets/hud_icons/save.png" class="px-icon" style="width:12px; height:12px;" />Save</button>
+              <button class="hud-btn tan" data-modal-action="save" style="padding:1px 7px; font-size:11px;"><img src="assets/hud_icons/save.png" class="px-icon" style="width:12px; height:12px;" />Save</button>
               <button class="sl-icon-btn" data-modal-action="music" title="Toggle Music" style="width:26px; height:26px; background-image:url('assets/sprout_ui/buttons/${SFX.musicEnabled ? 'ic_btn_music_double_normal' : 'ic_btn_music_off_pressed'}.png');"></button>
               <button class="sl-icon-btn" data-modal-action="mute" title="Toggle SFX" style="width:26px; height:26px; background-image:url('assets/sprout_ui/buttons/${SFX.muted ? 'ic_btn_sfx_off_pressed' : 'ic_btn_sfx_on_normal'}.png');"></button>
-              <button class="sl-icon-btn" data-action="close-modal" title="Close [Esc]" style="width:26px; height:26px; background-image:url('assets/sprout_ui/buttons/ic_btn_close_normal.png');"></button>
             </div>
           </div>
           <div class="ledger-body">${bodyHtml}</div>
@@ -1684,8 +2067,8 @@ export class HudController {
         const selected = this.selectedInspect?.kind === 'equip' && this.selectedInspect.slot === slot;
         return `
           <div class="equip-slot ${selected ? 'selected' : ''}" data-equip-slot="${slot}" draggable="${eqId ? 'true' : 'false'}">
-            <div style="width:34px; height:34px; background:url('assets/sprout_ui/frames/backdrop_b3.png') no-repeat center / 100% 100%; image-rendering:pixelated; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-              ${def?.iconKey ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:22px; height:22px; pointer-events:none;" />` : `<span style="font-size:10px; color:#5c3a24;">—</span>`}
+            <div style="width:28px; height:28px; background:url('assets/sprout_ui/frames/backdrop_b3.png') no-repeat center / 100% 100%; image-rendering:pixelated; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              ${def?.iconKey ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:20px; height:20px; pointer-events:none;" />` : `<span style="font-size:10px; color:#5c3a24;">—</span>`}
             </div>
             <div style="min-width:0; flex:1;">
               <div style="font-size:9px; color:#5c3a24; font-weight:700; text-transform:uppercase;">${EQUIP_SLOT_LABELS[slot]}${gearLv > 0 ? ` • Lv.${gearLv}` : ''}</div>
@@ -1724,12 +2107,12 @@ export class HudController {
     return `
       <div class="diablo-layout">
         <!-- LEFT: EQUIPMENT 2x3 & STATS 2x4 -->
-        <div style="display:flex; flex-direction:column; gap:8px; min-height:0;">
+        <div style="display:flex; flex-direction:column; gap:5px; min-height:0;">
           <div style="font-size:12px; font-weight:800; color:#3b2316;">Equipment Slots</div>
           <div class="equip-grid-2x3">${equipSlotsHtml}</div>
-          <div class="hud-panel-inset" style="padding:8px 10px; font-size:11px; flex:1; display:flex; flex-direction:column; justify-content:center; gap:6px;">
+          <div class="hud-panel-inset" style="padding:6px 9px; font-size:11px; flex:1; display:flex; flex-direction:column; justify-content:center; gap:4px;">
             <div style="font-weight:800; color:#ffe066;">Character Stats</div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 10px;">
               <div style="display:flex; justify-content:space-between;"><span>Power Lv</span><strong style="color:#ffd242;">${gameState.getPowerLevel()}</strong></div>
               <div style="display:flex; justify-content:space-between;"><span>Attack</span><strong style="color:#ff9b85;">${atkTotal}</strong></div>
               <div style="display:flex; justify-content:space-between;"><span>Gather</span><strong style="color:#8ef5a7;">${gatherTotal}</strong></div>
@@ -1743,15 +2126,15 @@ export class HudController {
         </div>
 
         <!-- CENTER: INVENTORY GRID -->
-        <div style="display:flex; flex-direction:column; gap:8px; align-items:center; justify-content:center; min-height:0;">
-          <div style="width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <div style="display:flex; flex-direction:column; gap:6px; align-items:center; justify-content:flex-start; min-height:0; height:100%;">
+          <div style="width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-shrink:0;">
             <span style="font-size:12px; font-weight:800; color:#3b2316;">Inventory (${gameState.bagSlots.filter(Boolean).length}/${BAG_SIZE})</span>
             <div style="display:flex; align-items:center; gap:8px;">
-              <span style="font-size:10px; color:#5c3a24;">Drag to move, equip, or Hotbar 1–9</span>
-              <button class="hud-btn" data-action="sort-bag" style="padding:1px 7px; font-size:10px;">Sort Bag</button>
+              <span style="font-size:10px; color:#5c3a24; white-space:nowrap;">Drag to move, equip, or Hotbar 1–9</span>
+              <button class="hud-btn" data-action="sort-bag" style="padding:1px 7px; font-size:10px; white-space:nowrap;">Sort Bag</button>
             </div>
           </div>
-          <div class="bag-grid hud-panel-inset">${bagHtml}</div>
+          <div class="bag-grid hud-panel-inset sl-scroll">${bagHtml}</div>
           ${
             this.moveSourceBagIdx !== null
               ? `<div style="font-size:11px; color:#216b2b; font-weight:700;">Click any destination slot to move/swap • <button class="hud-btn" data-action="cancel-move" style="padding:1px 6px; font-size:10px;">Cancel</button></div>`
@@ -1769,7 +2152,43 @@ export class HudController {
 
   private renderItemInspector(): string {
     if (!this.selectedInspect) {
-      return `<div style="color:#7892ad; font-size:12px; padding:12px 0;">Select any item or equipped gear to inspect stats, compare upgrades, equip, or assign to Hotbar 1–9.</div>`;
+      const heroClass = gameState.heroClass;
+      const portrait = `assets/portraits/${heroClass}/${heroClass}_frame.png`;
+      const eqStats = gameState.getEquippedStats();
+      const statRows = [
+        { label: 'Bonus Attack', val: `+${eqStats.attack}`, color: '#ff9b85' },
+        { label: 'Bonus Gather', val: `+${eqStats.gather}`, color: '#8ef5a7' },
+        { label: 'Total Armor', val: `${eqStats.armor}`, color: '#8cc8ff' },
+        { label: 'Crit Bonus', val: `+${eqStats.critPct}%`, color: '#ffe066' },
+        { label: 'Speed Bonus', val: `+${eqStats.speedPct}%`, color: '#e6f2ff' },
+        { label: 'Gear Max HP', val: `+${eqStats.maxHp}`, color: '#ff8a93' },
+        { label: 'Gear Max EN', val: `+${eqStats.maxEnergy}`, color: '#8ef5a7' },
+      ];
+      return `
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div class="sl-frame-wood" style="width:54px; height:54px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              <img src="${portrait}" class="px-icon" style="width:38px; height:38px;" />
+            </div>
+            <div>
+              <div class="sl-pixel-text" style="font-size:14px; font-weight:800; color:#ffe066;">LV.${gameState.level} ${heroClass.toUpperCase()}</div>
+              <div style="font-size:11px; color:#c8daeb;">Power Level: <strong style="color:#ffd242;">${gameState.getPowerLevel()}</strong></div>
+            </div>
+          </div>
+          <div style="padding:7px 9px; background:#131f30; border-radius:4px; display:flex; flex-direction:column; gap:4px;">
+            <div style="font-size:11px; font-weight:800; color:#ffe066; margin-bottom:2px;">Equipped Gear Bonuses</div>
+            ${statRows
+              .map(
+                (r) =>
+                  `<div style="display:flex; justify-content:space-between; font-size:11px;"><span style="color:#c8daeb;">${r.label}</span><strong style="color:${r.color};">${r.val}</strong></div>`,
+              )
+              .join('')}
+          </div>
+          <div style="color:#9db6cf; font-size:11px; line-height:1.35;">
+            Select any bag or equipment slot to inspect item stats, compare upgrades, equip, or assign to Hotbar 1–9.
+          </div>
+        </div>
+      `;
     }
 
     const itemId = this.selectedInspect.itemId;
@@ -2544,9 +2963,9 @@ export class HudController {
         }
         return true;
       }
-      const hbTarget = target.closest<HTMLElement>('[data-hotbar-idx]');
+      const hbTarget = target.closest<HTMLElement>('[data-hotbar]');
       if (hbTarget) {
-        const hbIdx = Number(hbTarget.dataset.hotbarIdx);
+        const hbIdx = Number(hbTarget.dataset.hotbar);
         gameState.assignHotbarSlot(hbIdx, this.dragPayload.itemId);
         this.showToast(`Assigned ${ITEMS[this.dragPayload.itemId]?.name ?? this.dragPayload.itemId} to slot ${hbIdx + 1}`);
         return true;
@@ -2598,14 +3017,14 @@ export class HudController {
           ghost.style.top = `${startY}px`;
           document.body.appendChild(ghost);
           this.showToast(`Dragging ${def?.name ?? 'item'} — release on target slot`);
-        }, 2000);
+        }, 260);
       }, { passive: true });
 
       el.addEventListener('touchmove', (e) => {
         if (e.touches.length !== 1) return;
         const t = e.touches[0];
         if (!dragging) {
-          if (holdTimer !== null && Math.hypot(t.clientX - startX, t.clientY - startY) > 12) {
+          if (holdTimer !== null && Math.hypot(t.clientX - startX, t.clientY - startY) > 14) {
             cleanup();
           }
           return;
@@ -2616,7 +3035,7 @@ export class HudController {
           ghost.style.top = `${t.clientY}px`;
         }
         const under = document.elementFromPoint(t.clientX, t.clientY) as HTMLElement | null;
-        const dropSlot = under?.closest<HTMLElement>('[data-bag-idx],[data-equip-slot],[data-hotbar-idx]') ?? null;
+        const dropSlot = under?.closest<HTMLElement>('[data-bag-idx],[data-equip-slot],[data-hotbar]') ?? null;
         if (lastHovered && lastHovered !== dropSlot) {
           lastHovered.classList.remove('drag-over');
         }

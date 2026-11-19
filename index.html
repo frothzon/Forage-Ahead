@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <title>Forage Ahead — 2D Fantasy Action RPG</title>
     <style>
       @font-face {
@@ -72,6 +73,15 @@
         pointer-events: none;
         z-index: 10;
       }
+      #transition-canvas {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        pointer-events: none;
+        z-index: 50;
+        display: block;
+      }
       .hud-interactive {
         pointer-events: auto;
       }
@@ -81,6 +91,7 @@
     <div id="app">
       <div id="game-container"></div>
       <div id="hud-root"></div>
+      <canvas id="transition-canvas"></canvas>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
