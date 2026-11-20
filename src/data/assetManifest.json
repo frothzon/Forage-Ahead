@@ -5345,6 +5345,31 @@
       "width": 176,
       "height": 112
     },
+    "cuterpg/dungeon": {
+      "path": "assets/cuterpg/dungeon.png",
+      "width": 512,
+      "height": 256
+    },
+    "cuterpg/dungeon_anim": {
+      "path": "assets/cuterpg/dungeon_anim.png",
+      "width": 192,
+      "height": 128
+    },
+    "cuterpg/grotto": {
+      "path": "assets/cuterpg/grotto.png",
+      "width": 512,
+      "height": 512
+    },
+    "cuterpg/grotto_obj2": {
+      "path": "assets/cuterpg/grotto_obj2.png",
+      "width": 192,
+      "height": 128
+    },
+    "cuterpg/grotto_obj1": {
+      "path": "assets/cuterpg/grotto_obj1.png",
+      "width": 192,
+      "height": 128
+    },
     "sprout_icons/corn": {
       "path": "assets/sprout_icons/corn.png",
       "width": 16,

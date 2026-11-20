@@ -31,6 +31,7 @@ export class CameraRig {
 
   private zoomPulse = 0;
   private zoomPulseTween?: Phaser.Tweens.Tween;
+  private focusActive = false;
 
   constructor(scene: Phaser.Scene, opts?: CameraRigOptions) {
     this.scene = scene;
@@ -99,6 +100,71 @@ export class CameraRig {
     return 1 + this.zoomPulse;
   }
 
+  public isFocusing(): boolean {
+    return this.focusActive;
+  }
+
+  /**
+   * Smoothly lerps the camera to `(targetX, targetY)`, runs `onArrive` (e.g. crumbling blocks,
+   * unsealing a chest), holds briefly, then lerps smoothly back to `returnTarget` and resumes follow.
+   */
+  public focusOn(
+    targetX: number,
+    targetY: number,
+    returnTarget: Phaser.GameObjects.Components.Transform & Phaser.GameObjects.GameObject,
+    opts?: {
+      panMs?: number;
+      holdMs?: number;
+      onArrive?: () => void;
+      onComplete?: () => void;
+    },
+  ): void {
+    const cam = this.scene.cameras?.main;
+    if (!cam || !this.scene.tweens || this.focusActive) {
+      opts?.onArrive?.();
+      opts?.onComplete?.();
+      return;
+    }
+
+    this.focusActive = true;
+    cam.stopFollow();
+    const panMs = opts?.panMs ?? 320;
+    const holdMs = opts?.holdMs ?? 480;
+    const focal = { x: cam.midPoint.x, y: cam.midPoint.y };
+
+    this.scene.tweens.add({
+      targets: focal,
+      x: targetX,
+      y: targetY,
+      duration: panMs,
+      ease: 'Cubic.InOut',
+      onUpdate: () => cam.centerOn(focal.x, focal.y),
+      onComplete: () => {
+        opts?.onArrive?.();
+        this.scene.time.delayedCall(holdMs, () => {
+          if (!this.scene.tweens || !returnTarget.active) {
+            this.focusActive = false;
+            opts?.onComplete?.();
+            return;
+          }
+          this.scene.tweens.add({
+            targets: focal,
+            x: returnTarget.x,
+            y: returnTarget.y,
+            duration: panMs,
+            ease: 'Cubic.InOut',
+            onUpdate: () => cam.centerOn(focal.x, focal.y),
+            onComplete: () => {
+              cam.startFollow(returnTarget, true, 0.15, 0.15);
+              this.focusActive = false;
+              opts?.onComplete?.();
+            },
+          });
+        });
+      },
+    });
+  }
+
   public update(dtMs: number, baseZoom?: number): void {
     const cam = this.scene.cameras?.main;
     if (!cam) return;
@@ -128,13 +194,15 @@ export class CameraRig {
       curKickY = this.kickY * t;
     }
 
-    // 3. Subtle look-ahead lerp
-    const lookAlpha = 1 - Math.exp(-6.5 * dt);
-    this.lookX = Phaser.Math.Linear(this.lookX, this.targetLookX, lookAlpha);
-    this.lookY = Phaser.Math.Linear(this.lookY, this.targetLookY, lookAlpha);
+    // 3. Subtle look-ahead lerp (skip followOffset overrides during cinematic focus pan)
+    if (!this.focusActive) {
+      const lookAlpha = 1 - Math.exp(-6.5 * dt);
+      this.lookX = Phaser.Math.Linear(this.lookX, this.targetLookX, lookAlpha);
+      this.lookY = Phaser.Math.Linear(this.lookY, this.targetLookY, lookAlpha);
 
-    // Phaser subtracts followOffset from target position, so negate to shift camera forward
-    cam.followOffset.set(-(this.lookX + curKickX + shakeX), -(this.lookY + curKickY + shakeY));
+      // Phaser subtracts followOffset from target position, so negate to shift camera forward
+      cam.followOffset.set(-(this.lookX + curKickX + shakeX), -(this.lookY + curKickY + shakeY));
+    }
 
     if (typeof baseZoom === 'number' && Number.isFinite(baseZoom)) {
       const targetZoom = baseZoom * (1 + this.zoomPulse);

@@ -2,8 +2,10 @@ import Phaser from 'phaser';
 import { gameState, type RanchCreatureSave } from '../core/GameState';
 import { computeResponsiveZoom } from '../core/ViewportScaler';
 import { getSpeciesByEgg, getSpeciesById, RANCH_SPECIES } from '../data/ranchCreatures';
+import { fmtKeyPrompt, fmtKeySuffix, isMobileTouchDevice } from '../core/Platform';
 import { SFX } from '../core/SoundFX';
 import { startSceneAndWaitCreate, transitionManager } from '../core/TransitionManager';
+import { HOUSE_THEME_SPECS, type HouseThemeId } from '../world/HouseLayoutBuilder';
 import { ITEMS } from '../data/items';
 import {
   ISLANDS,
@@ -46,7 +48,7 @@ import { FoxCompanion, Player } from '../entities/Player';
 import { dialogueBox } from '../ui/DialogueBox';
 import { FishingMinigame, type FishBehavior } from '../ui/FishingMinigame';
 import { tryActivateGadget } from '../entities/GadgetHelper';
-import { selectBestAimTarget, type AimCandidate } from '../entities/targeting';
+import { isFacingTarget, selectBestAimTarget, type AimCandidate } from '../entities/targeting';
 import { HudController, type QueuedStationType } from '../ui/HudController';
 import { revealSequence } from '../ui/RevealSequence';
 import { getBlueprintsForMonster, getBlueprintsForNode, tryUnlockBlueprintFromPool } from '../data/blueprints';
@@ -77,11 +79,23 @@ interface ActiveBomb {
   fuseMs: number;
 }
 
+interface FogCloudPuff {
+  sprite: Phaser.GameObjects.Image;
+  baseX: number;
+  baseY: number;
+  baseAlpha: number;
+  phase: number;
+  driftX: number;
+  driftY: number;
+  speed: number;
+}
+
 interface IslandPurchaseMarker {
   gx: number;
   gy: number;
-  rect: Phaser.GameObjects.Rectangle;
-  label: Phaser.GameObjects.Text;
+  veil: Phaser.GameObjects.Image;
+  puffs: FogCloudPuff[];
+  label?: Phaser.GameObjects.Text;
 }
 
 interface NpcEntity {
@@ -157,6 +171,7 @@ export class OverworldScene extends Phaser.Scene {
   private bombs: ActiveBomb[] = [];
   private purchaseMarkers: IslandPurchaseMarker[] = [];
   private npcs: NpcEntity[] = [];
+  private npcHouses: Array<{ theme: HouseThemeId; x: number; y: number; name: string }> = [];
   private ranchEntities: RanchEntity[] = [];
   private animals: Array<{
     kind: 'Cow' | 'Deer' | 'Hen' | 'Rabbit';
@@ -678,7 +693,7 @@ export class OverworldScene extends Phaser.Scene {
         .text(
           spr.x,
           spr.y - 16,
-          cleared ? `${spec.name} (Cleared)` : `[E] Enter ${spec.name.replace(' Isle', '')}`,
+          cleared ? `${spec.name} (Cleared)` : fmtKeyPrompt('E', `Enter ${spec.name.replace(' Isle', '')}`),
           {
             fontSize: '7px',
             fontStyle: 'bold',
@@ -713,7 +728,7 @@ export class OverworldScene extends Phaser.Scene {
           spr.x,
           spr.y - 16,
           unlocked
-            ? `[E] Void Spire (Fl.${checkpointFloor})`
+            ? fmtKeyPrompt('E', `Void Spire (Fl.${checkpointFloor})`)
             : 'Void Spire (Clear Infernal Sanctum)',
           {
             fontSize: '7px',
@@ -766,6 +781,39 @@ export class OverworldScene extends Phaser.Scene {
         ease: 'Sine.InOut',
       });
       this.npcs.push({ spec: spec.npc, sprite: spr, prompt, x: nx, y: ny });
+
+      // 2b. Enterable NPC House (2-3 WFC rooms)
+      const theme = spec.npc.id as HouseThemeId;
+      if (HOUSE_THEME_SPECS[theme]) {
+        const hTile = this.findNearestLandTileOnIsland(
+          gx,
+          gy,
+          Math.max(2, Math.floor(ISLAND_CELL_TILES * 0.24)),
+          Math.max(2, half - 2),
+        );
+        const hx = hTile.tx * TILE_PX + 8;
+        const hy = hTile.ty * TILE_PX + 8;
+        if (Math.hypot(hx - nx, hy - ny) >= 22) {
+          this.add.image(hx - 8, hy, 'sprout/house_walls', 0).setDepth(hy);
+          this.add.image(hx + 8, hy, 'sprout/house_walls', 2).setDepth(hy);
+          this.add.image(hx, hy, 'sprout/house_door', 0).setDepth(hy + 1);
+          this.add.image(hx - 8, hy - 14, 'sprout/house_roof', 0).setDepth(hy + 2);
+          this.add.image(hx, hy - 14, 'sprout/house_roof', 1).setDepth(hy + 2);
+          this.add.image(hx + 8, hy - 14, 'sprout/house_roof', 2).setDepth(hy + 2);
+          this.add
+            .text(hx, hy - 26, fmtKeyPrompt('E', HOUSE_THEME_SPECS[theme].houseName), {
+              fontSize: '7px',
+              fontStyle: 'bold',
+              color: '#ffe6a8',
+              stroke: '#1b1109',
+              strokeThickness: 2,
+              resolution: 4,
+            })
+            .setOrigin(0.5)
+            .setDepth(8000);
+          this.npcHouses.push({ theme, x: hx, y: hy, name: HOUSE_THEME_SPECS[theme].houseName });
+        }
+      }
     }
 
     // 3. Ambient wildlife on peaceful biomes (moving, pettable, and huntable)
@@ -918,40 +966,145 @@ export class OverworldScene extends Phaser.Scene {
     return this.buildings.some((b) => b.active && b.tx === tx && b.ty === ty);
   }
 
+  private ensureFogTextures(): void {
+    if (!this.textures.exists('_fog_veil_tile')) {
+      const tex = this.textures.createCanvas('_fog_veil_tile', 128, 128);
+      if (tex) {
+        const ctx = tex.getContext();
+        const grad = ctx.createRadialGradient(64, 64, 14, 64, 64, 64);
+        grad.addColorStop(0, 'rgba(222, 234, 248, 0.72)');
+        grad.addColorStop(0.55, 'rgba(206, 222, 242, 0.56)');
+        grad.addColorStop(0.82, 'rgba(192, 212, 236, 0.28)');
+        grad.addColorStop(1, 'rgba(186, 208, 234, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 128, 128);
+        tex.refresh();
+      }
+    }
+    if (!this.textures.exists('_fog_cloud_puff')) {
+      const tex = this.textures.createCanvas('_fog_cloud_puff', 96, 64);
+      if (tex) {
+        const ctx = tex.getContext();
+        const lobes = [
+          { x: 48, y: 34, r: 24, a: 0.68 },
+          { x: 30, y: 36, r: 19, a: 0.56 },
+          { x: 66, y: 36, r: 19, a: 0.56 },
+          { x: 42, y: 24, r: 18, a: 0.62 },
+          { x: 56, y: 26, r: 17, a: 0.60 },
+        ];
+        for (const l of lobes) {
+          const g = ctx.createRadialGradient(l.x, l.y, l.r * 0.15, l.x, l.y, l.r);
+          g.addColorStop(0, `rgba(240, 247, 255, ${l.a})`);
+          g.addColorStop(0.6, `rgba(218, 232, 248, ${l.a * 0.62})`);
+          g.addColorStop(1, 'rgba(200, 220, 244, 0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(l.x, l.y, l.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        tex.refresh();
+      }
+    }
+  }
+
   private refreshPurchaseMarkers(): void {
+    this.ensureFogTextures();
     for (const m of this.purchaseMarkers) {
-      m.rect.destroy();
-      m.label.destroy();
+      m.veil.destroy();
+      for (const p of m.puffs) p.sprite.destroy();
+      m.label?.destroy();
     }
     this.purchaseMarkers = [];
 
     for (const spec of ISLANDS) {
-      if (!gameState.isIslandAdjacentToOwned(spec.gx, spec.gy)) continue;
+      if (gameState.ownedIslands.has(`${spec.gx},${spec.gy}`)) continue;
       const cx = (spec.gx * ISLAND_CELL_TILES + ISLAND_CELL_TILES / 2) * TILE_PX;
       const cy = (spec.gy * ISLAND_CELL_TILES + ISLAND_CELL_TILES / 2) * TILE_PX;
-      const size = (ISLAND_CELL_TILES - 2) * TILE_PX;
-      const cost = gameState.getIslandCost(spec.gx, spec.gy);
-      const canAfford = gameState.coins >= cost;
+      const size = ISLAND_CELL_TILES * TILE_PX;
+      const isAdjacent = gameState.isIslandAdjacentToOwned(spec.gx, spec.gy);
 
-      const rect = this.add
-        .rectangle(cx, cy, size, size, canAfford ? 0xffe066 : 0x5c7a99, 0.1)
-        .setStrokeStyle(1.5, canAfford ? 0xffe066 : 0x6c8aad, 0.75)
-        .setDepth(3);
+      const veil = this.add
+        .image(cx, cy, '_fog_veil_tile')
+        .setDisplaySize(size * 1.24, size * 1.24)
+        .setAlpha(isAdjacent ? 0.82 : 0.94)
+        .setDepth(8500);
 
-      const label = this.add
-        .text(cx, cy, `${spec.name}\n(${spec.biome})\nMap [M]: ${cost}g`, {
-          fontSize: '8px',
-          fontStyle: 'bold',
-          color: canAfford ? '#ffe680' : '#bfd4e8',
-          align: 'center',
-          stroke: '#0d1624',
-          strokeThickness: 2,
-          resolution: 4,
-        })
-        .setOrigin(0.5)
-        .setDepth(10);
+      const puffs: FogCloudPuff[] = [];
+      const half = size * 0.44;
+      const puffCount = isAdjacent ? 10 : 12;
+      for (let i = 0; i < puffCount; i++) {
+        const ang = (i / puffCount) * Math.PI * 2 + (spec.gx * 0.7 + spec.gy * 1.1);
+        const ring = i < 4 ? 0.34 : 0.88 + ((i * 37) % 10) * 0.025;
+        const px = cx + Math.cos(ang) * half * ring;
+        const py = cy + Math.sin(ang) * half * ring;
+        const scale = (isAdjacent ? 1.55 : 1.85) + ((i * 19) % 7) * 0.14;
+        const baseAlpha = (isAdjacent ? 0.52 : 0.72) + ((i % 3) * 0.06);
+        const sprite = this.add
+          .image(px, py, '_fog_cloud_puff')
+          .setScale(scale, scale * 0.82)
+          .setAlpha(baseAlpha)
+          .setDepth(8501 + (i % 3));
+        puffs.push({
+          sprite,
+          baseX: px,
+          baseY: py,
+          baseAlpha,
+          phase: i * 0.9 + spec.gx * 1.3 + spec.gy * 0.7,
+          driftX: 6 + (i % 4) * 2.5,
+          driftY: 2.5 + (i % 3) * 1.2,
+          speed: 0.45 + (i % 5) * 0.08,
+        });
+      }
 
-      this.purchaseMarkers.push({ gx: spec.gx, gy: spec.gy, rect, label });
+      let label: Phaser.GameObjects.Text | undefined;
+      if (isAdjacent) {
+        const cost = gameState.getIslandCost(spec.gx, spec.gy);
+        const canAfford = gameState.coins >= cost;
+        label = this.add
+          .text(cx, cy, `${spec.name}\n(${spec.biome})\n${fmtKeySuffix('Map', 'M')}: ${cost}g`, {
+            fontSize: '8px',
+            fontStyle: 'bold',
+            color: canAfford ? '#ffe680' : '#e2eefb',
+            align: 'center',
+            stroke: '#0d1624',
+            strokeThickness: 2.5,
+            resolution: 4,
+          })
+          .setOrigin(0.5)
+          .setDepth(8510);
+      }
+
+      this.purchaseMarkers.push({ gx: spec.gx, gy: spec.gy, veil, puffs, label });
+    }
+  }
+
+  private clearFogForIsland(gx: number, gy: number): void {
+    const boughtIdx = this.purchaseMarkers.findIndex((m) => m.gx === gx && m.gy === gy);
+    if (boughtIdx < 0) return;
+    const [bought] = this.purchaseMarkers.splice(boughtIdx, 1);
+    bought.label?.destroy();
+    this.tweens.add({
+      targets: bought.veil,
+      alpha: 0,
+      scaleX: bought.veil.scaleX * 1.25,
+      scaleY: bought.veil.scaleY * 1.25,
+      duration: 480,
+      ease: 'Quad.Out',
+      onComplete: () => bought.veil.destroy(),
+    });
+    const icx = (gx * ISLAND_CELL_TILES + ISLAND_CELL_TILES / 2) * TILE_PX;
+    const icy = (gy * ISLAND_CELL_TILES + ISLAND_CELL_TILES / 2) * TILE_PX;
+    for (const p of bought.puffs) {
+      const ang = Math.atan2(p.baseY - icy, p.baseX - icx);
+      this.tweens.add({
+        targets: p.sprite,
+        x: p.sprite.x + Math.cos(ang) * 44,
+        y: p.sprite.y + Math.sin(ang) * 44,
+        alpha: 0,
+        duration: 560,
+        ease: 'Quad.Out',
+        onComplete: () => p.sprite.destroy(),
+      });
     }
   }
 
@@ -965,6 +1118,7 @@ export class OverworldScene extends Phaser.Scene {
       this.hud.showToast('Not enough Coins or island not adjacent!');
       return;
     }
+    this.clearFogForIsland(gx, gy);
     this.stampIslandTerrain(gx, gy);
     const ox = gx * ISLAND_CELL_TILES;
     const oy = gy * ISLAND_CELL_TILES;
@@ -1546,7 +1700,7 @@ export class OverworldScene extends Phaser.Scene {
       // Enemies always take highest priority over nearby interactables; any aimed target also beats NPCs (lowest priority)
       const skipInteract =
         preAimed?.kind === 'enemy' || (preAimed !== null && this.findInteractableTarget()?.kind === 'npc');
-      if (!skipInteract && this.handleInteractKey()) return;
+      if (!skipInteract && this.handleInteractKey(true)) return;
     }
 
     // Stop using tools if out of energy -> play exhausted animation & 2s cooldown
@@ -1973,25 +2127,61 @@ export class OverworldScene extends Phaser.Scene {
     return { ...match.item, dist: match.dist };
   }
 
-  private findInteractableTarget(): { kind: 'portal' | 'animal' | 'ranch' | 'building' | 'npc'; x: number; y: number; depth: number } | null {
+  private hasNearbyCombatEnemy(rangePx = 56): boolean {
+    for (const e of this.enemies) {
+      if (e.active && !e.isDead && Math.hypot(e.x - this.player.x, e.y - this.player.y) <= rangePx) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private findInteractableTarget(
+    skipStations = false,
+  ): { kind: 'portal' | 'animal' | 'ranch' | 'building' | 'npc'; actionLabel: string; x: number; y: number; depth: number } | null {
     for (const dp of this.dungeonPortals) {
       if (Math.hypot(dp.x - this.player.x, dp.y - this.player.y) <= 28) {
-        return { kind: 'portal', x: dp.x, y: dp.y + dp.sprite.displayHeight * 0.25, depth: dp.sprite.depth };
+        return { kind: 'portal', actionLabel: 'ENTER', x: dp.x, y: dp.y + dp.sprite.displayHeight * 0.25, depth: dp.sprite.depth };
+      }
+    }
+    for (const nh of this.npcHouses) {
+      if (Math.hypot(nh.x - this.player.x, nh.y - this.player.y) <= 28) {
+        return { kind: 'portal', actionLabel: 'ENTER', x: nh.x, y: nh.y, depth: nh.y };
       }
     }
     for (const b of this.buildings) {
       if (!b.active || Math.hypot(b.x - this.player.x, b.y - this.player.y) > 28) continue;
+      if (b.interactStation) {
+        if (skipStations || !isFacingTarget(this.player.x, this.player.y, this.player.facing, b.x, b.y, 0.35)) {
+          continue;
+        }
+        return {
+          kind: 'building',
+          actionLabel: b.interactStation === 'chest' ? 'OPEN' : 'CRAFT',
+          x: b.x,
+          y: b.getCollisionCenter().y,
+          depth: b.depth,
+        };
+      }
       if (
         b.structureType === 'nest' ||
         b.structureType === 'house_door' ||
         b.structureType === 'fence_gate' ||
         b.structureType === 'furniture_bed' ||
         b.structureType === 'water_well' ||
-        b.interactStation ||
         b.isCropRipe()
       ) {
+        const actionLabel =
+          b.structureType === 'furniture_bed'
+            ? 'REST'
+            : b.isCropRipe()
+              ? 'HARVEST'
+              : b.structureType === 'water_well'
+                ? 'DRINK'
+                : 'USE';
         return {
           kind: 'building',
+          actionLabel,
           x: b.x,
           y: b.getCollisionCenter().y,
           depth: b.depth,
@@ -2003,19 +2193,25 @@ export class OverworldScene extends Phaser.Scene {
     if (!holdingSword) {
       for (const rc of this.ranchEntities) {
         if (Math.hypot(rc.save.x - this.player.x, rc.save.y - this.player.y) <= 28) {
-          return { kind: 'ranch', x: rc.save.x, y: rc.save.y + rc.sprite.displayHeight * 0.3, depth: rc.sprite.depth };
+          return {
+            kind: 'ranch',
+            actionLabel: rc.save.readyEggs > 0 ? 'EGG' : 'PET',
+            x: rc.save.x,
+            y: rc.save.y + rc.sprite.displayHeight * 0.3,
+            depth: rc.sprite.depth,
+          };
         }
       }
       for (const a of this.animals) {
         if (Math.hypot(a.x - this.player.x, a.y - this.player.y) <= 28) {
-          return { kind: 'animal', x: a.x, y: a.y, depth: a.sprite.depth };
+          return { kind: 'animal', actionLabel: 'PET', x: a.x, y: a.y, depth: a.sprite.depth };
         }
       }
     }
     // NPCs are lowest priority
     for (const npc of this.npcs) {
       if (Math.hypot(npc.x - this.player.x, npc.y - this.player.y) <= 30) {
-        return { kind: 'npc', x: npc.x, y: npc.y, depth: npc.sprite.depth };
+        return { kind: 'npc', actionLabel: 'TALK', x: npc.x, y: npc.y, depth: npc.sprite.depth };
       }
     }
     return null;
@@ -2024,6 +2220,7 @@ export class OverworldScene extends Phaser.Scene {
   private updateTargetIndicator(): void {
     if (!this.targetIndicator || this.hud.isBlockingInput()) {
       this.targetIndicator?.setVisible(false);
+      this.hud.setTouchActionHint(null);
       return;
     }
     const itemId = gameState.hotbar[gameState.selectedHotbarIndex];
@@ -2050,6 +2247,7 @@ export class OverworldScene extends Phaser.Scene {
 
     // Enemies always take priority over interactables
     if (aimed?.kind === 'enemy') {
+      this.hud.setTouchActionHint(null);
       this.targetIndicator
         .setPosition(aimed.x, aimed.y)
         .setDepth(aimed.depth - 0.5)
@@ -2059,9 +2257,10 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    const interactable = this.findInteractableTarget();
+    const interactable = this.findInteractableTarget(this.hasNearbyCombatEnemy());
     // Non-NPC interactables take priority over nodes/animals, while NPCs are lowest priority
     if (interactable && (interactable.kind !== 'npc' || !aimed)) {
+      this.hud.setTouchActionHint(interactable.actionLabel);
       this.targetIndicator
         .setPosition(interactable.x, interactable.y)
         .setDepth(interactable.depth - 0.5)
@@ -2071,6 +2270,7 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    this.hud.setTouchActionHint(null);
     if (!aimed) {
       this.targetIndicator.setVisible(false);
       return;
@@ -2256,10 +2456,12 @@ export class OverworldScene extends Phaser.Scene {
       spawnSparklers(this, this.player.x, this.player.y - 8, 18);
       spawnShockwaveRing(this, this.player.x, this.player.y - 4, 0xffe066, 44, 380);
       spawnFloatingText(this, this.player.x, this.player.y - 22, `LEVEL ${gameState.level}! +1 SP`, '#ffe066', '10px');
-      this.hud.showToast(`Level ${gameState.level}! Earned +1 Skill Point [K]`);
+      this.hud.showToast(fmtKeySuffix(`Level ${gameState.level}! Earned +1 Skill Point`, 'K'));
       revealSequence.show({
         title: `LEVEL ${gameState.level}!`,
-        subtitle: '+1 Skill Point Earned • Press [K] to upgrade',
+        subtitle: isMobileTouchDevice()
+          ? '+1 Skill Point Earned'
+          : '+1 Skill Point Earned • Press [K] to upgrade',
         badgeText: `LV ${gameState.level}`,
         accentColor: '#ffe066',
       });
@@ -2313,7 +2515,7 @@ export class OverworldScene extends Phaser.Scene {
     return true;
   };
 
-  private handleInteractKey(): boolean {
+  private handleInteractKey(fromPrimaryAction = false): boolean {
     // 1. Check nearby Dungeon Portal
     for (const dp of this.dungeonPortals) {
       if (Math.hypot(dp.x - this.player.x, dp.y - this.player.y) <= 28) {
@@ -2343,6 +2545,24 @@ export class OverworldScene extends Phaser.Scene {
             this.hud.destroy();
             SFX.setMusicSituation('dungeon');
             await startSceneAndWaitCreate(this, 'DungeonScene', targetData);
+          },
+        });
+        return true;
+      }
+    }
+
+    // 1b. Check nearby NPC House Door
+    for (const nh of this.npcHouses) {
+      if (Math.hypot(nh.x - this.player.x, nh.y - this.player.y) <= 28) {
+        if (transitionManager.isActive) return true;
+        SFX.playPortalWarp();
+        void transitionManager.transitionTo({
+          onMidpoint: async () => {
+            gameState.playerPos = { x: nh.x, y: nh.y + 18 };
+            this.syncBuildingQueuesToSave();
+            gameState.save();
+            this.hud.destroy();
+            await startSceneAndWaitCreate(this, 'HouseScene', { theme: nh.theme });
           },
         });
         return true;
@@ -2455,6 +2675,8 @@ export class OverworldScene extends Phaser.Scene {
         return true;
       }
       if (b.interactStation) {
+        if (fromPrimaryAction && this.hasNearbyCombatEnemy()) continue;
+        if (!isFacingTarget(this.player.x, this.player.y, this.player.facing, b.x, b.y, 0.35)) continue;
         if (b.interactStation === 'chest') {
           this.hud.toggleModal('inventory');
         } else {
@@ -2547,7 +2769,7 @@ export class OverworldScene extends Phaser.Scene {
                 gameState.setTrackedQuest(q.id);
                 SFX.playPickup();
                 spawnSparklers(this, this.player.x, this.player.y - 8, 14);
-                this.hud.showToast(`Quest Accepted: ${q.title} [Q]`);
+                this.hud.showToast(fmtKeySuffix(`Quest Accepted: ${q.title}`, 'Q'));
                 this.refreshNpcPrompts();
                 revealSequence.show({
                   title: 'QUEST ACCEPTED!',
@@ -3070,11 +3292,11 @@ export class OverworldScene extends Phaser.Scene {
       rc.label.setPosition(rc.save.x, rc.save.y - 14);
       const near = Math.hypot(rc.save.x - this.player.x, rc.save.y - this.player.y) <= 32;
       if (rc.save.readyEggs > 0) {
-        rc.label.setText(`[E] Egg x${rc.save.readyEggs}`);
+        rc.label.setText(fmtKeyPrompt('E', `Egg x${rc.save.readyEggs}`));
         rc.label.setColor('#ffe066');
         rc.label.setVisible(true);
       } else if (near) {
-        rc.label.setText(`[E] Pet ♥${rc.save.happiness}%`);
+        rc.label.setText(fmtKeyPrompt('E', `Pet ♥${rc.save.happiness}%`));
         rc.label.setColor('#ff9ec4');
         rc.label.setVisible(true);
       } else {
@@ -3268,12 +3490,12 @@ export class OverworldScene extends Phaser.Scene {
 
   private getNpcPromptText(npcId: string, name: string, inRange: boolean): string {
     const q = gameState.getNextQuestForNpc(npcId);
-    if (!q) return inRange ? `[E] ${name}` : '';
+    if (!q) return inRange ? fmtKeyPrompt('E', name) : '';
     if (gameState.isQuestActive(q.id)) {
-      if (gameState.isQuestReadyToTurnIn(q.id)) return inRange ? `[E] ${name} (?)` : '?';
-      return inRange ? `[E] ${name} (...)` : '...';
+      if (gameState.isQuestReadyToTurnIn(q.id)) return inRange ? fmtKeyPrompt('E', `${name} (?)`) : '?';
+      return inRange ? fmtKeyPrompt('E', `${name} (...)`) : '...';
     }
-    return inRange ? `[E] ${name} (!)` : '!';
+    return inRange ? fmtKeyPrompt('E', `${name} (!)`) : '!';
   }
 
   private refreshNpcPrompts(): void {
@@ -3281,9 +3503,10 @@ export class OverworldScene extends Phaser.Scene {
       const inRange = this.player ? Math.hypot(npc.x - this.player.x, npc.y - this.player.y) <= 34 : false;
       const nextTxt = this.getNpcPromptText(npc.spec.id, npc.spec.name, inRange);
       if (npc.prompt.text !== nextTxt) {
-        const wasEmpty = !npc.prompt.text.startsWith('[E]');
+        const wasInRange = npc.prompt.getData('inRange') === true;
+        npc.prompt.setData('inRange', inRange);
         npc.prompt.setText(nextTxt);
-        if (inRange && wasEmpty) {
+        if (inRange && !wasInRange) {
           const q = gameState.getNextQuestForNpc(npc.spec.id);
           const emote = q ? 'portraits/Emote_question' : 'portraits/Emote_talking';
           showWorldEmote(this, npc.x, npc.y - 22, emote, { durationMs: 950, scale: 0.68 });
@@ -3354,6 +3577,25 @@ export class OverworldScene extends Phaser.Scene {
 
     for (const dp of this.dungeonPortals) {
       pointLights.push({ x: dp.x, y: dp.y, radius: 20, color: 0xa275ff, intensity: 0.9, dayVisible: true });
+    }
+
+    // Animate & camera-cull drifting fog clouds over unpurchased islands
+    const fogSec = this.time.now * 0.001;
+    const islandSpan = ISLAND_CELL_TILES * TILE_PX;
+    for (const m of this.purchaseMarkers) {
+      const mcx = (m.gx * ISLAND_CELL_TILES + ISLAND_CELL_TILES / 2) * TILE_PX;
+      const mcy = (m.gy * ISLAND_CELL_TILES + ISLAND_CELL_TILES / 2) * TILE_PX;
+      const near = this.isNearCamera(mcx, mcy, islandSpan * 0.9);
+      m.veil.setVisible(near);
+      m.label?.setVisible(near);
+      for (const p of m.puffs) {
+        p.sprite.setVisible(near);
+        if (!near) continue;
+        const t = fogSec * p.speed + p.phase;
+        p.sprite.x = p.baseX + Math.sin(t) * p.driftX;
+        p.sprite.y = p.baseY + Math.cos(t * 0.7) * p.driftY;
+        p.sprite.setAlpha(p.baseAlpha + Math.sin(t * 0.85) * 0.06);
+      }
     }
 
     const dayWrapped = this.lighting.update(

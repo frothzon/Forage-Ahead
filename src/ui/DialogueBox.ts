@@ -1,3 +1,4 @@
+import { isMobileTouchDevice } from '../core/Platform';
 import { SFX } from '../core/SoundFX';
 
 export interface DialogueChoice {
@@ -240,7 +241,7 @@ class DialogueBoxManager {
     continueSprite.className = 'dlg-continue-sprite';
     const hintEl = document.createElement('div');
     hintEl.style.cssText = 'font-size: 10px; color: #7a5438; font-weight: 700;';
-    hintEl.textContent = 'Click or [Space]';
+    hintEl.textContent = isMobileTouchDevice() ? 'Tap to continue' : 'Click or [Space]';
     hintWrap.appendChild(continueSprite);
     hintWrap.appendChild(hintEl);
 
@@ -309,7 +310,12 @@ class DialogueBoxManager {
     });
 
     const isLast = this.lineIndex >= this.cfg.lines.length - 1;
-    this.hintEl.textContent = isLast ? 'Choose an option or [Space]' : `Page ${this.lineIndex + 1}/${this.cfg.lines.length} • Click or [Space]`;
+    const mobile = isMobileTouchDevice();
+    this.hintEl.textContent = isLast
+      ? mobile
+        ? 'Choose an option'
+        : 'Choose an option or [Space]'
+      : `Page ${this.lineIndex + 1}/${this.cfg.lines.length} • ${mobile ? 'Tap' : 'Click or [Space]'}`;
 
     this.typeTimer = window.setInterval(() => {
       if (this.revealedCount >= this.charSpans.length) {

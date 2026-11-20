@@ -434,6 +434,40 @@ function extractSproutLands(manifest) {
     manifest,
   );
 
+  // 5b. CuteRPG Dungeon & Grotto (16x16 sheets)
+  extractMatching(
+    'Cute RPG - Dungeon.zip',
+    [
+      {
+        match: (n) => n === 'Cute RPG - Dungeon/16x16/CuteRPG_Dungeon.png',
+        map: () => 'cuterpg/dungeon.png',
+      },
+      {
+        match: (n) => n === 'Cute RPG - Dungeon/16x16/CuteRPG_Dungeon_Animations.png',
+        map: () => 'cuterpg/dungeon_anim.png',
+      },
+    ],
+    manifest,
+  );
+  extractMatching(
+    'CuteRPG - Grotto.zip',
+    [
+      {
+        match: (n) => n === 'CuteRPG - Grotto/16x16/CuteRPG_Grotto.png',
+        map: () => 'cuterpg/grotto.png',
+      },
+      {
+        match: (n) => n === 'CuteRPG - Grotto/RPG Maker/16x16/characters/CuteRPG_Grotto_Objects01.png',
+        map: () => 'cuterpg/grotto_obj1.png',
+      },
+      {
+        match: (n) => n === 'CuteRPG - Grotto/RPG Maker/16x16/characters/CuteRPG_Grotto_Objects02.png',
+        map: () => 'cuterpg/grotto_obj2.png',
+      },
+    ],
+    manifest,
+  );
+
   // Slice 14 crop icons from sprout/farming_items.png (col 1, rows 1..14)
   const itemsBuf = fs.readFileSync(path.join(OUT_DIR, 'sprout/farming_items.png'));
   const itemsDec = decodePngRgba(itemsBuf);

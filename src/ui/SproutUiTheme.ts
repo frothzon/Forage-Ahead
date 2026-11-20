@@ -214,15 +214,27 @@ export const SPROUT_UI_CSS = `
     image-rendering: pixelated;
     overflow: hidden;
     position: relative;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.48), 0 1px 0 rgba(255, 246, 229, 0.22);
   }
   .bar-fill {
     height: 100%;
     position: relative;
     z-index: 1;
-    transition: width 120ms ease;
+    transition: width 120ms ease, filter 120ms ease;
     background-size: 100% 100%;
     background-repeat: no-repeat;
     image-rendering: pixelated;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36), inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+  }
+  .bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 1px;
+    right: 0;
+    bottom: 1px;
+    width: 2px;
+    background: rgba(255, 255, 240, 0.55);
+    pointer-events: none;
   }
   .bar-ghost {
     position: absolute;
@@ -230,14 +242,57 @@ export const SPROUT_UI_CSS = `
     top: 0;
     bottom: 0;
     z-index: 0;
-    background: linear-gradient(90deg, rgba(255, 245, 200, 0.85), rgba(255, 210, 110, 0.92));
-    transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1) 220ms;
+    background: linear-gradient(90deg, rgba(255, 245, 200, 0.9), rgba(255, 196, 86, 0.95));
+    transition: width 380ms cubic-bezier(0.22, 1, 0.36, 1) 200ms;
     pointer-events: none;
   }
+  .bar-track.bar-hit {
+    animation: hpBarShake 180ms ease-out;
+  }
+  .bar-fill.hp-hit-flash {
+    animation: hpHitFlash 180ms ease-out;
+  }
+  .bar-fill.hp-heal-pulse {
+    animation: hpHealPulse 340ms ease-out;
+  }
+  .bar-fill.hp-low-pulse {
+    animation: hpLowHeartbeat 1.05s ease-in-out infinite;
+  }
+  #hud-hp-heart.heart-low-pulse {
+    animation: hpHeartPulse 1.05s ease-in-out infinite;
+  }
+  @keyframes hpBarShake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-2px); }
+    50% { transform: translateX(2px); }
+    75% { transform: translateX(-1px); }
+  }
+  @keyframes hpHitFlash {
+    0% { filter: brightness(2.2) saturate(0.4); }
+    100% { filter: brightness(1) saturate(1); }
+  }
+  @keyframes hpHealPulse {
+    0% { filter: brightness(1.55) drop-shadow(0 0 4px rgba(130, 235, 106, 0.85)); }
+    100% { filter: brightness(1) drop-shadow(0 0 0 transparent); }
+  }
+  @keyframes hpLowHeartbeat {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.28) drop-shadow(0 0 4px rgba(255, 72, 88, 0.75)); }
+  }
+  @keyframes hpHeartPulse {
+    0%, 100% { transform: scale(1); }
+    35% { transform: scale(1.22); }
+    65% { transform: scale(0.95); }
+  }
   @keyframes modalSpringPop {
-    0% { transform: scale(0.92); opacity: 0.7; }
-    65% { transform: scale(1.02); opacity: 1; }
+    0% { transform: scale(0.985); opacity: 0.86; }
+    65% { transform: scale(1.003); opacity: 1; }
     100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes tabSoftJiggle {
+    0% { transform: translateY(1px) scale(1.015, 0.985); }
+    55% { transform: translateY(2px) scale(0.996, 1.004); }
+    100% { transform: translateY(2px) scale(1); }
   }
   @keyframes hotbarPop {
     0% { transform: translateY(-3px) scale(0.92); }

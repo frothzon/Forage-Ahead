@@ -1,17 +1,25 @@
 import Phaser from 'phaser';
 import { gameState } from '../core/GameState';
 import { computeResponsiveZoom } from '../core/ViewportScaler';
+import { fmtKeyPrompt } from '../core/Platform';
 import { SFX } from '../core/SoundFX';
 import { startSceneAndWaitCreate, transitionManager } from '../core/TransitionManager';
+import {
+  buildDungeonLayout,
+  type DungeonLayout,
+  type DungeonRoomPlan,
+} from '../world/DungeonLayoutBuilder';
+import { DIR_EAST, DIR_NORTH, DIR_SOUTH, DIR_WEST } from '../world/WfcRoomGraph';
 import { ITEMS } from '../data/items';
+import { DUNGEON_THEME_VISUALS } from '../data/dungeonTilesets';
 import { tryActivateGadget } from '../entities/GadgetHelper';
 import { getBlueprintsForMonster, tryUnlockBlueprintFromPool } from '../data/blueprints';
 import type { DungeonId } from '../data/islands';
 import { TILE_PX } from '../data/islands';
 import {
+  crumbleStoneBlocks,
   drawSlashArc,
   getWeaponSlashColor,
-  spawnArcParticles,
   spawnBurstParticles,
   spawnDeathBurst,
   spawnDirectionalSparks,
@@ -21,8 +29,13 @@ import {
   spawnSparklers,
   type ActiveProjectile,
 } from '../entities/CombatHelpers';
+import { DungeonChest } from '../entities/DungeonChest';
+import { DungeonProp } from '../entities/DungeonProp';
 import { CameraRig } from '../vfx/CameraRig';
+import { DungeonAtmosphere } from '../vfx/DungeonAtmosphere';
 import { EffectSequencer } from '../vfx/EffectSequencer';
+import { detailDungeonRoom } from '../world/DungeonDetailer';
+import { LightingSystem, type PointLightSource } from '../world/LightingSystem';
 import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
 import { FoxCompanion, Player } from '../entities/Player';
@@ -112,13 +125,47 @@ const DUNGEON_CONFIGS: Record<DungeonId, DungeonConfig> = {
 
 const ROOM_W = 32;
 const ROOM_H = 16;
+const WFC_ROOM_W = 16;
+const WFC_ROOM_H = 12;
 
-interface BreakableProp {
-  sprite: Phaser.GameObjects.Image;
+interface WfcDoorRuntime {
+  a: number;
+  b: number;
+  lock: 'open' | 'small_key' | 'boss_key' | 'combat_seal';
+  baseLock: 'open' | 'small_key' | 'boss_key';
+  opened: boolean;
+  tiles: Array<{ tx: number; ty: number }>;
+  sprites: Phaser.GameObjects.Image[];
   x: number;
   y: number;
-  kind: 'box' | 'pot';
-  broken: boolean;
+}
+
+interface WfcChestRuntime {
+  chest: DungeonChest;
+  grantsSmallKey: boolean;
+  grantsBossKey: boolean;
+}
+
+interface WfcBrazierRuntime {
+  x: number;
+  y: number;
+  spr: Phaser.GameObjects.Image;
+  lit: boolean;
+}
+
+interface WfcRoomRuntime {
+  plan: DungeonRoomPlan;
+  ox: number;
+  oy: number;
+  cx: number;
+  cy: number;
+  cleared: boolean;
+  ambushTriggered: boolean;
+  puzzleSolved: boolean;
+  enemies: Enemy[];
+  chest?: WfcChestRuntime;
+  sigils: Array<{ x: number; y: number; spr: Phaser.GameObjects.Image; active: boolean }>;
+  braziers: WfcBrazierRuntime[];
 }
 
 export class DungeonScene extends Phaser.Scene {
@@ -130,19 +177,36 @@ export class DungeonScene extends Phaser.Scene {
   private hud!: HudController;
   private cameraRig!: CameraRig;
   private fx!: EffectSequencer;
+  private lighting!: LightingSystem;
+  private atmosphere!: DungeonAtmosphere;
+  private torchLights: PointLightSource[] = [];
   private enemies: Enemy[] = [];
   private drops: LootDrop[] = [];
   private projectiles: ActiveProjectile[] = [];
-  private breakables: BreakableProp[] = [];
+  private breakables: DungeonProp[] = [];
+  private pillarObstacles: Array<{ x: number; y: number }> = [];
   private boss: Enemy | null = null;
   private bossEnraged = false;
-  private exitPortal!: { x: number; y: number };
+  private exitPortal!: { x: number; y: number; sprX: number; sprY: number; glow: Phaser.GameObjects.Ellipse };
   private treasureChest!: { x: number; y: number; spr: Phaser.GameObjects.Sprite; opened: boolean };
   private switches: Array<{ x: number; y: number; spr: Phaser.GameObjects.Image; active: boolean }> = [];
   private bossGateGroup?: Phaser.GameObjects.Group;
   private gateOpen = false;
   private relicSpawned = false;
   private promoTimeline: PromoTimeline | null = null;
+
+  // Multi-room WFC dungeon state (null for Void Spire)
+  private wfcLayout: DungeonLayout | null = null;
+  private worldTilesW = ROOM_W;
+  private worldTilesH = ROOM_H;
+  private solidGrid: boolean[][] = [];
+  private wfcRooms = new Map<number, WfcRoomRuntime>();
+  private wfcDoors: WfcDoorRuntime[] = [];
+  private discoveredRooms = new Set<number>();
+  private currentRoomId = 0;
+  private smallKeys = 0;
+  private hasBossKey = false;
+  private returnPortal?: { x: number; y: number };
 
   private keys!: {
     W: Phaser.Input.Keyboard.Key;
@@ -205,21 +269,45 @@ export class DungeonScene extends Phaser.Scene {
     this.drops = [];
     this.projectiles = [];
     this.breakables = [];
+    this.pillarObstacles = [];
     this.switches = [];
     this.boss = null;
     this.nextFloorPortal = undefined;
     this.bossEnraged = false;
+    this.bossGateGroup = undefined;
     this.gateOpen = false;
     this.relicSpawned = false;
+    this.wfcLayout = null;
+    this.solidGrid = [];
+    this.wfcRooms.clear();
+    this.wfcDoors = [];
+    this.discoveredRooms.clear();
+    this.currentRoomId = 0;
+    this.smallKeys = 0;
+    this.hasBossKey = false;
+    this.returnPortal = undefined;
+    this.torchLights = [];
 
-    this.buildRoom();
-    this.player = new Player(this, 3 * TILE_PX + 8, (ROOM_H / 2) * TILE_PX);
+    if (this.cfg.id === 'void_spire') {
+      this.worldTilesW = ROOM_W;
+      this.worldTilesH = ROOM_H;
+      this.buildRoom();
+      this.player = new Player(this, 3 * TILE_PX + 8, (ROOM_H / 2) * TILE_PX);
+    } else {
+      this.buildWfcDungeon();
+      const startRm = this.wfcRooms.get(this.wfcLayout!.startRoomId)!;
+      this.player = new Player(this, startRm.cx, startRm.cy + 16);
+    }
+    this.lighting = new LightingSystem(this);
+    this.lighting.timeOfDay = 0.88;
+    this.lighting.paused = true;
+    this.atmosphere = new DungeonAtmosphere(this, 0xe8dec8, 34);
     if (gameState.heroClass === 'Beastmaster') {
       this.fox = new FoxCompanion(this, this.player.x - 14, this.player.y + 6);
     }
 
-    const roomW = ROOM_W * TILE_PX;
-    const roomH = ROOM_H * TILE_PX;
+    const roomW = this.worldTilesW * TILE_PX;
+    const roomH = this.worldTilesH * TILE_PX;
     this.cameras.main.setBounds(0, 0, roomW, roomH);
     this.cameras.main.setZoom(
       computeResponsiveZoom(this.scale.width, this.scale.height, {
@@ -301,7 +389,12 @@ export class DungeonScene extends Phaser.Scene {
         }
       },
     });
-    this.hud.showToast(`${this.cfg.title} — Break crates, loot the chest, and activate both sigils!`);
+    this.hud.showToast(
+      this.wfcLayout
+        ? `${this.cfg.title} (${(this.wfcLayout as DungeonLayout).rooms.length} Rooms) — Find keys, defeat the Miniboss, and slay the Boss!`
+        : `${this.cfg.title} — Break crates, loot the chest, and activate both sigils!`,
+    );
+    this.syncDungeonHud();
     SFX.setMusicPaused(false);
     SFX.setMusicSituation('dungeon');
 
@@ -310,7 +403,7 @@ export class DungeonScene extends Phaser.Scene {
     const promo = getPromoConfig();
     if (promo.shotId === '07_void_dragon_climax') {
       this.gateOpen = true;
-      this.bossGateGroup?.clear(true, true);
+      (this.bossGateGroup as Phaser.GameObjects.Group | undefined)?.clear(true, true);
       this.player.setPosition(22 * TILE_PX + 8, (ROOM_H / 2) * TILE_PX);
       this.cameras.main.centerOn(this.player.x + 36, this.player.y);
       this.promoTimeline = createDungeonPromoTimeline({
@@ -369,11 +462,18 @@ export class DungeonScene extends Phaser.Scene {
       this.add.image(tx * TILE_PX + 8, ty * TILE_PX + 8, 'objects/Torch').setDepth(ty * TILE_PX + 8);
     }
 
-    // Exit Portal (West Wall)
-    this.exitPortal = { x: 2 * TILE_PX + 8, y: (ROOM_H / 2) * TILE_PX };
-    this.add.image(this.exitPortal.x, this.exitPortal.y - 12, 'tileset/Door (open)').setDepth(5);
+    // Exit Portal on North Wall (south-facing wall)
+    const vsEx = 3 * TILE_PX + 8;
+    const vsWallY = 8;
+    const vsGlow = this.add.ellipse(vsEx, vsWallY, 24, 16, 0x7ef29d, 0.24).setDepth(vsWallY + 1);
     this.add
-      .text(this.exitPortal.x, this.exitPortal.y + 12, '[E] Exit', {
+      .image(vsEx, TILE_PX, 'tileset/Door (open)')
+      .setOrigin(0.5, 0.94)
+      .setScale(0.82)
+      .setDepth(vsWallY + 2);
+    this.exitPortal = { x: vsEx, y: 1.2 * TILE_PX, sprX: vsEx, sprY: vsWallY, glow: vsGlow };
+    this.add
+      .text(vsEx, 1.55 * TILE_PX, fmtKeyPrompt('E', 'Exit'), {
         fontSize: '7px',
         fontStyle: 'bold',
         color: '#9ee6ff',
@@ -384,20 +484,18 @@ export class DungeonScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(7000);
 
-    // Room 1 Breakable Crates & Pots
-    for (const [bx, by, kind] of [
-      [4, 3, 'box'],
-      [5, 3, 'pot'],
-      [4, 12, 'pot'],
-      [8, 4, 'box'],
-      [8, 11, 'pot'],
-    ] as Array<[number, number, 'box' | 'pot']>) {
+    // Room 1 Breakable Props (Void Spire)
+    const vsVis = DUNGEON_THEME_VISUALS.void_spire;
+    for (const [bx, by] of [
+      [4, 3],
+      [5, 3],
+      [4, 12],
+      [8, 4],
+      [8, 11],
+    ]) {
       const px = bx * TILE_PX + 8;
       const py = by * TILE_PX + 8;
-      const spr = this.add
-        .image(px, py, kind === 'box' ? 'projectiles/Box' : 'projectiles/Pot')
-        .setDepth(py);
-      this.breakables.push({ sprite: spr, x: px, y: py, kind, broken: false });
+      this.breakables.push(new DungeonProp(this, px, py, vsVis.propPool[bx % vsVis.propPool.length]));
     }
 
     // Room 2 Treasure Chest
@@ -435,6 +533,339 @@ export class DungeonScene extends Phaser.Scene {
     // Boss in Room 3 (East Arena)
     this.boss = new Enemy(this, this.cfg.bossId, 26 * TILE_PX + 8, 8 * TILE_PX);
     this.enemies.push(this.boss);
+  }
+
+  private buildWfcDungeon(): void {
+    const layout = buildDungeonLayout(Date.now(), 7, 10);
+    this.wfcLayout = layout;
+    const { minGx, maxGx, minGy, maxGy } = layout.graph.bounds;
+    this.worldTilesW = (maxGx - minGx + 1) * WFC_ROOM_W;
+    this.worldTilesH = (maxGy - minGy + 1) * WFC_ROOM_H;
+    this.solidGrid = Array.from({ length: this.worldTilesH }, () => Array(this.worldTilesW).fill(true));
+
+    // Carve room interiors and doorway passages
+    const doorMidX = [7, 8];
+    const doorMidY = [5, 6];
+    const hasDoorAt = new Map<string, 'open' | 'small_key' | 'boss_key'>();
+    for (const d of layout.doors) {
+      const k1 = d.a < d.b ? `${d.a}-${d.b}` : `${d.b}-${d.a}`;
+      hasDoorAt.set(k1, d.lock === 'combat_seal' ? 'open' : d.lock);
+    }
+
+    for (const r of layout.rooms) {
+      const ox = (r.gx - minGx) * WFC_ROOM_W;
+      const oy = (r.gy - minGy) * WFC_ROOM_H;
+
+      for (let ly = 1; ly < WFC_ROOM_H - 1; ly++) {
+        for (let lx = 1; lx < WFC_ROOM_W - 1; lx++) {
+          this.solidGrid[oy + ly][ox + lx] = false;
+        }
+      }
+      if ((r.mask & DIR_EAST) !== 0) {
+        for (const ly of doorMidY) this.solidGrid[oy + ly][ox + WFC_ROOM_W - 1] = false;
+      }
+      if ((r.mask & DIR_WEST) !== 0) {
+        for (const ly of doorMidY) this.solidGrid[oy + ly][ox] = false;
+      }
+      if ((r.mask & DIR_NORTH) !== 0) {
+        for (const lx of doorMidX) this.solidGrid[oy][ox + lx] = false;
+      }
+      if ((r.mask & DIR_SOUTH) !== 0) {
+        for (const lx of doorMidX) this.solidGrid[oy + WFC_ROOM_H - 1][ox + lx] = false;
+      }
+    }
+
+    const vis = DUNGEON_THEME_VISUALS[this.cfg.id];
+    // Render walls & doorway floor tiles using CuteRPG sheet
+    for (let ty = 0; ty < this.worldTilesH; ty++) {
+      for (let tx = 0; tx < this.worldTilesW; tx++) {
+        const isWall = this.solidGrid[ty][tx];
+        if (isWall) {
+          const belowFloor = ty + 1 < this.worldTilesH && !this.solidGrid[ty + 1][tx];
+          this.add
+            .image(tx * TILE_PX + 8, ty * TILE_PX + 8, vis.sheet, belowFloor ? vis.wallFrontFrame : vis.wallVoidFrame)
+            .setTint(vis.wallTint)
+            .setDepth(0);
+        } else {
+          this.add
+            .image(tx * TILE_PX + 8, ty * TILE_PX + 8, vis.sheet, vis.floorFrames[0])
+            .setTint(vis.floorTint)
+            .setDepth(0);
+        }
+      }
+    }
+
+    // Populate each room using DungeonDetailer
+    const roomById = new Map(layout.rooms.map((r) => [r.id, r]));
+    for (const r of layout.rooms) {
+      const ox = (r.gx - minGx) * WFC_ROOM_W;
+      const oy = (r.gy - minGy) * WFC_ROOM_H;
+      const cx = (ox + WFC_ROOM_W / 2) * TILE_PX;
+      const cy = (oy + WFC_ROOM_H / 2) * TILE_PX;
+
+      const reserved: Array<{ lx: number; ly: number }> = [];
+      if (r.puzzleKind === 'sigils') {
+        reserved.push({ lx: 4, ly: 4 }, { lx: WFC_ROOM_W - 5, ly: 4 }, { lx: Math.floor(WFC_ROOM_W / 2), ly: WFC_ROOM_H - 4 });
+      } else if (r.puzzleKind === 'braziers') {
+        reserved.push({ lx: 4, ly: 3 }, { lx: WFC_ROOM_W - 5, ly: 3 }, { lx: Math.floor(WFC_ROOM_W / 2), ly: WFC_ROOM_H - 4 });
+      }
+
+      const detail = detailDungeonRoom({
+        roomW: WFC_ROOM_W,
+        roomH: WFC_ROOM_H,
+        mask: r.mask,
+        role: r.role,
+        theme: vis,
+        seed: layout.seed + r.id * 997,
+        reservedTiles: reserved,
+        propCount: r.breakableCount,
+      });
+
+      for (const f of detail.floors) {
+        if (f.frame !== vis.floorFrames[0]) {
+          this.add
+            .image((ox + f.lx) * TILE_PX + 8, (oy + f.ly) * TILE_PX + 8, vis.sheet, f.frame)
+            .setTint(f.tint)
+            .setDepth(0);
+        }
+      }
+      for (const rg of detail.rugs) {
+        this.add
+          .image((ox + rg.lx) * TILE_PX + 8, (oy + rg.ly) * TILE_PX + 8, vis.sheet, rg.frame)
+          .setTint(rg.tint)
+          .setAlpha(0.85)
+          .setDepth(1);
+      }
+      for (const t of detail.torches) {
+        const txPx = (ox + t.lx) * TILE_PX + 8;
+        const tyPx = (oy + t.ly) * TILE_PX + 8;
+        this.add
+          .image(txPx, tyPx, vis.torchSheet, vis.torchFrame)
+          .setDepth(tyPx);
+        this.torchLights.push({ x: txPx, y: tyPx, radius: 44, color: 0xffb85c, intensity: 1, flicker: true });
+      }
+      for (const pil of detail.pillars) {
+        const px = (ox + pil.lx) * TILE_PX + 8;
+        const py = (oy + pil.ly) * TILE_PX + 8;
+        this.add.image(px, py - 8, vis.sheet, vis.pillarTopFrame).setTint(vis.pillarTint).setDepth(py);
+        this.add.image(px, py, vis.sheet, vis.pillarBaseFrame).setTint(vis.pillarTint).setDepth(py);
+        this.pillarObstacles.push({ x: px, y: py });
+      }
+      for (const p of detail.props) {
+        const px = (ox + p.lx) * TILE_PX + 8;
+        const py = (oy + p.ly) * TILE_PX + 8;
+        this.breakables.push(new DungeonProp(this, px, py, p.spec));
+      }
+
+      const rt: WfcRoomRuntime = {
+        plan: r,
+        ox,
+        oy,
+        cx,
+        cy,
+        cleared: r.role === 'start' || r.enemyCount === 0,
+        ambushTriggered: false,
+        puzzleSolved: r.puzzleKind === undefined,
+        enemies: [],
+        sigils: [],
+        braziers: [],
+      };
+
+      if (r.role === 'start') {
+        const wallX = (ox + Math.floor(WFC_ROOM_W / 2)) * TILE_PX;
+        const wallY = oy * TILE_PX + 8;
+        const glow = this.add.ellipse(wallX, wallY, 24, 16, 0x7ef29d, 0.24).setDepth(wallY + 1);
+        this.exitPortal = { x: wallX, y: (oy + 1.2) * TILE_PX, sprX: wallX, sprY: wallY, glow };
+        this.add
+          .image(wallX, (oy + 1) * TILE_PX, 'tileset/Door (open)')
+          .setOrigin(0.5, 0.94)
+          .setScale(0.82)
+          .setDepth(wallY + 2);
+        this.add
+          .text(this.exitPortal.x, (oy + 1.55) * TILE_PX, fmtKeyPrompt('E', 'Exit'), {
+            fontSize: '7px',
+            fontStyle: 'bold',
+            color: '#9ee6ff',
+            stroke: '#000',
+            strokeThickness: 2,
+            resolution: 4,
+          })
+          .setOrigin(0.5)
+          .setDepth(7000);
+        this.discoveredRooms.add(r.id);
+        this.currentRoomId = r.id;
+      }
+
+      // Prefab puzzle setups
+      if (r.puzzleKind === 'sigils') {
+        for (const [lx, ly] of [
+          [4, 4],
+          [WFC_ROOM_W - 5, 4],
+          [WFC_ROOM_W / 2, WFC_ROOM_H - 4],
+        ]) {
+          const px = (ox + lx) * TILE_PX + 8;
+          const py = (oy + ly) * TILE_PX + 8;
+          const spr = this.add.image(px, py, 'ui_icons/sigil_off').setDepth(2);
+          rt.sigils.push({ x: px, y: py, spr, active: false });
+        }
+      } else if (r.puzzleKind === 'braziers') {
+        for (const [lx, ly] of [
+          [4, 3],
+          [WFC_ROOM_W - 5, 3],
+          [WFC_ROOM_W / 2, WFC_ROOM_H - 4],
+        ]) {
+          const px = (ox + lx) * TILE_PX + 8;
+          const py = (oy + ly) * TILE_PX + 8;
+          const spr = this.add.image(px, py, 'extras/Bonfire', 0).setTint(0x4a5568).setAlpha(0.75).setDepth(py);
+          rt.braziers.push({ x: px, y: py, spr, lit: false });
+        }
+      }
+
+      if (r.hasTreasureChest) {
+        const isSealed = !rt.puzzleSolved;
+        const title = r.grantsSmallKey ? 'Key Chest' : 'Treasure';
+        rt.chest = {
+          chest: new DungeonChest(this, { x: cx, y: cy, title, locked: isSealed }),
+          grantsSmallKey: r.grantsSmallKey,
+          grantsBossKey: r.grantsBossKey && r.role !== 'miniboss',
+        };
+      }
+
+      // Enemies
+      if (r.role === 'boss') {
+        this.boss = new Enemy(this, this.cfg.bossId, cx, cy);
+        this.enemies.push(this.boss);
+        rt.enemies.push(this.boss);
+      } else if (r.role === 'miniboss') {
+        const mb = new Enemy(this, this.cfg.minions[1] ?? this.cfg.minions[0], cx, cy);
+        mb.maxHp = Math.round(mb.maxHp * 2.1);
+        mb.hp = mb.maxHp;
+        mb.sprite.setScale(1.35);
+        this.enemies.push(mb);
+        rt.enemies.push(mb);
+        for (let i = 0; i < 2; i++) {
+          const ex = cx + (i === 0 ? -36 : 36);
+          const esc = new Enemy(this, this.cfg.minions[0], ex, cy + 16);
+          this.enemies.push(esc);
+          rt.enemies.push(esc);
+        }
+      } else if (r.enemyCount > 0) {
+        const offsets: Array<[number, number]> = [
+          [-32, -16],
+          [32, 16],
+          [0, 24],
+        ];
+        for (let i = 0; i < r.enemyCount; i++) {
+          const [dx, dy] = offsets[i % offsets.length];
+          const mId = this.cfg.minions[i % this.cfg.minions.length];
+          const en = new Enemy(this, mId, cx + dx, cy + dy);
+          this.enemies.push(en);
+          rt.enemies.push(en);
+        }
+      }
+
+      this.wfcRooms.set(r.id, rt);
+    }
+
+    // Build doors between connected rooms
+    for (const d of layout.doors) {
+      const ra = roomById.get(d.a)!;
+      const oax = (ra.gx - minGx) * WFC_ROOM_W;
+      const oay = (ra.gy - minGy) * WFC_ROOM_H;
+
+      const tiles: Array<{ tx: number; ty: number }> = [];
+      if (d.dirFromA === DIR_EAST) {
+        tiles.push({ tx: oax + WFC_ROOM_W - 1, ty: oay + 5 }, { tx: oax + WFC_ROOM_W - 1, ty: oay + 6 });
+        tiles.push({ tx: oax + WFC_ROOM_W, ty: oay + 5 }, { tx: oax + WFC_ROOM_W, ty: oay + 6 });
+      } else if (d.dirFromA === DIR_WEST) {
+        tiles.push({ tx: oax, ty: oay + 5 }, { tx: oax, ty: oay + 6 });
+        tiles.push({ tx: oax - 1, ty: oay + 5 }, { tx: oax - 1, ty: oay + 6 });
+      } else if (d.dirFromA === DIR_SOUTH) {
+        tiles.push({ tx: oax + 7, ty: oay + WFC_ROOM_H - 1 }, { tx: oax + 8, ty: oay + WFC_ROOM_H - 1 });
+        tiles.push({ tx: oax + 7, ty: oay + WFC_ROOM_H }, { tx: oax + 8, ty: oay + WFC_ROOM_H });
+      } else if (d.dirFromA === DIR_NORTH) {
+        tiles.push({ tx: oax + 7, ty: oay }, { tx: oax + 8, ty: oay });
+        tiles.push({ tx: oax + 7, ty: oay - 1 }, { tx: oax + 8, ty: oay - 1 });
+      }
+
+      const avgX = tiles.reduce((acc, t) => acc + t.tx * TILE_PX + 8, 0) / Math.max(1, tiles.length);
+      const avgY = tiles.reduce((acc, t) => acc + t.ty * TILE_PX + 8, 0) / Math.max(1, tiles.length);
+      const baseLock = d.lock === 'combat_seal' ? 'open' : d.lock;
+      const doorObj: WfcDoorRuntime = {
+        a: d.a,
+        b: d.b,
+        lock: baseLock,
+        baseLock,
+        opened: baseLock === 'open',
+        tiles,
+        sprites: [],
+        x: avgX,
+        y: avgY,
+      };
+      if (!doorObj.opened && baseLock !== 'open') {
+        this.applyDoorLockVisuals(doorObj, baseLock);
+      }
+      this.wfcDoors.push(doorObj);
+    }
+
+    // Keep unused treasureChest sentinel initialized off-map for Void Spire compatibility
+    this.treasureChest = { x: -9999, y: -9999, spr: this.add.sprite(-9999, -9999, 'objects/Chest_big', 0).setVisible(false), opened: true };
+  }
+
+  private applyDoorLockVisuals(door: WfcDoorRuntime, lockType: 'small_key' | 'boss_key' | 'combat_seal'): void {
+    for (const s of door.sprites) s.destroy();
+    door.sprites = [];
+    door.opened = false;
+    door.lock = lockType;
+    const tint = lockType === 'boss_key' ? 0xd875ff : lockType === 'small_key' ? 0xffd95a : 0x9aa5b4;
+    const stoneBlockFrame = 11 * 32 + 6;
+    for (const t of door.tiles) {
+      this.solidGrid[t.ty][t.tx] = true;
+      const spr = this.add
+        .image(t.tx * TILE_PX + 8, t.ty * TILE_PX + 8, 'cuterpg/dungeon', stoneBlockFrame)
+        .setTint(tint)
+        .setDepth(t.ty * TILE_PX + 8);
+      door.sprites.push(spr);
+    }
+  }
+
+  private openWfcDoor(door: WfcDoorRuntime, permanent = true): void {
+    crumbleStoneBlocks(this, door.sprites, door.lock === 'boss_key' ? 0xd875ff : door.lock === 'small_key' ? 0xffd95a : 0xc9c2b8);
+    door.sprites = [];
+    door.opened = true;
+    door.lock = 'open';
+    if (permanent) door.baseLock = 'open';
+    for (const t of door.tiles) {
+      this.solidGrid[t.ty][t.tx] = false;
+    }
+  }
+
+  private syncDungeonHud(): void {
+    if (!this.wfcLayout) {
+      this.hud.setDungeonHud(null);
+      return;
+    }
+    const rm = this.wfcRooms.get(this.currentRoomId);
+    const roleNames: Record<DungeonRoomPlan['role'], string> = {
+      start: 'Entrance Hall',
+      combat: 'Monster Chamber',
+      puzzle: rm?.plan.puzzleKind === 'ambush' ? 'Ambush Trap' : 'Puzzle Chamber',
+      key_puzzle: 'Key Vault (Puzzle)',
+      key_combat: 'Key Vault',
+      miniboss: 'Miniboss Arena',
+      treasure: 'Treasure Vault',
+      boss: 'Boss Lair',
+    };
+    this.hud.setDungeonHud({
+      title: this.cfg.title,
+      roomLabel: rm ? roleNames[rm.plan.role] : this.cfg.title,
+      smallKeys: this.smallKeys,
+      hasBossKey: this.hasBossKey,
+      currentRoomId: this.currentRoomId,
+      discoveredRoomIds: [...this.discoveredRooms],
+      rooms: this.wfcLayout.rooms.map((r) => ({ id: r.id, gx: r.gx, gy: r.gy, role: r.role })),
+      bounds: this.wfcLayout.graph.bounds,
+    });
   }
 
   private setupInput(): void {
@@ -513,15 +944,13 @@ export class DungeonScene extends Phaser.Scene {
     this.drops.push(new LootDrop(this, x, y, itemId, count, isCoin));
   }
 
-  private shatterBreakable(bp: BreakableProp): void {
-    if (bp.broken) return;
-    bp.broken = true;
-    bp.sprite.destroy();
-    SFX.playBreakProp(bp.kind);
-    spawnArcParticles(this, bp.x, bp.y, bp.kind === 'box' ? 0xb8763e : 0xc9886b, 8);
-    this.spawnDrop(bp.x, bp.y, 'coin', Phaser.Math.Between(3, 8), true);
-    if (Math.random() < 0.45) {
-      this.spawnDrop(bp.x, bp.y, Math.random() < 0.5 ? 'berries' : 'potion_red', 1, false);
+  private shatterBreakable(bp: DungeonProp, dirX = 0, dirY = 0): void {
+    if (!bp.hit(1, dirX, dirY)) return;
+    for (const d of bp.spec.drops) {
+      if (Math.random() <= d.chance) {
+        const count = Phaser.Math.Between(d.count[0], d.count[1]);
+        this.spawnDrop(bp.x, bp.y, d.itemId, count, Boolean(d.isCoin));
+      }
     }
   }
 
@@ -553,9 +982,84 @@ export class DungeonScene extends Phaser.Scene {
       });
       return true;
     }
+    if (this.returnPortal && Math.hypot(this.returnPortal.x - this.player.x, this.returnPortal.y - this.player.y) <= 28) {
+      this.transitionToOverworld();
+      return true;
+    }
     if (Math.hypot(this.exitPortal.x - this.player.x, this.exitPortal.y - this.player.y) <= 28) {
       this.transitionToOverworld();
       return true;
+    }
+    // Check WFC doors
+    for (const door of this.wfcDoors) {
+      if (door.opened) continue;
+      if (Math.hypot(door.x - this.player.x, door.y - this.player.y) <= 26) {
+        if (door.lock === 'small_key') {
+          if (this.smallKeys > 0) {
+            this.smallKeys -= 1;
+            this.openWfcDoor(door, true);
+            SFX.playGateUnlock();
+            spawnShockwaveRing(this, door.x, door.y, 0xffd95a, 34, 340);
+            this.hud.showToast('Unlocked Door with Small Key!');
+            this.syncDungeonHud();
+          } else {
+            this.hud.showToast('Locked — Find a Small Key!');
+          }
+          return true;
+        }
+        if (door.lock === 'boss_key') {
+          if (this.hasBossKey) {
+            this.openWfcDoor(door, true);
+            SFX.playGateUnlock();
+            this.cameraRig.addTrauma(0.28);
+            spawnShockwaveRing(this, door.x, door.y, 0xd875ff, 44, 400);
+            this.hud.showToast('Boss Door Unsealed!');
+          } else {
+            this.hud.showToast('Boss Door — Defeat the Miniboss for the Boss Key!');
+          }
+          return true;
+        }
+        if (door.lock === 'combat_seal') {
+          this.hud.showToast('Room Sealed — Defeat all enemies to unlock!');
+          return true;
+        }
+      }
+    }
+    // Check WFC room chests & braziers
+    if (this.wfcLayout) {
+      for (const rm of this.wfcRooms.values()) {
+        if (rm.chest && !rm.chest.chest.opened && Math.hypot(rm.chest.chest.x - this.player.x, rm.chest.chest.y - this.player.y) <= 28) {
+          const ch = rm.chest.chest;
+          if (ch.locked || !rm.puzzleSolved) {
+            this.hud.showToast('Chest Sealed — Solve the room puzzle first!');
+            return true;
+          }
+          const lootItem = this.cfg.chestLoot[0]?.itemId;
+          ch.playOpenJuice(lootItem ? ITEMS[lootItem]?.iconKey : undefined);
+          this.cameraRig.zoomPunch(0.035, 110);
+          this.spawnDrop(ch.x, ch.y + 10, 'coin', 30, true);
+          for (const item of this.cfg.chestLoot) {
+            this.spawnDrop(ch.x, ch.y + 10, item.itemId, 1, false);
+          }
+          if (rm.chest.grantsSmallKey) {
+            rm.chest.grantsSmallKey = false;
+            this.smallKeys += 1;
+            SFX.playPickup();
+            spawnFloatingText(this, ch.x, ch.y - 14, '+1 Small Key!', '#ffd95a', '9px');
+            this.hud.showToast('Found a Small Key!');
+            this.syncDungeonHud();
+          } else {
+            this.hud.showToast('Opened Dungeon Chest!');
+          }
+          return true;
+        }
+        for (const bz of rm.braziers) {
+          if (!bz.lit && Math.hypot(bz.x - this.player.x, bz.y - this.player.y) <= 26) {
+            this.igniteBrazier(rm, bz);
+            return true;
+          }
+        }
+      }
     }
     if (
       !this.treasureChest.opened &&
@@ -654,7 +1158,7 @@ export class DungeonScene extends Phaser.Scene {
     SFX.playSwing();
 
     const dmg = gameState.getWeaponDamage(itemId);
-    type DngTarget = { kind: 'enemy'; enemy: Enemy } | { kind: 'breakable'; bp: BreakableProp };
+    type DngTarget = { kind: 'enemy'; enemy: Enemy } | { kind: 'breakable'; bp: DungeonProp };
     const candidates: Array<AimCandidate<DngTarget>> = [];
     for (const e of this.enemies) {
       if (e.active && !e.isDead) {
@@ -667,8 +1171,16 @@ export class DungeonScene extends Phaser.Scene {
       }
     }
     const aimed = selectBestAimTarget(this.player.x, this.player.y, nx, ny, range + 10, candidates);
+    // Also ignite any unlit brazier within melee swing range
+    for (const rm of this.wfcRooms.values()) {
+      for (const bz of rm.braziers) {
+        if (!bz.lit && Math.hypot(bz.x - this.player.x, bz.y - this.player.y) <= range + 10) {
+          this.igniteBrazier(rm, bz);
+        }
+      }
+    }
     if (aimed?.item.kind === 'breakable') {
-      this.shatterBreakable(aimed.item.bp);
+      this.shatterBreakable(aimed.item.bp, nx, ny);
     } else if (aimed?.item.kind === 'enemy') {
       if (!itemId.startsWith('sword')) {
         if (SFX.canPlay('needSwordHint', 750)) {
@@ -775,7 +1287,7 @@ export class DungeonScene extends Phaser.Scene {
           const ny = 8 * TILE_PX;
           const ring = this.add.circle(0, 0, 12, 0x6ce5ff, 0.35).setStrokeStyle(2, 0xbef8ff, 0.9);
           const lbl = this.add
-            .text(0, -17, `[E] Floor ${this.voidFloor + 1}`, {
+            .text(0, -17, fmtKeyPrompt('E', `Floor ${this.voidFloor + 1}`), {
               fontSize: '7px',
               fontStyle: 'bold',
               color: '#8ef5ff',
@@ -796,6 +1308,23 @@ export class DungeonScene extends Phaser.Scene {
             iconKey: relicDef.iconKey,
             accentColor: '#c07dff',
           });
+          if (this.wfcLayout) {
+            const rx = enemy.x;
+            const ry = enemy.y - 16;
+            this.returnPortal = { x: rx, y: ry };
+            this.add.circle(rx, ry, 11, 0x7ef29d, 0.35).setStrokeStyle(2, 0xbef8ff, 0.9).setDepth(4500);
+            this.add
+              .text(rx, ry - 16, fmtKeyPrompt('E', 'Return to Surface'), {
+                fontSize: '7px',
+                fontStyle: 'bold',
+                color: '#9ee6ff',
+                stroke: '#000',
+                strokeThickness: 2,
+                resolution: 4,
+              })
+              .setOrigin(0.5)
+              .setDepth(7000);
+          }
         }
         SFX.playBossDefeat();
         SFX.setMusicSituation('dungeon');
@@ -804,13 +1333,162 @@ export class DungeonScene extends Phaser.Scene {
     }
   }
 
+  private updateWfcDungeonState(dtMs: number): void {
+    if (!this.wfcLayout) return;
+    const { minGx, minGy } = this.wfcLayout.graph.bounds;
+    const rx = Math.floor(this.player.x / (WFC_ROOM_W * TILE_PX)) + minGx;
+    const ry = Math.floor(this.player.y / (WFC_ROOM_H * TILE_PX)) + minGy;
+    let enteredRm: WfcRoomRuntime | undefined;
+    for (const rm of this.wfcRooms.values()) {
+      if (rm.plan.gx === rx && rm.plan.gy === ry) {
+        enteredRm = rm;
+        break;
+      }
+    }
+    if (enteredRm && enteredRm.plan.id !== this.currentRoomId) {
+      this.currentRoomId = enteredRm.plan.id;
+      this.discoveredRooms.add(enteredRm.plan.id);
+      this.syncDungeonHud();
+    }
+
+    // Check sigils, chests, & combat lock-in / clear
+    for (const rm of this.wfcRooms.values()) {
+      rm.chest?.chest.update(dtMs);
+      if (rm.sigils.length > 0 && !rm.puzzleSolved) {
+        for (const sw of rm.sigils) {
+          if (!sw.active && Math.hypot(sw.x - this.player.x, sw.y - this.player.y) <= 13) {
+            sw.active = true;
+            sw.spr.setTexture('ui_icons/sigil_on');
+            SFX.playSwitch();
+            spawnShockwaveRing(this, sw.x, sw.y, 0x7ac7ff, 22, 260);
+          }
+        }
+        if (rm.sigils.every((s) => s.active)) {
+          rm.puzzleSolved = true;
+          if (rm.chest) {
+            const chestRef = rm.chest.chest;
+            this.cameraRig.focusOn(chestRef.x, chestRef.y, this.player, {
+              onArrive: () => {
+                chestRef.unlock();
+                SFX.playSecretJingle();
+                this.cameraRig.zoomPunch(0.04, 110);
+                this.hud.showToast('Sigils Activated! Chamber Chest Unsealed!');
+              },
+            });
+          } else {
+            SFX.playSecretJingle();
+            this.hud.showToast('Sigils Activated!');
+          }
+        }
+      }
+
+      // Ambush / Miniboss / Boss lock-in when player steps inside room interior
+      if (rm.plan.lockOnClear && !rm.cleared && !rm.ambushTriggered) {
+        const halfW = (WFC_ROOM_W * TILE_PX) * 0.5 - 22;
+        const halfH = (WFC_ROOM_H * TILE_PX) * 0.5 - 22;
+        if (Math.abs(this.player.x - rm.cx) <= halfW && Math.abs(this.player.y - rm.cy) <= halfH) {
+          rm.ambushTriggered = true;
+          for (const d of this.wfcDoors) {
+            if ((d.a === rm.plan.id || d.b === rm.plan.id) && d.opened) {
+              this.applyDoorLockVisuals(d, 'combat_seal');
+            }
+          }
+          SFX.playGateUnlock();
+          this.cameraRig.addTrauma(0.22);
+          this.hud.showToast(
+            rm.plan.role === 'miniboss'
+              ? 'Miniboss Ambush! Doors sealed!'
+              : rm.plan.role === 'boss'
+                ? 'Boss Arena Sealed!'
+                : 'Ambush! Defeat all monsters to unlock!',
+          );
+        }
+      }
+
+      // Check room cleared
+      if (!rm.cleared && rm.enemies.length > 0 && rm.enemies.every((e) => !e.active || e.isDead)) {
+        rm.cleared = true;
+        for (const d of this.wfcDoors) {
+          if ((d.a === rm.plan.id || d.b === rm.plan.id) && d.lock === 'combat_seal') {
+            this.openWfcDoor(d, false);
+          }
+        }
+        SFX.playGateUnlock();
+        if (rm.plan.grantsBossKey && !this.hasBossKey) {
+          this.hasBossKey = true;
+          SFX.playLevelUp();
+          spawnFloatingText(this, this.player.x, this.player.y - 18, '+1 BOSS KEY!', '#d875ff', '10px');
+          revealSequence.show({
+            title: 'BOSS KEY OBTAINED!',
+            subtitle: 'Seek the purple Boss Door to face the Guardian',
+            badgeText: '🗝️',
+            accentColor: '#d875ff',
+          });
+          this.syncDungeonHud();
+        } else if (rm.plan.grantsSmallKey && !rm.plan.hasTreasureChest) {
+          this.smallKeys += 1;
+          SFX.playPickup();
+          spawnFloatingText(this, this.player.x, this.player.y - 18, '+1 Small Key!', '#ffd95a', '9px');
+          this.hud.showToast('Room Cleared! Found a Small Key!');
+          this.syncDungeonHud();
+        } else if (rm.ambushTriggered && rm.plan.role !== 'boss') {
+          this.hud.showToast('Room Cleared! Doors Unlocked!');
+        }
+      }
+    }
+  }
+
+  private igniteBrazier(rm: WfcRoomRuntime, bz: WfcBrazierRuntime): void {
+    if (bz.lit) return;
+    bz.lit = true;
+    bz.spr.clearTint().setAlpha(1);
+    SFX.playSwitch();
+    spawnBurstParticles(this, bz.x, bz.y - 4, 0xffaa44, 8);
+    if (!rm.puzzleSolved && rm.braziers.every((b) => b.lit)) {
+      rm.puzzleSolved = true;
+      if (rm.chest) {
+        const chestRef = rm.chest.chest;
+        this.cameraRig.focusOn(chestRef.x, chestRef.y, this.player, {
+          onArrive: () => {
+            chestRef.unlock();
+            SFX.playSecretJingle();
+            this.cameraRig.zoomPunch(0.04, 110);
+            this.hud.showToast('Braziers Lit! Chamber Chest Unsealed!');
+          },
+        });
+      } else {
+        SFX.playSecretJingle();
+        this.hud.showToast('Braziers Lit!');
+      }
+    }
+  }
+
   private isWalkable = (wx: number, wy: number): boolean => {
     const tx = Math.floor(wx / TILE_PX);
     const ty = Math.floor(wy / TILE_PX);
+    if (this.wfcLayout) {
+      if (tx < 0 || ty < 0 || tx >= this.worldTilesW || ty >= this.worldTilesH) return false;
+      if (this.solidGrid[ty][tx]) return false;
+      for (const pil of this.pillarObstacles) {
+        if (Math.hypot(wx - pil.x, wy - pil.y) < 9) return false;
+      }
+      for (const bp of this.breakables) {
+        if (!bp.broken && Math.hypot(wx - bp.x, wy - bp.y) < bp.collisionRadius) return false;
+      }
+      for (const rm of this.wfcRooms.values()) {
+        if (rm.chest && Math.hypot(wx - rm.chest.chest.x, wy - rm.chest.chest.y) < rm.chest.chest.collisionRadius) {
+          return false;
+        }
+      }
+      return true;
+    }
     if (tx <= 0 || ty <= 0 || tx >= ROOM_W - 1 || ty >= ROOM_H - 1) return false;
     if (tx === 10 && (ty < 6 || ty > 9)) return false;
     if (tx === 20 && (ty < 6 || ty > 9)) return false;
     if (!this.gateOpen && tx === 20 && ty >= 6 && ty <= 9) return false;
+    for (const bp of this.breakables) {
+      if (!bp.broken && Math.hypot(wx - bp.x, wy - bp.y) < bp.collisionRadius) return false;
+    }
     return true;
   };
 
@@ -823,7 +1501,7 @@ export class DungeonScene extends Phaser.Scene {
       this.tryInteractPortal();
     }
 
-    if (!this.hud.isBlockingInput()) {
+    if (!this.hud.isBlockingInput() && !this.cameraRig.isFocusing()) {
       const tv = this.hud.getTouchMoveVector();
       const dir = new Phaser.Math.Vector2(
         (this.keys.D.isDown || this.keys.RIGHT.isDown ? 1 : 0) -
@@ -892,8 +1570,8 @@ export class DungeonScene extends Phaser.Scene {
       }
     }
 
-    // Check Floor Puzzle Sigils in Room 2
-    if (!this.gateOpen) {
+    // Check Floor Puzzle Sigils in Room 2 (Void Spire) or WFC rooms
+    if (!this.wfcLayout && !this.gateOpen) {
       for (const sw of this.switches) {
         if (!sw.active && Math.hypot(sw.x - this.player.x, sw.y - this.player.y) <= 13) {
           sw.active = true;
@@ -904,7 +1582,7 @@ export class DungeonScene extends Phaser.Scene {
       }
       if (this.switches.every((s) => s.active)) {
         this.gateOpen = true;
-        this.bossGateGroup?.clear(true, true);
+        (this.bossGateGroup as Phaser.GameObjects.Group | undefined)?.clear(true, true);
         SFX.playGateUnlock();
         this.cameraRig.addTrauma(0.32);
         this.cameraRig.zoomPunch(0.05, 110);
@@ -913,8 +1591,15 @@ export class DungeonScene extends Phaser.Scene {
       }
     }
 
-    // Update Boss Bar if in Room 3
-    if (this.boss && !this.boss.isDead && this.player.x > 20 * TILE_PX) {
+    if (this.wfcLayout) {
+      this.updateWfcDungeonState(dt);
+    }
+
+    // Update Boss Bar if in Boss Room
+    const inBossRoom = this.wfcLayout
+      ? this.currentRoomId === this.wfcLayout.bossRoomId
+      : this.player.x > 20 * TILE_PX;
+    if (this.boss && !this.boss.isDead && inBossRoom) {
       SFX.setMusicSituation('boss');
       this.hud.setBossBar({
         name: this.bossEnraged ? `${this.boss.def.name} [ENRAGED]` : this.boss.def.name,
@@ -931,9 +1616,23 @@ export class DungeonScene extends Phaser.Scene {
         this.enemies.splice(i, 1);
         continue;
       }
-      if (e === this.boss && !this.gateOpen) continue;
+      if (!this.wfcLayout && e === this.boss && !this.gateOpen) continue;
+      if (this.wfcLayout && e === this.boss && this.currentRoomId !== this.wfcLayout.bossRoomId) continue;
 
-      e.updateEnemy(this.bossEnraged && e === this.boss ? dt * 1.35 : dt, this.player.x, this.player.y, this.isWalkable, {
+      const enemyWalkable = (wx: number, wy: number): boolean => {
+        if (!this.isWalkable(wx, wy)) return false;
+        if (!this.wfcLayout) return true;
+        const { minGx, minGy } = this.wfcLayout.graph.bounds;
+        const rx = Math.floor(e.x / (WFC_ROOM_W * TILE_PX)) + minGx;
+        const ry = Math.floor(e.y / (WFC_ROOM_H * TILE_PX)) + minGy;
+        const ox = (rx - minGx) * WFC_ROOM_W;
+        const oy = (ry - minGy) * WFC_ROOM_H;
+        const tx = Math.floor(wx / TILE_PX);
+        const ty = Math.floor(wy / TILE_PX);
+        return tx >= ox + 1 && tx <= ox + WFC_ROOM_W - 2 && ty >= oy + 1 && ty <= oy + WFC_ROOM_H - 2;
+      };
+
+      e.updateEnemy(this.bossEnraged && e === this.boss ? dt * 1.35 : dt, this.player.x, this.player.y, enemyWalkable, {
         onMeleeHitPlayer: (dmg, dx, dy) => {
           if (this.player.takeDamage(dmg, dx, dy, this.isWalkable)) {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${dmg}`, '#ff5e6c');
@@ -1025,5 +1724,73 @@ export class DungeonScene extends Phaser.Scene {
         this.drops.splice(i, 1);
       }
     }
+
+    // Proximity exit glow + action button indicator (no green box outside tutorial)
+    const nearExit = Math.hypot(this.exitPortal.x - this.player.x, this.exitPortal.y - this.player.y) <= 28;
+    const nearReturn =
+      this.returnPortal !== undefined &&
+      Math.hypot(this.returnPortal.x - this.player.x, this.returnPortal.y - this.player.y) <= 28;
+    const nearNextFloor =
+      this.nextFloorPortal !== undefined &&
+      Math.hypot(this.nextFloorPortal.x - this.player.x, this.nextFloorPortal.y - this.player.y) <= 28;
+    this.exitPortal.glow
+      .setFillStyle(0x7ef29d, nearExit ? 0.58 : 0.22)
+      .setScale(nearExit ? 1.25 : 1);
+
+    let actHint: string | null = null;
+    if (nearExit || nearReturn) {
+      actHint = 'EXIT';
+    } else if (nearNextFloor) {
+      actHint = 'NEXT';
+    } else {
+      for (const door of this.wfcDoors) {
+        if (!door.opened && Math.hypot(door.x - this.player.x, door.y - this.player.y) <= 26) {
+          if (door.lock === 'small_key') actHint = this.smallKeys > 0 ? 'UNLOCK' : 'LOCKED';
+          else if (door.lock === 'boss_key') actHint = this.hasBossKey ? 'UNLOCK' : 'LOCKED';
+          else if (door.lock === 'combat_seal') actHint = 'SEALED';
+          break;
+        }
+      }
+      if (!actHint) {
+        for (const rm of this.wfcRooms.values()) {
+          if (rm.chest && !rm.chest.chest.opened && Math.hypot(rm.chest.chest.x - this.player.x, rm.chest.chest.y - this.player.y) <= 28) {
+            actHint = rm.chest.chest.locked ? 'SEALED' : 'OPEN';
+            break;
+          }
+          if (rm.braziers.some((bz) => !bz.lit && Math.hypot(bz.x - this.player.x, bz.y - this.player.y) <= 26)) {
+            actHint = 'LIGHT';
+            break;
+          }
+        }
+      }
+    }
+    this.hud.setTouchActionHint(actHint);
+
+    // Dark dungeon lighting + flickering torch point lights + exit glow + floating dust motes
+    const lights: PointLightSource[] = [
+      { x: this.player.x, y: this.player.y - 4, radius: 34, color: 0xffe4aa, intensity: 0.72 },
+      {
+        x: this.exitPortal.sprX,
+        y: this.exitPortal.sprY + 4,
+        radius: nearExit ? 48 : 26,
+        color: 0x7ef29d,
+        intensity: nearExit ? 1 : 0.78,
+        flicker: true,
+      },
+      ...this.torchLights,
+    ];
+    for (const rm of this.wfcRooms.values()) {
+      for (const bz of rm.braziers) {
+        if (bz.lit) lights.push({ x: bz.x, y: bz.y, radius: 48, color: 0xff9844, intensity: 1, flicker: true });
+      }
+      for (const sw of rm.sigils) {
+        if (sw.active) lights.push({ x: sw.x, y: sw.y, radius: 24, color: 0x6ce5ff, intensity: 0.85 });
+      }
+      if (rm.chest && !rm.chest.chest.opened && !rm.chest.chest.locked) {
+        lights.push({ x: rm.chest.chest.x, y: rm.chest.chest.y, radius: 26, color: 0xffe066, intensity: 0.8 });
+      }
+    }
+    this.lighting.update(dt, lights, []);
+    this.atmosphere.update(dt);
   }
 }

@@ -38,8 +38,11 @@ export class ResourceNode extends Phaser.GameObjects.Container {
   private baseTint?: number;
   private baseScale = 1;
   private rustleCooldownMs = 0;
+  private hpBarBorder?: Phaser.GameObjects.Rectangle;
   private hpBarBg?: Phaser.GameObjects.Rectangle;
+  private hpBarTrail?: Phaser.GameObjects.Rectangle;
   private hpBarFill?: Phaser.GameObjects.Rectangle;
+  private hpBarHighlight?: Phaser.GameObjects.Rectangle;
   private bobTween?: Phaser.Tweens.Tween;
 
   constructor(
@@ -324,13 +327,45 @@ export class ResourceNode extends Phaser.GameObjects.Container {
     this.hp = Math.max(0, this.hp - amount);
 
     if (!this.hpBarBg) {
-      this.hpBarBg = this.scene.add.rectangle(0, -16, 16, 3, 0x161b22).setOrigin(0.5);
-      this.hpBarFill = this.scene.add.rectangle(-7.5, -16, 15, 2, 0x70e070).setOrigin(0, 0.5);
-      this.add([this.hpBarBg, this.hpBarFill]);
+      this.hpBarBorder = this.scene.add.rectangle(0, -16, 19, 5, 0x070a0f).setOrigin(0.5);
+      this.hpBarBg = this.scene.add.rectangle(0, -16, 17, 3.2, 0x161b22).setOrigin(0.5);
+      this.hpBarTrail = this.scene.add.rectangle(-8, -16, 16, 2.2, 0xffd166).setOrigin(0, 0.5);
+      this.hpBarFill = this.scene.add.rectangle(-8, -16, 16, 2.2, 0x70e070).setOrigin(0, 0.5);
+      this.hpBarHighlight = this.scene.add
+        .rectangle(-8, -16.6, 16, 0.8, 0xffffff, 0.35)
+        .setOrigin(0, 0.5);
+      this.add([this.hpBarBorder, this.hpBarBg, this.hpBarTrail, this.hpBarFill, this.hpBarHighlight]);
     }
-    if (this.hpBarFill) {
-      this.hpBarFill.width = Math.max(1, 15 * (this.hp / this.maxHp));
+    const ratio = this.hp / this.maxHp;
+    const nextW = Math.max(1, 16 * ratio);
+    const fillCol = ratio <= 0.3 ? 0xff6b6b : ratio <= 0.6 ? 0xf5c842 : 0x70e070;
+    if (this.hpBarFill && this.hpBarHighlight) {
+      this.hpBarFill.width = nextW;
+      this.hpBarHighlight.width = nextW;
+      this.hpBarFill.setFillStyle(0xffffff);
+      this.scene.time.delayedCall(60, () => {
+        if (this.hpBarFill?.active) this.hpBarFill.setFillStyle(fillCol);
+      });
     }
+    if (this.hpBarTrail) {
+      this.scene.tweens.add({
+        targets: this.hpBarTrail,
+        width: nextW,
+        delay: 130,
+        duration: 210,
+        ease: 'Quad.Out',
+      });
+    }
+    const barParts = [this.hpBarBorder, this.hpBarBg, this.hpBarTrail, this.hpBarFill, this.hpBarHighlight].filter(
+      (p): p is Phaser.GameObjects.Rectangle => Boolean(p),
+    );
+    for (const p of barParts) p.scaleY = 1.45;
+    this.scene.tweens.add({
+      targets: barParts,
+      scaleY: 1,
+      duration: 110,
+      ease: 'Back.easeOut',
+    });
 
     // 2-frame white hit-flash + elastic squash-and-stretch with horizontal recoil
     this.sprite.setTintFill(0xffffff);

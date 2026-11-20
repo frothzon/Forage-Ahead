@@ -567,7 +567,10 @@ export class TitleScene extends Phaser.Scene {
             void transitionManager.transitionTo({
               onMidpoint: async () => {
                 SFX.setMusicSituation('overworld');
-                await startSceneAndWaitCreate(this, 'OverworldScene');
+                await startSceneAndWaitCreate(
+                this,
+                gameState.tutorialCompleted ? 'OverworldScene' : 'TutorialDungeonScene',
+              );
               },
             });
           }
@@ -819,12 +822,12 @@ export class TitleScene extends Phaser.Scene {
         SFX.playUiClick();
         SFX.playPortalWarp();
         gameState.setActiveSlot(targetSlot);
-        gameState.reset(this.selected);
+        gameState.startNewGameWithTutorial(this.selected);
         gameState.save(targetSlot);
         void transitionManager.transitionTo({
           onMidpoint: async () => {
-            SFX.setMusicSituation('overworld');
-            await startSceneAndWaitCreate(this, 'OverworldScene');
+            SFX.setMusicSituation('dungeon');
+            await startSceneAndWaitCreate(this, 'TutorialDungeonScene');
           },
         });
       },

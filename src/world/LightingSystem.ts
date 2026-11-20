@@ -54,7 +54,7 @@ function multiplyColors(c1: number, c2: number): number {
  */
 export class LightingSystem {
   private static readonly EDGE_PAD = 48;
-  private static readonly MAX_DARKNESS_OPACITY = 0.25;
+  private static readonly MAX_DARKNESS_OPACITY = 0.58;
 
   private scene: Phaser.Scene;
   private lightmap: Phaser.GameObjects.RenderTexture;

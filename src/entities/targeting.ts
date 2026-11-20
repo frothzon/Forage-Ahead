@@ -60,3 +60,32 @@ export function selectBestAimTarget<T>(
 
   return best;
 }
+
+export type CardinalFacing = 'up' | 'down' | 'left' | 'right';
+
+const FACING_VECTORS: Record<CardinalFacing, readonly [number, number]> = {
+  up: [0, -1],
+  down: [0, 1],
+  left: [-1, 0],
+  right: [1, 0],
+};
+
+/**
+ * Returns true when `(tx, ty)` lies within a forward directional cone (`dot >= minDot`)
+ * of the actor at `(px, py)` facing `facing`. Always true if overlapping within 4px.
+ */
+export function isFacingTarget(
+  px: number,
+  py: number,
+  facing: CardinalFacing,
+  tx: number,
+  ty: number,
+  minDot = 0.35,
+): boolean {
+  const dx = tx - px;
+  const dy = ty - py;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= 4) return true;
+  const [fx, fy] = FACING_VECTORS[facing];
+  return (dx / dist) * fx + (dy / dist) * fy >= minDot;
+}

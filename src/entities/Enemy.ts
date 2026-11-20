@@ -16,9 +16,11 @@ export class Enemy extends Phaser.GameObjects.Container {
   public facing: Direction = 'down';
 
   public sprite: Phaser.GameObjects.Sprite;
+  private hpBarBorder: Phaser.GameObjects.Rectangle;
   private hpBarBg: Phaser.GameObjects.Rectangle;
   private hpBarTrail: Phaser.GameObjects.Rectangle;
   private hpBarFill: Phaser.GameObjects.Rectangle;
+  private hpBarHighlight: Phaser.GameObjects.Rectangle;
   private levelLabel: Phaser.GameObjects.Text;
   private curAnim = '';
   private attackCooldownMs = 0;
@@ -71,19 +73,26 @@ export class Enemy extends Phaser.GameObjects.Container {
     const idleKey = mSpec?.anims?.idle?.key ?? 'monsters/Slime/Slime_idle';
     this.sprite = scene.add.sprite(0, -feetOffset, idleKey, 0).setScale(scale);
 
-    const barW = def.isBoss ? 38 : 18;
+    const barW = def.isBoss ? 40 : 20;
+    const barH = def.isBoss ? 4.5 : 3.5;
     const barY = def.isBoss ? -36 : -20;
-    this.hpBarBg = scene.add.rectangle(0, barY, barW, 3, 0x11161f).setOrigin(0.5);
+    this.hpBarBorder = scene.add.rectangle(0, barY, barW + 2, barH + 2, 0x070a0f).setOrigin(0.5);
+    this.hpBarBg = scene.add.rectangle(0, barY, barW, barH, 0x1b141a).setOrigin(0.5);
     this.hpBarTrail = scene.add
-      .rectangle(-barW / 2 + 0.5, barY, barW - 1, 2, 0xffffff)
+      .rectangle(-barW / 2 + 0.5, barY, barW - 1, barH - 1, 0xffd166)
       .setOrigin(0, 0.5);
     this.hpBarFill = scene.add
-      .rectangle(-barW / 2 + 0.5, barY, barW - 1, 2, def.isBoss ? 0xff4757 : 0xe85d5d)
+      .rectangle(-barW / 2 + 0.5, barY, barW - 1, barH - 1, def.isBoss ? 0xff4757 : 0xe85d5d)
+      .setOrigin(0, 0.5);
+    this.hpBarHighlight = scene.add
+      .rectangle(-barW / 2 + 0.5, barY - (barH - 1) * 0.28, barW - 1, 0.9, 0xffffff, 0.35)
       .setOrigin(0, 0.5);
     if (!def.isBoss) {
+      this.hpBarBorder.setVisible(false);
       this.hpBarBg.setVisible(false);
       this.hpBarTrail.setVisible(false);
       this.hpBarFill.setVisible(false);
+      this.hpBarHighlight.setVisible(false);
     }
     this.levelLabel = scene.add
       .text(0, barY - 7, `Lv.${def.level}`, {
@@ -96,7 +105,16 @@ export class Enemy extends Phaser.GameObjects.Container {
       })
       .setOrigin(0.5);
 
-    this.add([shadow, this.sprite, this.hpBarBg, this.hpBarTrail, this.hpBarFill, this.levelLabel]);
+    this.add([
+      shadow,
+      this.sprite,
+      this.hpBarBorder,
+      this.hpBarBg,
+      this.hpBarTrail,
+      this.hpBarFill,
+      this.hpBarHighlight,
+      this.levelLabel,
+    ]);
     this.syncLevelColor();
     this.setDepth(y);
     scene.add.existing(this);
@@ -147,16 +165,33 @@ export class Enemy extends Phaser.GameObjects.Container {
     if (this.isDead) return false;
     this.hp = Math.max(0, this.hp - amount);
     this.hitStunMs = 150;
+    this.hpBarBorder.setVisible(true);
     this.hpBarBg.setVisible(true);
     this.hpBarTrail.setVisible(true);
     this.hpBarFill.setVisible(true);
-    const barW = this.def.isBoss ? 37 : 17;
-    const nextW = Math.max(1, barW * (this.hp / this.maxHp));
+    this.hpBarHighlight.setVisible(true);
+    const barW = this.def.isBoss ? 39 : 19;
+    const ratio = this.hp / this.maxHp;
+    const nextW = Math.max(1, barW * ratio);
     this.hpBarFill.width = nextW;
+    this.hpBarHighlight.width = nextW;
+    const fillCol = this.def.isBoss ? 0xff4757 : ratio <= 0.3 ? 0xff3b52 : 0xe85d5d;
+    this.hpBarFill.setFillStyle(0xffffff);
+    this.scene.time.delayedCall(65, () => {
+      if (this.hpBarFill.active) this.hpBarFill.setFillStyle(fillCol);
+    });
+    const barParts = [this.hpBarBorder, this.hpBarBg, this.hpBarTrail, this.hpBarFill, this.hpBarHighlight];
+    for (const part of barParts) part.scaleY = 1.55;
+    this.scene.tweens.add({
+      targets: barParts,
+      scaleY: 1,
+      duration: 120,
+      ease: 'Back.easeOut',
+    });
     this.scene.tweens.add({
       targets: this.hpBarTrail,
       width: nextW,
-      delay: 160,
+      delay: 150,
       duration: 240,
       ease: 'Quad.Out',
     });

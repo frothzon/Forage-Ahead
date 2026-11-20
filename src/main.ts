@@ -2,8 +2,10 @@ import Phaser from 'phaser';
 import { transitionManager } from './core/TransitionManager';
 import { BootScene } from './scenes/BootScene';
 import { DungeonScene } from './scenes/DungeonScene';
+import { HouseScene } from './scenes/HouseScene';
 import { OverworldScene } from './scenes/OverworldScene';
 import { TitleScene } from './scenes/TitleScene';
+import { TutorialDungeonScene } from './scenes/TutorialDungeonScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -17,7 +19,7 @@ const config: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.NO_CENTER,
   },
-  scene: [BootScene, TitleScene, OverworldScene, DungeonScene],
+  scene: [BootScene, TitleScene, TutorialDungeonScene, OverworldScene, DungeonScene, HouseScene],
 };
 
 transitionManager.mount();

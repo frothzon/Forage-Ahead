@@ -1,4 +1,3 @@
-import { Capacitor } from '@capacitor/core';
 import {
   ALL_EQUIP_SLOTS,
   BAG_COLS,
@@ -9,6 +8,7 @@ import {
   type InventoryFeedEvent,
 } from '../core/GameState';
 import { Haptics } from '../core/Haptics';
+import { fmtKeySuffix, isMobileTouchDevice } from '../core/Platform';
 
 export type QueuedStationType =
   | 'furnace'
@@ -63,6 +63,17 @@ export interface MinimapSnapshot {
   waypoint?: { tx: number; ty: number; label: string };
 }
 
+export interface DungeonHudState {
+  title: string;
+  roomLabel: string;
+  smallKeys: number;
+  hasBossKey: boolean;
+  currentRoomId: number;
+  discoveredRoomIds: number[];
+  rooms: Array<{ id: number; gx: number; gy: number; role: string }>;
+  bounds: { minGx: number; maxGx: number; minGy: number; maxGy: number };
+}
+
 type DragPayload =
   | { source: 'bag'; bagIdx: number; itemId: string }
   | { source: 'equip'; slot: EquipmentSlotKey; itemId: string }
@@ -108,8 +119,10 @@ export class HudController {
   private unsubVitals?: () => void;
   private unsubFeed?: () => void;
   private chromeBuilt = false;
-  private minimapVisible = true;
+  private minimapVisible = false;
   private minimapCanvas?: HTMLCanvasElement;
+  private wasModalOpen = false;
+  private lastModalTab: HudModal = 'none';
   private toastTimer?: number;
   private toastMsg = '';
   private timeLabelText = 'Day 1 • Sunny';
@@ -123,10 +136,8 @@ export class HudController {
   private lastHotbarPopIdx = -1;
   private envVignetteMode: 'none' | 'frost' | 'infernal' = 'none';
   private touchMoveVec = { x: 0, y: 0 };
-  private touchEnabled =
-    typeof window !== 'undefined' &&
-    ('ontouchstart' in window || navigator.maxTouchPoints > 0) &&
-    window.innerWidth <= 1150;
+  private touchActionHint: string | null = null;
+  private touchEnabled = isMobileTouchDevice();
 
   private callbacks: {
     onBuyIsland: (gx: number, gy: number) => void;
@@ -431,6 +442,7 @@ export class HudController {
   }
 
   public toggleModal(modal: HudModal, station?: CraftingStation, stationId?: string): void {
+    if (modal !== 'none' && !gameState.isMenuTabUnlocked(modal)) return;
     if (station) this.activeStationTab = station;
     if (stationId) this.activeStationId = stationId;
     else if (station) this.activeStationId = null;
@@ -1063,7 +1075,9 @@ export class HudController {
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        animation: modalSpringPop 160ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .ledger-window.modal-enter {
+        animation: modalSpringPop 130ms cubic-bezier(0.22, 1, 0.36, 1);
       }
       .ledger-tabs {
         display: flex;
@@ -1109,9 +1123,31 @@ export class HudController {
       }
       .ledger-tab-btn.active {
         border-image-source: url('assets/sprout_ui/docks/dock_bar_light_sm.png');
-        color: #3b2316;
+        color: #82eb6a;
         font-weight: 800;
         transform: translateY(2px);
+      }
+      .ledger-tab-btn.active.tab-jiggle {
+        animation: tabSoftJiggle 140ms ease-out;
+      }
+      .craft-queue-slot {
+        height: 54px;
+        border-style: solid;
+        border-image-slice: 5 fill;
+        border-image-width: 10px;
+        border-width: 5px;
+        background: transparent;
+        image-rendering: pixelated;
+        box-sizing: border-box;
+      }
+      .craft-queue-slot.empty {
+        border-image-source: url('assets/sprout_ui/slots/slot_oct_dark.png');
+      }
+      .craft-queue-slot.queued {
+        border-image-source: url('assets/sprout_ui/slots/slot_oct_med.png');
+      }
+      .craft-queue-slot.active {
+        border-image-source: url('assets/sprout_ui/slots/slot_oct_light.png');
       }
       .modal-close-btn {
         position: absolute;
@@ -1134,7 +1170,10 @@ export class HudController {
         font-weight: 700;
         line-height: 1.1;
         color: #fff6e5;
-        background: rgba(36, 20, 12, 0.55);
+        text-shadow: -1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109;
+        background: rgba(36, 20, 12, 0.72);
+        border: 1px solid #1b1109;
+        box-shadow: inset 0 1px 0 rgba(255, 240, 200, 0.22);
         padding: 3px 8px;
         border-radius: 4px;
         white-space: nowrap;
@@ -1371,12 +1410,69 @@ export class HudController {
   }
 
   private isTouchDevice(): boolean {
-    const isNative = typeof Capacitor?.isNativePlatform === 'function' && Capacitor.isNativePlatform();
-    const isCoarse =
-      typeof window !== 'undefined' &&
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(pointer: coarse)').matches;
-    return isNative || isCoarse || this.touchEnabled;
+    return this.touchEnabled || isMobileTouchDevice();
+  }
+
+  public setDungeonHud(state: DungeonHudState | null): void {
+    const el = this.chromeLayer?.querySelector<HTMLElement>('#hud-dungeon-panel');
+    if (!el) return;
+    if (!state) {
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = 'block';
+    const discovered = new Set(state.discoveredRoomIds);
+    const cols = state.bounds.maxGx - state.bounds.minGx + 1;
+    const rows = state.bounds.maxGy - state.bounds.minGy + 1;
+    const byCoord = new Map(state.rooms.map((r) => [`${r.gx},${r.gy}`, r]));
+    let gridHtml = '';
+    for (let gy = state.bounds.minGy; gy <= state.bounds.maxGy; gy++) {
+      for (let gx = state.bounds.minGx; gx <= state.bounds.maxGx; gx++) {
+        const rm = byCoord.get(`${gx},${gy}`);
+        if (!rm || (!discovered.has(rm.id) && rm.role !== 'boss')) {
+          gridHtml += `<div style="width:12px; height:10px;"></div>`;
+          continue;
+        }
+        const isCur = rm.id === state.currentRoomId;
+        const isBoss = rm.role === 'boss';
+        const isMini = rm.role === 'miniboss';
+        const bg = isCur
+          ? '#ffe066'
+          : isBoss
+            ? '#7c2b3c'
+            : isMini
+              ? '#8c5a2b'
+              : '#5c4a3a';
+        const border = isCur ? '1px solid #1b1109' : '1px solid rgba(27,17,9,0.75)';
+        const mark = isBoss ? '💀' : isMini ? '⚔' : '';
+        gridHtml += `<div style="width:12px; height:10px; background:${bg}; border:${border}; border-radius:2px; font-size:7px; line-height:9px; text-align:center; opacity:${discovered.has(rm.id) ? 1 : 0.45};">${mark}</div>`;
+      }
+    }
+    el.innerHTML = `
+      <div style="font-size:10px; font-weight:800; color:#3b2316; margin-bottom:3px;">${state.roomLabel}</div>
+      <div style="display:flex; align-items:center; gap:8px; font-size:10px; font-weight:800; color:#3b2316; margin-bottom:4px;">
+        <span>🔑 ${state.smallKeys}</span>
+        <span style="color:${state.hasBossKey ? '#216b2b' : '#7a5438'};">${state.hasBossKey ? '🗝️ Boss Key ✓' : '🗝️ Boss Key —'}</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(${cols}, 12px); grid-template-rows:repeat(${rows}, 10px); gap:2px;">
+        ${gridHtml}
+      </div>
+    `;
+  }
+
+  public setTouchActionHint(label: string | null): void {
+    if (!this.touchEnabled || !this.chromeBuilt) return;
+    if (this.touchActionHint === label) return;
+    this.touchActionHint = label;
+    const btn = this.chromeLayer.querySelector<HTMLElement>('#hud-touch-act');
+    const lblEl = this.chromeLayer.querySelector<HTMLElement>('#hud-touch-act-label');
+    if (lblEl) lblEl.textContent = label ?? 'ACT';
+    if (btn) {
+      btn.style.boxShadow = label
+        ? '0 0 0 2px #ffe066, 0 0 12px rgba(255, 224, 102, 0.85)'
+        : '';
+      btn.style.transform = label ? 'scale(1.06)' : '';
+    }
   }
 
   private applyMobileTextOutlines(container: HTMLElement): void {
@@ -1447,7 +1543,9 @@ export class HudController {
     const coinsEl = this.chromeLayer.querySelector<HTMLElement>('#hud-coins-val');
     const spBadge = this.chromeLayer.querySelector<HTMLElement>('#hud-sp-badge');
 
-    if (gameState.hp < this.lastHpSeen) {
+    const hpDamaged = gameState.hp < this.lastHpSeen;
+    const hpHealed = gameState.hp > this.lastHpSeen;
+    if (hpDamaged) {
       this.pulseDamageVignette();
       this.triggerPortraitMood('angry', 1500);
       Haptics.impactHeavy();
@@ -1460,13 +1558,32 @@ export class HudController {
       Haptics.notifySuccess();
     }
 
-    if (hpFill) hpFill.style.width = `${hpPct}%`;
+    if (hpFill) {
+      hpFill.style.width = `${hpPct}%`;
+      hpFill.classList.toggle('hp-low-pulse', hpPct > 0 && hpPct <= 25);
+      if (hpDamaged) {
+        hpFill.classList.remove('hp-hit-flash', 'hp-heal-pulse');
+        void hpFill.offsetWidth;
+        hpFill.classList.add('hp-hit-flash');
+      } else if (hpHealed) {
+        hpFill.classList.remove('hp-heal-pulse', 'hp-hit-flash');
+        void hpFill.offsetWidth;
+        hpFill.classList.add('hp-heal-pulse');
+      }
+    }
+    const hpTrack = hpFill?.parentElement;
+    if (hpTrack && hpDamaged) {
+      hpTrack.classList.remove('bar-hit');
+      void hpTrack.offsetWidth;
+      hpTrack.classList.add('bar-hit');
+    }
     if (hpGhost) hpGhost.style.width = `${hpPct}%`;
     if (hpText) hpText.textContent = `${Math.ceil(gameState.hp)}/${maxHp}`;
     const hpHeart = this.chromeLayer.querySelector<HTMLImageElement>('#hud-hp-heart');
     if (hpHeart) {
       const hState = hpPct <= 0 ? 'empty' : hpPct < 50 ? 'half' : 'full';
       hpHeart.src = `assets/sprout_ui/vitals/heart_wood_${hState}.png`;
+      hpHeart.classList.toggle('heart-low-pulse', hpPct > 0 && hpPct <= 25);
     }
     if (enFill) enFill.style.width = `${enPct}%`;
     if (enGhost) enGhost.style.width = `${enPct}%`;
@@ -1587,12 +1704,14 @@ export class HudController {
 
         <div id="hud-quest-tracker" class="hud-panel hud-interactive" style="position:absolute; top:54px; right:10px; width:222px; padding:5px 8px; display:none; z-index:14; cursor:pointer;" title="Click to open Quest Log [Q]"></div>
 
-        <div id="hud-minimap-wrap" class="sl-frame-big hud-interactive" style="position:absolute; bottom:12px; right:12px; padding:3px; z-index:25;">
+        <div id="hud-dungeon-panel" class="hud-panel" style="position:absolute; top:104px; left:10px; padding:5px 8px; display:none; z-index:14;"></div>
+
+        <div id="hud-minimap-wrap" class="sl-frame-big hud-interactive minimap-collapsed" style="position:absolute; bottom:12px; right:12px; padding:3px; z-index:25;">
           <div id="hud-minimap-header" style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:3px;">
-            <span id="hud-minimap-title" style="font-size:10px; font-weight:800; color:#3b2316;">Map [N]</span>
-            <button class="hud-btn" id="hud-minimap-toggle" style="padding:0px 5px; font-size:9px;">Hide</button>
+            <span id="hud-minimap-title" style="font-size:10px; font-weight:800; color:#3b2316;">${fmtKeySuffix('Map', 'N')}</span>
+            <button class="hud-btn" id="hud-minimap-toggle" style="padding:0px 5px; font-size:9px;">${this.isTouchDevice() ? 'MAP' : 'Show'}</button>
           </div>
-          <div id="hud-minimap-body" style="display:block;">
+          <div id="hud-minimap-body" style="display:none;">
             <canvas id="hud-minimap-canvas" width="104" height="104" style="display:block; border:2px solid #5c3a24; border-radius:2px; image-rendering:pixelated;"></canvas>
           </div>
         </div>
@@ -1603,7 +1722,7 @@ export class HudController {
           </div>
           <div class="touch-actions-wrap hud-interactive">
             <button id="hud-touch-dash" class="touch-act-btn" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;"><img src="assets/hud_icons/dash.png" class="px-icon" style="width:36px; height:36px; pointer-events:none;" /><span style="font-size:13px;">DASH</span></button>
-            <button id="hud-touch-act" class="touch-act-btn primary" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;"><img id="hud-touch-act-icon" src="assets/hud_icons/sword.png" class="px-icon" style="width:40px; height:40px; pointer-events:none;" /><span style="font-size:13px;">ACT</span></button>
+            <button id="hud-touch-act" class="touch-act-btn primary" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;"><img id="hud-touch-act-icon" src="assets/hud_icons/sword.png" class="px-icon" style="width:40px; height:40px; pointer-events:none;" /><span id="hud-touch-act-label" style="font-size:13px;">ACT</span></button>
           </div>
         </div>
       `;
@@ -1614,7 +1733,13 @@ export class HudController {
           const nav = el.dataset.nav;
           if (nav === 'menu') {
             gameState.clearButtonAlerts('menu');
-            this.toggleModal(this.activeModal === 'none' ? this.lastMenuTab : 'none');
+            const firstUnlocked = (['inventory', 'craft', 'skills', 'quests', 'map', 'progress'] as const).find(
+              (t) => gameState.isMenuTabUnlocked(t),
+            );
+            const targetTab = gameState.isMenuTabUnlocked(this.lastMenuTab)
+              ? this.lastMenuTab
+              : (firstUnlocked ?? 'inventory');
+            this.toggleModal(this.activeModal === 'none' ? targetTab : 'none');
           } else {
             if (nav) gameState.clearButtonAlerts(nav);
             this.toggleModal(nav as HudModal);
@@ -1682,15 +1807,24 @@ export class HudController {
       el.classList.toggle('gold', this.activeModal === nav);
       if (nav === 'skills') {
         el.classList.toggle('primary', this.activeModal !== 'skills' && gameState.skillPoints > 0);
-        el.textContent = `Skills [K]${gameState.skillPoints > 0 ? ` (${gameState.skillPoints})` : ''}`;
+        el.textContent = `${fmtKeySuffix('Skills', 'K')}${gameState.skillPoints > 0 ? ` (${gameState.skillPoints})` : ''}`;
       } else if (nav === 'map') {
-        el.textContent = `Islands [M] (${gameState.ownedIslands.size}/25)`;
+        el.textContent = `${fmtKeySuffix('Islands', 'M')} (${gameState.ownedIslands.size}/25)`;
       } else if (nav === 'progress') {
-        el.textContent = gameState.debugMode ? 'Progress & Debug [P]' : 'Progress [P]';
+        el.textContent = fmtKeySuffix(gameState.debugMode ? 'Progress & Debug' : 'Progress', 'P');
       }
     });
     const menuBtn = this.chromeLayer.querySelector<HTMLElement>('#hud-menu-btn');
+    if (menuBtn) {
+      const anyTabUnlocked =
+        gameState.tutorialCompleted || gameState.debugMode || gameState.unlockedMenuTabs.size > 0;
+      menuBtn.style.display = anyTabUnlocked ? '' : 'none';
+    }
     this.attachAlertBadge(menuBtn, gameState.hasAlertForButton('menu'));
+    const minimapWrap = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-wrap');
+    if (minimapWrap) {
+      minimapWrap.style.display = gameState.isMenuTabUnlocked('map') ? '' : 'none';
+    }
     const muteBtn = this.chromeLayer.querySelector<HTMLElement>('#hud-mute-btn');
     if (muteBtn) {
       muteBtn.style.backgroundImage = `url('assets/sprout_ui/buttons/${SFX.muted ? 'ic_btn_sfx_off_pressed' : 'ic_btn_sfx_on_normal'}.png')`;
@@ -1989,20 +2123,27 @@ export class HudController {
 
   private renderModal(): void {
     if (this.activeModal === 'none') {
+      this.wasModalOpen = false;
+      this.lastModalTab = 'none';
       this.modalLayer.innerHTML = '';
       return;
     }
 
+    const justOpened = !this.wasModalOpen;
+    const tabChanged = this.wasModalOpen && this.lastModalTab !== this.activeModal;
+    this.wasModalOpen = true;
+    this.lastModalTab = this.activeModal;
+
     const showKeys = !this.isTouchDevice();
     const activeCount = Object.keys(gameState.activeQuests).length;
     const tabs: Array<{ id: HudModal; label: string }> = [
-      { id: 'inventory', label: `Character${showKeys ? ' [I]' : ''}` },
-      { id: 'craft', label: `Craft${showKeys ? ' [Tab]' : ''}` },
-      { id: 'skills', label: `Skills${showKeys ? ' [K]' : ''}${gameState.skillPoints > 0 ? ` (+${gameState.skillPoints})` : ''}` },
-      { id: 'quests', label: `Quests${showKeys ? ' [Q]' : ''}${activeCount > 0 ? ` (${activeCount})` : ''}` },
-      { id: 'map', label: `Map${showKeys ? ' [M]' : ''} (${gameState.ownedIslands.size}/25)` },
-      { id: 'progress', label: `${gameState.debugMode ? 'Progress & Debug' : 'Progress'}${showKeys ? ' [P]' : ''}` },
-    ];
+      { id: 'inventory' as const, label: `Character${showKeys ? ' [I]' : ''}` },
+      { id: 'craft' as const, label: `Craft${showKeys ? ' [Tab]' : ''}` },
+      { id: 'skills' as const, label: `Skills${showKeys ? ' [K]' : ''}${gameState.skillPoints > 0 ? ` (+${gameState.skillPoints})` : ''}` },
+      { id: 'quests' as const, label: `Quests${showKeys ? ' [Q]' : ''}${activeCount > 0 ? ` (${activeCount})` : ''}` },
+      { id: 'map' as const, label: `Map${showKeys ? ' [M]' : ''} (${gameState.ownedIslands.size}/25)` },
+      { id: 'progress' as const, label: `${gameState.debugMode ? 'Progress & Debug' : 'Progress'}${showKeys ? ' [P]' : ''}` },
+    ].filter((t) => gameState.isMenuTabUnlocked(t.id));
 
     let bodyHtml = '';
     if (this.activeModal === 'inventory') bodyHtml = this.renderDiabloInventory();
@@ -2016,14 +2157,14 @@ export class HudController {
     const maxEn = gameState.getMaxEnergy();
     this.modalLayer.innerHTML = `
       <div class="modal-backdrop hud-interactive" data-action="close-backdrop">
-        <div class="hud-panel-wood ledger-window" onclick="event.stopPropagation()">
+        <div class="hud-panel-wood ledger-window ${justOpened ? 'modal-enter' : ''}" onclick="event.stopPropagation()">
           <button class="sl-icon-btn modal-close-btn" data-action="close-modal" title="${showKeys ? 'Close [Esc]' : 'Close'}"></button>
           <div class="hud-panel-inset ledger-tabs">
             <div class="ledger-tab-strip">
               ${tabs
                 .map((t) => {
                   const isActive = this.activeModal === t.id;
-                  return `<button class="ledger-tab-btn ${isActive ? 'active' : ''}" data-tab="${t.id}">${t.label}</button>`;
+                  return `<button class="ledger-tab-btn ${isActive ? `active${tabChanged ? ' tab-jiggle' : ''}` : ''}" data-tab="${t.id}">${t.label}</button>`;
                 })
                 .join('')}
             </div>
@@ -2416,7 +2557,7 @@ export class HudController {
           const job = selectedStation.craftQueue[i];
           if (!job) {
             return `
-              <div style="height:54px; background:url('assets/sprout_ui/slots/slot_oct_dark.png') no-repeat center / 100% 100%; image-rendering:pixelated; display:flex; align-items:center; justify-content:center; font-size:10px; color:#f2d9b1;">
+              <div class="craft-queue-slot empty" style="display:flex; align-items:center; justify-content:center; font-size:10px; color:#f2d9b1;">
                 Slot ${i + 1}
               </div>
             `;
@@ -2427,7 +2568,7 @@ export class HudController {
             ? Math.max(0, Math.min(100, ((job.totalMs - job.remainingMs) / job.totalMs) * 100))
             : 0;
           return `
-            <div style="height:54px; background:url('assets/sprout_ui/slots/${isActive ? 'slot_oct_light' : 'slot_oct_med'}.png') no-repeat center / 100% 100%; image-rendering:pixelated; padding:5px 7px; display:flex; flex-direction:column; justify-content:space-between; position:relative; color:#3b2316;">
+            <div class="craft-queue-slot ${isActive ? 'active' : 'queued'}" style="padding:3px 6px; display:flex; flex-direction:column; justify-content:space-between; position:relative; color:#3b2316;">
               <div style="display:flex; align-items:center; gap:5px;">
                 ${outDef?.iconKey ? `<img src="assets/${outDef.iconKey}.png" class="px-icon" style="width:18px; height:18px;" />` : ''}
                 <span style="font-size:10px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">${outDef?.name ?? job.outputItemId}${job.outputCount > 1 ? ` x${job.outputCount}` : ''}</span>

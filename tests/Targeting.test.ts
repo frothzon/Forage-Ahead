@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { selectBestAimTarget } from '../src/entities/targeting';
+import { isFacingTarget, selectBestAimTarget } from '../src/entities/targeting';
 
 describe('selectBestAimTarget', () => {
   it('picks the closest target within 45 degrees of facing direction', () => {
@@ -60,5 +60,20 @@ describe('selectBestAimTarget', () => {
       { item: 'behind_far', x: -10, y: 0, priority: 3 },
     ]);
     expect(behind).toBeNull();
+  });
+});
+
+describe('isFacingTarget', () => {
+  it('accepts targets in front or diagonally ahead and rejects side/behind targets', () => {
+    expect(isFacingTarget(0, 0, 'right', 20, 0)).toBe(true);
+    expect(isFacingTarget(0, 0, 'right', 20, 12)).toBe(true);
+    expect(isFacingTarget(0, 0, 'up', 0, -24)).toBe(true);
+    expect(isFacingTarget(0, 0, 'right', 0, 20)).toBe(false);
+    expect(isFacingTarget(0, 0, 'right', -20, 0)).toBe(false);
+    expect(isFacingTarget(0, 0, 'down', 0, -18)).toBe(false);
+  });
+
+  it('allows overlapping targets within 4px regardless of facing', () => {
+    expect(isFacingTarget(10, 10, 'left', 12, 10)).toBe(true);
   });
 });

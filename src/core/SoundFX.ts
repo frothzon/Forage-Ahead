@@ -624,6 +624,30 @@ class SoundFXManager {
     });
   }
 
+  public playSecretJingle(): void {
+    if (!this.canPlay('secretJingle', 350)) return;
+    // Classic ascending discovery chime with gentle harmonic shimmer
+    [587.33, 659.25, 783.99, 987.77, 1174.66].forEach((n, i) => {
+      this.playTone({
+        freqStart: n,
+        duration: i === 4 ? 0.38 : 0.14,
+        type: 'triangle',
+        gain: 0.1,
+        delay: i * 0.065,
+        reverb: 0.45,
+      });
+      this.playFM({
+        carrierStart: n * 2,
+        modFreq: n * 3,
+        modIndex: 45,
+        duration: i === 4 ? 0.34 : 0.12,
+        gain: 0.04,
+        delay: i * 0.065,
+        reverb: 0.45,
+      });
+    });
+  }
+
   public playFishCast(): void {
     if (!this.canPlay('fishCast', 120)) return;
     // Line whip + water plop

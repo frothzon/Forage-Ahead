@@ -97,6 +97,11 @@ export class BootScene extends Phaser.Scene {
       { key: 'sprout/furniture', fw: 16, fh: 16 },
       { key: 'sprout/fences', fw: 16, fh: 16 },
       { key: 'sprout/fence_gates', fw: 16, fh: 16 },
+      { key: 'cuterpg/dungeon', fw: 16, fh: 16 },
+      { key: 'cuterpg/dungeon_anim', fw: 16, fh: 16 },
+      { key: 'cuterpg/grotto', fw: 16, fh: 16 },
+      { key: 'cuterpg/grotto_obj1', fw: 16, fh: 16 },
+      { key: 'cuterpg/grotto_obj2', fw: 16, fh: 16 },
     ];
     for (const s of sheetLoads) {
       const img = images[s.key];

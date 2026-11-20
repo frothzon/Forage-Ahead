@@ -597,3 +597,46 @@ export function drawSlashArc(
     if (gfx.active) gfx.destroy();
   });
 }
+
+/**
+ * Shakes stone block barriers, turns them into rising dust puffs + stone debris, and destroys them.
+ */
+export function crumbleStoneBlocks(
+  scene: Phaser.Scene,
+  sprites: Phaser.GameObjects.Image[],
+  dustColor = 0xc9c2b8,
+): void {
+  for (let i = 0; i < sprites.length; i++) {
+    const spr = sprites[i];
+    if (!spr.active) continue;
+    const bx = spr.x;
+    const by = spr.y;
+    scene.tweens.add({
+      targets: spr,
+      x: bx + (i % 2 === 0 ? 1.5 : -1.5),
+      scaleX: 1.08,
+      scaleY: 0.9,
+      duration: 55,
+      yoyo: true,
+      repeat: 1,
+      onComplete: () => {
+        if (spr.active) spr.destroy();
+        spawnArcParticles(scene, bx, by, dustColor, 7);
+        for (let p = 0; p < 3; p++) {
+          const puff = scene.add
+            .circle(bx + (Math.random() - 0.5) * 10, by + (Math.random() - 0.5) * 6, 4 + Math.random() * 3, dustColor, 0.72)
+            .setDepth(6500);
+          scene.tweens.add({
+            targets: puff,
+            y: puff.y - 10 - Math.random() * 6,
+            scale: 1.55,
+            alpha: 0,
+            duration: 420,
+            ease: 'Quad.Out',
+            onComplete: () => puff.destroy(),
+          });
+        }
+      },
+    });
+  }
+}

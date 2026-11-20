@@ -1,4 +1,5 @@
 import { Haptics } from '../core/Haptics';
+import { isMobileTouchDevice } from '../core/Platform';
 import { SFX } from '../core/SoundFX';
 
 export type FishBehavior = 'steady' | 'heavy' | 'erratic' | 'dart' | 'sinker';
@@ -206,8 +207,8 @@ export class FishingMinigame {
         </div>
         <div id="fish-ready-banner" class="fish-outline-text" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; font-size:16px; font-weight:900; color:#ffe066; background:rgba(28,16,8,0.52); border-radius:4px;">Ready...</div>
       </div>
-      <button id="fish-reel-btn" class="hud-btn primary" style="width:100%; font-size:11px;">Hold Click / Space / ACT</button>
-      <button id="fish-cancel-btn" class="hud-btn danger" style="width:100%; font-size:10px; padding:2px 8px;">Cancel [ESC]</button>
+      <button id="fish-reel-btn" class="hud-btn primary" style="width:100%; font-size:11px;">${isMobileTouchDevice() ? 'Hold to Reel' : 'Hold Click / Space / ACT'}</button>
+      <button id="fish-cancel-btn" class="hud-btn danger" style="width:100%; font-size:10px; padding:2px 8px;">${isMobileTouchDevice() ? 'Cancel' : 'Cancel [ESC]'}</button>
     `;
 
     const cancelBtn = wrap.querySelector<HTMLButtonElement>('#fish-cancel-btn');

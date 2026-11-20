@@ -7,6 +7,8 @@ import { SKILLS } from '../data/skills';
 
 export type HeroClassId = 'Beastmaster' | 'Gladiator' | 'Sorcerer' | 'Swashbuckler';
 export type EquipmentSlotKey = 'weapon' | 'tool' | 'armor' | 'trinket1' | 'trinket2' | 'trinket3';
+export type MenuTabId = 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'progress';
+export const ALL_MENU_TABS: MenuTabId[] = ['inventory', 'craft', 'skills', 'quests', 'map', 'progress'];
 
 export const ALL_EQUIP_SLOTS: EquipmentSlotKey[] = ['weapon', 'tool', 'armor', 'trinket1', 'trinket2', 'trinket3'];
 export const TRINKET_SLOTS: EquipmentSlotKey[] = ['trinket1', 'trinket2', 'trinket3'];
@@ -114,6 +116,8 @@ export interface SaveData {
   finalBossDefeated?: boolean;
   seenMilestones?: string[];
   activeAlerts?: Record<string, string>;
+  tutorialCompleted?: boolean;
+  unlockedMenuTabs?: MenuTabId[];
   savedAt?: number;
   playerPos?: { x: number; y: number };
 }
@@ -201,6 +205,8 @@ export class GameState {
   public finalBossDefeated = false;
   public seenMilestones = new Set<string>();
   public activeAlerts = new Map<string, string>();
+  public tutorialCompleted = true;
+  public unlockedMenuTabs = new Set<MenuTabId>(ALL_MENU_TABS);
   public playerPos?: { x: number; y: number };
 
   private listeners: Array<() => void> = [];
@@ -335,9 +341,68 @@ export class GameState {
     this.finalBossDefeated = false;
     this.seenMilestones = new Set();
     this.activeAlerts = new Map();
+    this.tutorialCompleted = true;
+    this.unlockedMenuTabs = new Set<MenuTabId>(ALL_MENU_TABS);
     this.playerPos = undefined;
     this.hp = this.getMaxHp();
     this.energy = this.getMaxEnergy();
+    this.emit();
+  }
+
+  public startNewGameWithTutorial(heroClass: HeroClassId): void {
+    this.reset(heroClass);
+    this.tutorialCompleted = false;
+    this.unlockedMenuTabs = new Set<MenuTabId>();
+    this.equipment.weapon = null;
+    this.equipment.tool = null;
+    this.bagSlots = Array.from({ length: BAG_SIZE }, () => null);
+    this.bagSlots[0] = { itemId: 'berries', count: 4 };
+    this.hotbar = ['', '', '', '', 'berries', '', '', '', ''];
+    this.selectedHotbarIndex = 4;
+    this.emit();
+  }
+
+  public grantStarterTool(itemId: string, preferredSlot: number, equipSlot?: 'tool' | 'weapon'): void {
+    if (!this.isGearOwned(itemId) && (this.inventory[itemId] ?? 0) <= 0) {
+      this.addItem(itemId, 1);
+    }
+    const existingIdx = this.hotbar.indexOf(itemId);
+    if (existingIdx !== -1) {
+      this.selectedHotbarIndex = existingIdx;
+    } else {
+      const occupant = this.hotbar[preferredSlot];
+      if (occupant && occupant !== itemId) {
+        const freeIdx = this.hotbar.findIndex((s) => s === '');
+        if (freeIdx !== -1) this.hotbar[freeIdx] = occupant;
+      }
+      this.hotbar[preferredSlot] = itemId;
+      this.selectedHotbarIndex = preferredSlot;
+    }
+    if (equipSlot) this.equipment[equipSlot] = itemId;
+    this.emit();
+  }
+
+  public isMenuTabUnlocked(tab: MenuTabId): boolean {
+    return this.tutorialCompleted || this.debugMode || this.unlockedMenuTabs.has(tab);
+  }
+
+  public unlockMenuTab(...tabs: MenuTabId[]): void {
+    let added = false;
+    for (const t of tabs) {
+      if (!this.unlockedMenuTabs.has(t)) {
+        this.unlockedMenuTabs.add(t);
+        added = true;
+      }
+    }
+    if (added) {
+      this.triggerAlert('menu_unlock', 'menu');
+      this.emit();
+    }
+  }
+
+  public completeTutorial(): void {
+    this.tutorialCompleted = true;
+    for (const t of ALL_MENU_TABS) this.unlockedMenuTabs.add(t);
     this.emit();
   }
 
@@ -1257,6 +1322,8 @@ export class GameState {
       finalBossDefeated: this.finalBossDefeated,
       seenMilestones: [...this.seenMilestones],
       activeAlerts: Object.fromEntries(this.activeAlerts.entries()),
+      tutorialCompleted: this.tutorialCompleted,
+      unlockedMenuTabs: [...this.unlockedMenuTabs],
       savedAt: Date.now(),
       playerPos: this.playerPos,
     };
@@ -1429,8 +1496,8 @@ export class GameState {
       }
       const loadedEq = data.equipment ?? {};
       this.equipment = {
-        weapon: loadedEq.weapon ?? 'sword',
-        tool: loadedEq.tool ?? 'pickaxe',
+        weapon: loadedEq.weapon === undefined ? 'sword' : loadedEq.weapon,
+        tool: loadedEq.tool === undefined ? 'pickaxe' : loadedEq.tool,
         armor: loadedEq.armor ?? null,
         trinket1: loadedEq.trinket1 ?? loadedEq.accessory ?? null,
         trinket2: loadedEq.trinket2 ?? null,
@@ -1452,6 +1519,14 @@ export class GameState {
       this.seenMilestones = new Set(Array.isArray(data.seenMilestones) ? data.seenMilestones : []);
       this.activeAlerts = new Map(
         data.activeAlerts && typeof data.activeAlerts === 'object' ? Object.entries(data.activeAlerts) : [],
+      );
+      this.tutorialCompleted = data.tutorialCompleted ?? true;
+      this.unlockedMenuTabs = new Set<MenuTabId>(
+        Array.isArray(data.unlockedMenuTabs)
+          ? data.unlockedMenuTabs
+          : this.tutorialCompleted
+            ? ALL_MENU_TABS
+            : [],
       );
       this.playerPos = data.playerPos;
       this.emit();
