@@ -55,6 +55,7 @@ function multiplyColors(c1: number, c2: number): number {
 export class LightingSystem {
   private static readonly EDGE_PAD = 48;
   private static readonly MAX_DARKNESS_OPACITY = 0.65;
+  private static readonly LIGHTMAP_SCALE = 0.5;
 
   private scene: Phaser.Scene;
   private lightmap: Phaser.GameObjects.RenderTexture;
@@ -75,17 +76,22 @@ export class LightingSystem {
     const w = Math.max(320, scene.scale.width);
     const h = Math.max(200, scene.scale.height);
     const pad = LightingSystem.EDGE_PAD;
+    const lmScale = LightingSystem.LIGHTMAP_SCALE;
+    const rtW = Math.ceil((w + pad * 2) * lmScale);
+    const rtH = Math.ceil((h + pad * 2) * lmScale);
 
     this.lightmap = scene.add
-      .renderTexture(w / 2, h / 2, w + pad * 2, h + pad * 2)
+      .renderTexture(w / 2, h / 2, rtW, rtH)
       .setOrigin(0.5, 0.5)
+      .setScale(1 / lmScale)
       .setScrollFactor(0)
       .setDepth(8900)
       .setBlendMode(Phaser.BlendModes.MULTIPLY);
 
     this.beamMap = scene.add
-      .renderTexture(w / 2, h / 2, w + pad * 2, h + pad * 2)
+      .renderTexture(w / 2, h / 2, rtW, rtH)
       .setOrigin(0.5, 0.5)
+      .setScale(1 / lmScale)
       .setScrollFactor(0)
       .setDepth(8901)
       .setBlendMode(Phaser.BlendModes.ADD);
@@ -232,15 +238,17 @@ export class LightingSystem {
     const vw = Math.max(320, this.scene.scale.width);
     const vh = Math.max(200, this.scene.scale.height);
     const pad = LightingSystem.EDGE_PAD;
-    const rtW = vw + pad * 2;
-    const rtH = vh + pad * 2;
+    const lmScale = LightingSystem.LIGHTMAP_SCALE;
+    const rtW = Math.ceil((vw + pad * 2) * lmScale);
+    const rtH = Math.ceil((vh + pad * 2) * lmScale);
     if (this.lightmap.width !== rtW || this.lightmap.height !== rtH) {
       this.lightmap.resize(rtW, rtH);
       this.beamMap.resize(rtW, rtH);
     }
-    // Keep lightmap/beamMap 1:1 with screen pixels + edge padding regardless of camera zoom
-    this.lightmap.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
-    this.beamMap.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
+    // Scale 0.5x lightmap/beamMap up to cover screen pixels + edge padding cleanly
+    const dispScale = 1 / (cam.zoom * lmScale);
+    this.lightmap.setPosition(vw / 2, vh / 2).setScale(dispScale);
+    this.beamMap.setPosition(vw / 2, vh / 2).setScale(dispScale);
 
     const base = this.getAmbientColor();
     let ambient = base.color;
@@ -261,81 +269,100 @@ export class LightingSystem {
     const viewH = vh / cam.zoom;
     const viewX = cam.scrollX + (vw - viewW) * 0.5;
     const viewY = cam.scrollY + (vh - viewH) * 0.5;
-    const toScreenX = (wx: number) => (wx - viewX) * cam.zoom + pad;
-    const toScreenY = (wy: number) => (wy - viewY) * cam.zoom + pad;
+    const toRtX = (wx: number) => ((wx - viewX) * cam.zoom + pad) * lmScale;
+    const toRtY = (wy: number) => ((wy - viewY) * cam.zoom + pad) * lmScale;
 
-    // Circular point lights
+    // Batched Pass 1 (lightmap) & Pass 2 (beamMap) — 1 FBO bind per RenderTexture instead of 2 per light
     const tSec = this.scene.time.now * 0.001;
     if (nightFactor > 0.04 || pointLights.length > 0) {
-      for (const pl of pointLights) {
-        const sx = toScreenX(pl.x);
-        const sy = toScreenY(pl.y);
-        const seed = pl.x * 0.13 + pl.y * 0.07;
-        const flicker = pl.flicker
-          ? 1 + Math.sin(tSec * 9.5 + seed) * 0.055 + Math.sin(tSec * 17.3 + seed * 1.7) * 0.035
-          : 1;
-        const sr = pl.radius * flicker * cam.zoom;
-        if (sx < -sr || sy < -sr || sx > vw + sr || sy > vh + sr) continue;
+      if (nightFactor > 0.05) {
+        this.lightmap.beginDraw();
+        for (const pl of pointLights) {
+          const sx = toRtX(pl.x);
+          const sy = toRtY(pl.y);
+          const seed = pl.x * 0.13 + pl.y * 0.07;
+          const flicker = pl.flicker
+            ? 1 + Math.sin(tSec * 9.5 + seed) * 0.055 + Math.sin(tSec * 17.3 + seed * 1.7) * 0.035
+            : 1;
+          const sr = pl.radius * flicker * cam.zoom * lmScale;
+          if (sx < -sr || sy < -sr || sx > rtW + sr || sy > rtH + sr) continue;
 
-        const scale = (sr * 2) / 128;
-        const baseInt = (pl.intensity ?? 0.9) * flicker;
-        const lightPower = Math.min(1, baseInt * Math.max(pl.dayVisible ? 0.22 : 0.12, nightFactor));
-        if (nightFactor > 0.05) {
+          const scale = (sr * 2) / 128;
+          const baseInt = (pl.intensity ?? 0.9) * flicker;
+          const lightPower = Math.min(1, baseInt * Math.max(pl.dayVisible ? 0.22 : 0.12, nightFactor));
           this.stampImg
             .setPosition(sx, sy)
             .setScale(scale)
             .setTint(pl.color)
             .setAlpha(lightPower)
             .setBlendMode(Phaser.BlendModes.ADD);
-          this.lightmap.draw(this.stampImg);
+          this.lightmap.batchDraw(this.stampImg);
         }
+        for (const sp of spotLights) {
+          const sx = toRtX(sp.x);
+          const sy = toRtY(sp.y);
+          const lenPx = sp.length * cam.zoom * lmScale;
+          const wPx = sp.width * cam.zoom * lmScale;
+          if (sx < -lenPx || sy < -lenPx || sx > rtW + lenPx || sy > rtH + lenPx) continue;
 
-        if (nightFactor > 0.14 || pl.dayVisible) {
-          const haloAlpha = Math.max(pl.dayVisible ? 0.11 : 0, 0.16 * nightFactor) * baseInt;
-          this.stampImg
-            .setPosition(sx, sy)
-            .setScale(scale * 0.85)
-            .setTint(pl.color)
-            .setAlpha(haloAlpha)
-            .setBlendMode(Phaser.BlendModes.ADD);
-          this.beamMap.draw(this.stampImg);
-        }
-      }
-
-      // Soft-falloff tower spotlights anchored at tower origin
-      for (const sp of spotLights) {
-        const sx = toScreenX(sp.x);
-        const sy = toScreenY(sp.y);
-        const lenPx = sp.length * cam.zoom;
-        const wPx = sp.width * cam.zoom;
-        if (sx < -lenPx || sy < -lenPx || sx > vw + lenPx || sy > vh + lenPx) continue;
-
-        const baseInt = sp.intensity ?? 0.95;
-        const intensity = Math.min(1, baseInt * Math.max(0.25, nightFactor));
-        const sxScale = lenPx / 240;
-        const syScale = wPx / 112;
-
-        if (nightFactor > 0.05) {
+          const baseInt = sp.intensity ?? 0.95;
+          const intensity = Math.min(1, baseInt * Math.max(0.25, nightFactor));
           this.spotImg
             .setPosition(sx, sy)
             .setRotation(sp.angle)
-            .setScale(sxScale, syScale)
+            .setScale(lenPx / 240, wPx / 112)
             .setTint(sp.color)
             .setAlpha(intensity)
             .setBlendMode(Phaser.BlendModes.ADD);
-          this.lightmap.draw(this.spotImg);
+          this.lightmap.batchDraw(this.spotImg);
         }
+        this.lightmap.endDraw();
+      }
 
-        if (nightFactor > 0.14) {
-          this.spotImg
+      if (nightFactor > 0.14 || pointLights.some((p) => p.dayVisible)) {
+        this.beamMap.beginDraw();
+        for (const pl of pointLights) {
+          if (nightFactor <= 0.14 && !pl.dayVisible) continue;
+          const sx = toRtX(pl.x);
+          const sy = toRtY(pl.y);
+          const seed = pl.x * 0.13 + pl.y * 0.07;
+          const flicker = pl.flicker
+            ? 1 + Math.sin(tSec * 9.5 + seed) * 0.055 + Math.sin(tSec * 17.3 + seed * 1.7) * 0.035
+            : 1;
+          const sr = pl.radius * flicker * cam.zoom * lmScale;
+          if (sx < -sr || sy < -sr || sx > rtW + sr || sy > rtH + sr) continue;
+
+          const scale = ((sr * 2) / 128) * 0.85;
+          const baseInt = (pl.intensity ?? 0.9) * flicker;
+          const haloAlpha = Math.max(pl.dayVisible ? 0.11 : 0, 0.16 * nightFactor) * baseInt;
+          this.stampImg
             .setPosition(sx, sy)
-            .setRotation(sp.angle)
-            .setScale(sxScale, syScale)
-            .setTint(sp.color)
-            .setAlpha(0.22 * nightFactor * baseInt)
+            .setScale(scale)
+            .setTint(pl.color)
+            .setAlpha(haloAlpha)
             .setBlendMode(Phaser.BlendModes.ADD);
-          this.beamMap.draw(this.spotImg);
+          this.beamMap.batchDraw(this.stampImg);
         }
+        if (nightFactor > 0.14) {
+          for (const sp of spotLights) {
+            const sx = toRtX(sp.x);
+            const sy = toRtY(sp.y);
+            const lenPx = sp.length * cam.zoom * lmScale;
+            const wPx = sp.width * cam.zoom * lmScale;
+            if (sx < -lenPx || sy < -lenPx || sx > rtW + lenPx || sy > rtH + lenPx) continue;
+
+            const baseInt = sp.intensity ?? 0.95;
+            this.spotImg
+              .setPosition(sx, sy)
+              .setRotation(sp.angle)
+              .setScale(lenPx / 240, wPx / 112)
+              .setTint(sp.color)
+              .setAlpha(0.22 * nightFactor * baseInt)
+              .setBlendMode(Phaser.BlendModes.ADD);
+            this.beamMap.batchDraw(this.spotImg);
+          }
+        }
+        this.beamMap.endDraw();
       }
     }
 
@@ -345,14 +372,19 @@ export class LightingSystem {
   public resize(width: number, height: number): void {
     const vw = Math.max(320, width);
     const vh = Math.max(200, height);
-    if (this.lightmap.width !== vw || this.lightmap.height !== vh) {
-      this.lightmap.resize(vw, vh);
-      this.beamMap.resize(vw, vh);
+    const pad = LightingSystem.EDGE_PAD;
+    const lmScale = LightingSystem.LIGHTMAP_SCALE;
+    const rtW = Math.ceil((vw + pad * 2) * lmScale);
+    const rtH = Math.ceil((vh + pad * 2) * lmScale);
+    if (this.lightmap.width !== rtW || this.lightmap.height !== rtH) {
+      this.lightmap.resize(rtW, rtH);
+      this.beamMap.resize(rtW, rtH);
     }
     const cam = this.scene.cameras?.main;
     const zoom = cam?.zoom ?? 1;
-    this.lightmap.setPosition(vw / 2, vh / 2).setScale(1 / zoom);
-    this.beamMap.setPosition(vw / 2, vh / 2).setScale(1 / zoom);
+    const dispScale = 1 / (zoom * lmScale);
+    this.lightmap.setPosition(vw / 2, vh / 2).setScale(dispScale);
+    this.beamMap.setPosition(vw / 2, vh / 2).setScale(dispScale);
   }
 
   public destroy(): void {

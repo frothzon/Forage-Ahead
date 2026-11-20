@@ -74,7 +74,9 @@ class DialogueBoxManager {
   private tokens: RichCharToken[] = [];
   private charSpans: HTMLElement[] = [];
   private revealedCount = 0;
-  private typeTimer?: number;
+  private typeRafId?: number;
+  private typeStartMs = 0;
+  private lastBlipAtMs = 0;
   private keyHandler?: (e: KeyboardEvent) => void;
   private stylesInjected = false;
 
@@ -155,6 +157,7 @@ class DialogueBoxManager {
     panel.style.cssText = `
       width: min(700px, 96vw); min-height: 152px;
       display: flex; gap: 14px; padding: 8px 10px; align-items: stretch;
+      contain: layout style paint; will-change: transform, opacity;
       animation: dlgSlideUp 0.22s ease-out forwards;
     `;
 
@@ -284,7 +287,10 @@ class DialogueBoxManager {
 
   private renderCurrentLine(): void {
     if (!this.cfg || !this.textEl || !this.actionsEl || !this.hintEl) return;
-    if (this.typeTimer) window.clearInterval(this.typeTimer);
+    if (this.typeRafId !== undefined) {
+      cancelAnimationFrame(this.typeRafId);
+      this.typeRafId = undefined;
+    }
 
     const raw = this.cfg.lines[this.lineIndex] ?? '';
     this.tokens = parseRichDialogue(raw);
@@ -293,6 +299,7 @@ class DialogueBoxManager {
     this.textEl.innerHTML = '';
     this.actionsEl.innerHTML = '';
 
+    const frag = document.createDocumentFragment();
     this.tokens.forEach((tok, idx) => {
       const span = document.createElement('span');
       span.textContent = tok.ch === ' ' && tok.effect ? '\u00A0' : tok.ch;
@@ -305,9 +312,10 @@ class DialogueBoxManager {
         span.style.animationDelay = `${(idx % 8) * 55}ms`;
       }
       span.style.opacity = '0';
-      this.textEl!.appendChild(span);
+      frag.appendChild(span);
       this.charSpans.push(span);
     });
+    this.textEl.appendChild(frag);
 
     const isLast = this.lineIndex >= this.cfg.lines.length - 1;
     const mobile = isMobileTouchDevice();
@@ -317,28 +325,35 @@ class DialogueBoxManager {
         : 'Choose an option or [Space]'
       : `Page ${this.lineIndex + 1}/${this.cfg.lines.length} • ${mobile ? 'Tap' : 'Click or [Space]'}`;
 
-    this.typeTimer = window.setInterval(() => {
+    this.typeStartMs = performance.now();
+    this.lastBlipAtMs = 0;
+    const step = (now: number) => {
+      if (!this.active) return;
+      const target = Math.min(this.charSpans.length, Math.floor((now - this.typeStartMs) / 18) + 1);
+      let playedBlip = false;
+      while (this.revealedCount < target) {
+        this.charSpans[this.revealedCount].style.opacity = '1';
+        const ch = this.tokens[this.revealedCount]?.ch ?? '';
+        if (!playedBlip && ch.trim() && now - this.lastBlipAtMs >= 65) {
+          this.lastBlipAtMs = now;
+          playedBlip = true;
+          SFX.playDialogueBlip(this.cfg?.voicePitch ?? 1);
+        }
+        this.revealedCount += 1;
+      }
       if (this.revealedCount >= this.charSpans.length) {
         this.finishTyping();
         return;
       }
-      const sp = this.charSpans[this.revealedCount];
-      sp.style.opacity = '1';
-      const ch = this.tokens[this.revealedCount]?.ch ?? '';
-      if (ch.trim() && this.revealedCount % 2 === 0) {
-        SFX.playDialogueBlip(this.cfg?.voicePitch ?? 1);
-      }
-      this.revealedCount += 1;
-      if (this.revealedCount >= this.charSpans.length) {
-        this.finishTyping();
-      }
-    }, 22);
+      this.typeRafId = requestAnimationFrame(step);
+    };
+    this.typeRafId = requestAnimationFrame(step);
   }
 
   private finishTyping(): void {
-    if (this.typeTimer) {
-      window.clearInterval(this.typeTimer);
-      this.typeTimer = undefined;
+    if (this.typeRafId !== undefined) {
+      cancelAnimationFrame(this.typeRafId);
+      this.typeRafId = undefined;
     }
     this.charSpans.forEach((sp) => {
       sp.style.opacity = '1';
@@ -399,9 +414,9 @@ class DialogueBoxManager {
   }
 
   public close(invokeOnClose = true): void {
-    if (this.typeTimer) {
-      window.clearInterval(this.typeTimer);
-      this.typeTimer = undefined;
+    if (this.typeRafId !== undefined) {
+      cancelAnimationFrame(this.typeRafId);
+      this.typeRafId = undefined;
     }
     if (this.keyHandler) {
       window.removeEventListener('keydown', this.keyHandler);

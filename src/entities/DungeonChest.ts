@@ -88,6 +88,10 @@ export class DungeonChest {
 
   public update(dtMs: number): void {
     if (this.opened || this.locked) return;
+    const view = this.scene.cameras?.main?.worldView;
+    if (view && (this.x < view.x - 16 || this.x > view.right + 16 || this.y < view.y - 16 || this.y > view.bottom + 16)) {
+      return;
+    }
     this.sparkleTimerMs -= dtMs;
     if (this.sparkleTimerMs <= 0) {
       this.sparkleTimerMs = 520 + Math.random() * 380;

@@ -580,10 +580,22 @@ export class DungeonScene extends Phaser.Scene {
       }
     }
 
+    const activeTileSet = new Set<string>();
+    for (const r of layout.rooms) {
+      const ox = (r.gx - minGx) * WFC_ROOM_W;
+      const oy = (r.gy - minGy) * WFC_ROOM_H;
+      for (let ly = 0; ly < WFC_ROOM_H; ly++) {
+        for (let lx = 0; lx < WFC_ROOM_W; lx++) {
+          activeTileSet.add(`${ox + lx},${oy + ly}`);
+        }
+      }
+    }
+
     const vis = DUNGEON_THEME_VISUALS[this.cfg.id];
-    // Render autotiled walls, wall-base drop shadows, & floor tiles using CuteRPG sheet
+    // Render autotiled walls, wall-base drop shadows, & floor tiles only for active WFC room cells
     for (let ty = 0; ty < this.worldTilesH; ty++) {
       for (let tx = 0; tx < this.worldTilesW; tx++) {
+        if (!activeTileSet.has(`${tx},${ty}`)) continue;
         const isWall = this.solidGrid[ty][tx];
         const px = tx * TILE_PX + 8;
         const py = ty * TILE_PX + 8;
@@ -668,27 +680,9 @@ export class DungeonScene extends Phaser.Scene {
       for (const t of detail.torches) {
         const txPx = (ox + t.lx) * TILE_PX + 8;
         const tyPx = (oy + t.ly) * TILE_PX + 8;
-        const torchSpr = this.add
+        this.add
           .image(txPx, tyPx, vis.torchSheet, vis.torchFrame)
           .setDepth(tyPx);
-        const halo = this.add.circle(txPx, tyPx - 2, 9, 0xff9e44, 0.16).setDepth(tyPx - 1);
-        this.tweens.add({
-          targets: halo,
-          scale: { from: 0.9, to: 1.2 },
-          alpha: { from: 0.11, to: 0.22 },
-          duration: 340 + ((ox + t.lx) % 5) * 45,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.InOut',
-        });
-        this.tweens.add({
-          targets: torchSpr,
-          scaleY: { from: 0.96, to: 1.05 },
-          duration: 240 + ((oy + t.ly) % 4) * 40,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.InOut',
-        });
         this.torchPositions.push({ x: txPx, y: tyPx - 3 });
         this.torchLights.push({ x: txPx, y: tyPx, radius: 44, color: 0xffb85c, intensity: 1, flicker: true });
       }

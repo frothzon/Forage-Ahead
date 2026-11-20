@@ -80,6 +80,7 @@ export const SPROUT_UI_CSS = `
     border-width: calc(5px * var(--ui-scale)) calc(5px * var(--ui-scale)) calc(7px * var(--ui-scale)) calc(5px * var(--ui-scale));
     background: transparent;
     color: var(--sl-text-dark);
+    text-shadow: 0 1px 0 rgba(255, 246, 229, 0.72);
     image-rendering: pixelated;
   }
 

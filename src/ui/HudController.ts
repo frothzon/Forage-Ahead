@@ -1181,6 +1181,7 @@ export class HudController {
         border-image-width: 10px;
         border-width: 5px;
         background: transparent;
+        text-shadow: 0 1px 0 rgba(255, 246, 229, 0.72);
         image-rendering: pixelated;
         box-sizing: border-box;
       }
@@ -1262,6 +1263,8 @@ export class HudController {
         height: clamp(40px, 6.2vh, 56px);
         background: url('assets/sprout_ui/slots/slot_round_light.png') no-repeat center / 100% 100%;
         image-rendering: pixelated;
+        color: #3b2316;
+        text-shadow: none;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1283,6 +1286,7 @@ export class HudController {
         border-image-width: 8px 8px 10px 8px;
         border-width: 4px 6px 6px 6px;
         color: #3b2316;
+        text-shadow: 0 1px 0 rgba(255, 246, 229, 0.72);
         image-rendering: pixelated;
         cursor: url('/assets/sprout_ui/cursors/cursor_catpaw_pointing_2x.png') 8 4, pointer;
       }
@@ -2292,7 +2296,7 @@ export class HudController {
              title="${def ? `${def.name} — Drag to move, equip, or assign to Hotbar 1-9` : 'Empty Slot'}">
           ${isSelected ? `<img src="assets/sprout_ui/selectors/selector_c_tl.png" class="slot-corner tl" /><img src="assets/sprout_ui/selectors/selector_c_tr.png" class="slot-corner tr" /><img src="assets/sprout_ui/selectors/selector_c_bl.png" class="slot-corner bl" /><img src="assets/sprout_ui/selectors/selector_c_br.png" class="slot-corner br" />` : ''}
           ${def?.iconKey ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:26px; height:26px; pointer-events:none;" />` : ''}
-          ${slot && slot.count > 1 ? `<span style="position:absolute; bottom:2px; right:4px; font-size:10px; font-weight:800; color:#3b2316; pointer-events:none;">${slot.count}</span>` : ''}
+          ${slot && slot.count > 1 ? `<span style="position:absolute; bottom:2px; right:4px; font-size:10px; font-weight:800; color:#fff6e5; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109; pointer-events:none;">${slot.count}</span>` : ''}
           ${def?.equipSlot ? `<span style="position:absolute; top:2px; left:4px; font-size:8px; font-weight:800; color:#216b2b; pointer-events:none;">E</span>` : ''}
         </div>
       `;
@@ -2949,7 +2953,7 @@ export class HudController {
 
     const debugPanelHtml = gameState.debugMode
       ? `
-        <div class="hud-panel" style="padding:10px; background:#1a1410;">
+        <div class="hud-panel-inset" style="padding:10px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
             <strong style="color:#ffbe6b; font-size:12px;">Debug Mode — Testing & Cheat Controls</strong>
             <button class="hud-btn" data-dbg="toggle_mode" style="padding:2px 8px; font-size:10px;">Debug: ON (Turn Off)</button>
