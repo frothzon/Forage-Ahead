@@ -53,15 +53,22 @@ function multiplyColors(c1: number, c2: number): number {
  * point lights and smooth-fading spotlights illuminate the world naturally.
  */
 export class LightingSystem {
-  private static readonly EDGE_PAD = 48;
+  private static readonly EDGE_PAD = 64;
   private static readonly MAX_DARKNESS_OPACITY = 0.65;
-  private static readonly LIGHTMAP_SCALE = 0.5;
+  private static readonly LIGHT_REDRAW_INTERVAL_MS = 33;
 
   private scene: Phaser.Scene;
   private lightmap: Phaser.GameObjects.RenderTexture;
   private beamMap: Phaser.GameObjects.RenderTexture;
   private stampImg: Phaser.GameObjects.Image;
   private spotImg: Phaser.GameObjects.Image;
+  private pureAddBlendMode: number = Phaser.BlendModes.ADD;
+  private lastRenderTime = -Infinity;
+  private lastRenderViewX = 0;
+  private lastRenderViewY = 0;
+  private lastRenderZoom = 1;
+  private lastAmbient = -1;
+  private forceRedraw = true;
 
   /** 0.00..0.20 Dawn, 0.20..0.60 Day, 0.60..0.78 Dusk, 0.78..1.00 Night */
   public timeOfDay = 0.32;
@@ -76,14 +83,13 @@ export class LightingSystem {
     const w = Math.max(320, scene.scale.width);
     const h = Math.max(200, scene.scale.height);
     const pad = LightingSystem.EDGE_PAD;
-    const lmScale = LightingSystem.LIGHTMAP_SCALE;
-    const rtW = Math.ceil((w + pad * 2) * lmScale);
-    const rtH = Math.ceil((h + pad * 2) * lmScale);
+    const rtW = w + pad * 2;
+    const rtH = h + pad * 2;
 
     this.lightmap = scene.add
       .renderTexture(w / 2, h / 2, rtW, rtH)
       .setOrigin(0.5, 0.5)
-      .setScale(1 / lmScale)
+      .setFlipY(true)
       .setScrollFactor(0)
       .setDepth(8900)
       .setBlendMode(Phaser.BlendModes.MULTIPLY);
@@ -91,10 +97,22 @@ export class LightingSystem {
     this.beamMap = scene.add
       .renderTexture(w / 2, h / 2, rtW, rtH)
       .setOrigin(0.5, 0.5)
-      .setScale(1 / lmScale)
+      .setFlipY(true)
       .setScrollFactor(0)
       .setDepth(8901)
       .setBlendMode(Phaser.BlendModes.ADD);
+
+    // Register pure RGB additive blend mode (ONE, ONE, ZERO, ONE) so dst.alpha stays 1.0
+    // and overlapping light quads never carve dark squares via DST_ALPHA.
+    const renderer = scene.renderer;
+    if (renderer && renderer.type === Phaser.WEBGL) {
+      const glRenderer = renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+      const gl = glRenderer.gl;
+      this.pureAddBlendMode = glRenderer.addBlendMode(
+        [gl.ONE, gl.ONE, gl.ZERO, gl.ONE],
+        gl.FUNC_ADD,
+      );
+    }
 
     // Off-scene stamp helpers
     this.stampImg = scene.make.image({ key: '_light_radial', add: false });
@@ -238,17 +256,13 @@ export class LightingSystem {
     const vw = Math.max(320, this.scene.scale.width);
     const vh = Math.max(200, this.scene.scale.height);
     const pad = LightingSystem.EDGE_PAD;
-    const lmScale = LightingSystem.LIGHTMAP_SCALE;
-    const rtW = Math.ceil((vw + pad * 2) * lmScale);
-    const rtH = Math.ceil((vh + pad * 2) * lmScale);
+    const rtW = vw + pad * 2;
+    const rtH = vh + pad * 2;
     if (this.lightmap.width !== rtW || this.lightmap.height !== rtH) {
       this.lightmap.resize(rtW, rtH);
       this.beamMap.resize(rtW, rtH);
+      this.forceRedraw = true;
     }
-    // Scale 0.5x lightmap/beamMap up to cover screen pixels + edge padding cleanly
-    const dispScale = 1 / (cam.zoom * lmScale);
-    this.lightmap.setPosition(vw / 2, vh / 2).setScale(dispScale);
-    this.beamMap.setPosition(vw / 2, vh / 2).setScale(dispScale);
 
     const base = this.getAmbientColor();
     let ambient = base.color;
@@ -262,21 +276,98 @@ export class LightingSystem {
     // Cap darkness overlay at 65% opacity (35% light at peak night)
     ambient = lerpColor(0xffffff, ambient, LightingSystem.MAX_DARKNESS_OPACITY);
 
-    this.lightmap.fill(ambient, 1);
-    this.beamMap.clear();
-
     const viewW = vw / cam.zoom;
     const viewH = vh / cam.zoom;
     const viewX = cam.scrollX + (vw - viewW) * 0.5;
     const viewY = cam.scrollY + (vh - viewH) * 0.5;
-    const toRtX = (wx: number) => ((wx - viewX) * cam.zoom + pad) * lmScale;
-    const toRtY = (wy: number) => ((wy - viewY) * cam.zoom + pad) * lmScale;
+    const dispScale = 1 / cam.zoom;
 
-    // Batched Pass 1 (lightmap) & Pass 2 (beamMap) — 1 FBO bind per RenderTexture instead of 2 per light
-    const tSec = this.scene.time.now * 0.001;
-    if (nightFactor > 0.04 || pointLights.length > 0) {
-      if (nightFactor > 0.05) {
-        this.lightmap.beginDraw();
+    const now = this.scene.time.now;
+    const scrollDx = (this.lastRenderViewX - viewX) * cam.zoom;
+    const scrollDy = (this.lastRenderViewY - viewY) * cam.zoom;
+    const needsRedraw =
+      this.forceRedraw ||
+      now - this.lastRenderTime >= LightingSystem.LIGHT_REDRAW_INTERVAL_MS ||
+      cam.zoom !== this.lastRenderZoom ||
+      ambient !== this.lastAmbient ||
+      Math.abs(scrollDx) > pad * 0.75 ||
+      Math.abs(scrollDy) > pad * 0.75;
+
+    if (!needsRedraw) {
+      // Shift cached lightmaps by exact camera delta so lights stay 100% locked to world coordinates
+      this.lightmap.setPosition(vw / 2 + scrollDx, vh / 2 + scrollDy).setScale(dispScale);
+      this.beamMap.setPosition(vw / 2 + scrollDx, vh / 2 + scrollDy).setScale(dispScale);
+      return dayWrapped;
+    }
+
+    this.forceRedraw = false;
+    this.lastRenderTime = now;
+    this.lastRenderViewX = viewX;
+    this.lastRenderViewY = viewY;
+    this.lastRenderZoom = cam.zoom;
+    this.lastAmbient = ambient;
+
+    this.lightmap.setPosition(vw / 2, vh / 2).setScale(dispScale);
+    this.beamMap.setPosition(vw / 2, vh / 2).setScale(dispScale);
+
+    this.lightmap.fill(ambient, 1);
+    this.beamMap.clear();
+
+    const toRtX = (wx: number) => (wx - viewX) * cam.zoom + pad;
+    const toRtY = (wy: number) => (wy - viewY) * cam.zoom + pad;
+
+    const tSec = now * 0.001;
+    const hasLights = nightFactor > 0.04 || pointLights.length > 0;
+    if (!hasLights) {
+      return dayWrapped;
+    }
+
+    // Helper to stamp directly onto a RenderTexture's WebGL renderTarget without beginDraw's
+    // transparent canvasTarget + full-screen blitFrame (eliminates DST_ALPHA square artifacts
+    // and keeps fill(ambient, 1) untouched).
+    const renderDirectToRT = (
+      rt: Phaser.GameObjects.RenderTexture,
+      drawFn: () => void,
+    ): void => {
+      const dt = rt.texture as unknown as {
+        renderTarget: Phaser.Renderer.WebGL.RenderTarget | null;
+        camera: Phaser.Cameras.Scene2D.Camera;
+        dirty: boolean;
+      };
+      const renderer = this.scene.renderer;
+      if (dt.renderTarget && renderer && renderer.type === Phaser.WEBGL) {
+        const glRenderer = renderer as Phaser.Renderer.WebGL.WebGLRenderer;
+        dt.camera.preRender();
+        dt.renderTarget.bind(true, rtW, rtH);
+        glRenderer.setProjectionMatrix(rtW, rtH);
+        drawFn();
+        dt.renderTarget.unbind(true);
+        glRenderer.resetProjectionMatrix();
+        glRenderer.resetViewport();
+        glRenderer.resetScissor();
+        dt.dirty = true;
+      }
+    };
+
+    const renderer = this.scene.renderer;
+    const isWebGL = renderer && renderer.type === Phaser.WEBGL;
+    const glRenderer = isWebGL ? (renderer as Phaser.Renderer.WebGL.WebGLRenderer) : null;
+    const renderImgWebGL = (img: Phaser.GameObjects.Image, camObj: Phaser.Cameras.Scene2D.Camera) => {
+      if (!glRenderer) return;
+      glRenderer.setBlendMode(this.pureAddBlendMode);
+      (img as unknown as {
+        renderWebGL: (
+          r: Phaser.Renderer.WebGL.WebGLRenderer,
+          src: Phaser.GameObjects.Image,
+          c: Phaser.Cameras.Scene2D.Camera,
+        ) => void;
+      }).renderWebGL(glRenderer, img, camObj);
+    };
+
+    // Pass 1: Draw point & spot lights directly into lightmap (on top of fill(ambient, 1))
+    if (nightFactor > 0.05) {
+      const lmCamera = (this.lightmap.texture as unknown as { camera: Phaser.Cameras.Scene2D.Camera }).camera;
+      const drawLightmapStamps = () => {
         for (const pl of pointLights) {
           const sx = toRtX(pl.x);
           const sy = toRtY(pl.y);
@@ -284,7 +375,7 @@ export class LightingSystem {
           const flicker = pl.flicker
             ? 1 + Math.sin(tSec * 9.5 + seed) * 0.055 + Math.sin(tSec * 17.3 + seed * 1.7) * 0.035
             : 1;
-          const sr = pl.radius * flicker * cam.zoom * lmScale;
+          const sr = pl.radius * flicker * cam.zoom;
           if (sx < -sr || sy < -sr || sx > rtW + sr || sy > rtH + sr) continue;
 
           const scale = (sr * 2) / 128;
@@ -295,14 +386,18 @@ export class LightingSystem {
             .setScale(scale)
             .setTint(pl.color)
             .setAlpha(lightPower)
-            .setBlendMode(Phaser.BlendModes.ADD);
-          this.lightmap.batchDraw(this.stampImg);
+            .setBlendMode(this.pureAddBlendMode);
+          if (glRenderer) {
+            renderImgWebGL(this.stampImg, lmCamera);
+          } else {
+            this.lightmap.draw(this.stampImg);
+          }
         }
         for (const sp of spotLights) {
           const sx = toRtX(sp.x);
           const sy = toRtY(sp.y);
-          const lenPx = sp.length * cam.zoom * lmScale;
-          const wPx = sp.width * cam.zoom * lmScale;
+          const lenPx = sp.length * cam.zoom;
+          const wPx = sp.width * cam.zoom;
           if (sx < -lenPx || sy < -lenPx || sx > rtW + lenPx || sy > rtH + lenPx) continue;
 
           const baseInt = sp.intensity ?? 0.95;
@@ -313,14 +408,26 @@ export class LightingSystem {
             .setScale(lenPx / 240, wPx / 112)
             .setTint(sp.color)
             .setAlpha(intensity)
-            .setBlendMode(Phaser.BlendModes.ADD);
-          this.lightmap.batchDraw(this.spotImg);
+            .setBlendMode(this.pureAddBlendMode);
+          if (glRenderer) {
+            renderImgWebGL(this.spotImg, lmCamera);
+          } else {
+            this.lightmap.draw(this.spotImg);
+          }
         }
-        this.lightmap.endDraw();
-      }
+      };
 
-      if (nightFactor > 0.14 || pointLights.some((p) => p.dayVisible)) {
-        this.beamMap.beginDraw();
+      if (glRenderer) {
+        renderDirectToRT(this.lightmap, drawLightmapStamps);
+      } else {
+        drawLightmapStamps();
+      }
+    }
+
+    // Pass 2: Subtle additive colored halo in beamMap
+    if (nightFactor > 0.14 || pointLights.some((p) => p.dayVisible)) {
+      const bmCamera = (this.beamMap.texture as unknown as { camera: Phaser.Cameras.Scene2D.Camera }).camera;
+      const drawBeamStamps = () => {
         for (const pl of pointLights) {
           if (nightFactor <= 0.14 && !pl.dayVisible) continue;
           const sx = toRtX(pl.x);
@@ -329,7 +436,7 @@ export class LightingSystem {
           const flicker = pl.flicker
             ? 1 + Math.sin(tSec * 9.5 + seed) * 0.055 + Math.sin(tSec * 17.3 + seed * 1.7) * 0.035
             : 1;
-          const sr = pl.radius * flicker * cam.zoom * lmScale;
+          const sr = pl.radius * flicker * cam.zoom;
           if (sx < -sr || sy < -sr || sx > rtW + sr || sy > rtH + sr) continue;
 
           const scale = ((sr * 2) / 128) * 0.85;
@@ -340,15 +447,19 @@ export class LightingSystem {
             .setScale(scale)
             .setTint(pl.color)
             .setAlpha(haloAlpha)
-            .setBlendMode(Phaser.BlendModes.ADD);
-          this.beamMap.batchDraw(this.stampImg);
+            .setBlendMode(this.pureAddBlendMode);
+          if (glRenderer) {
+            renderImgWebGL(this.stampImg, bmCamera);
+          } else {
+            this.beamMap.draw(this.stampImg);
+          }
         }
         if (nightFactor > 0.14) {
           for (const sp of spotLights) {
             const sx = toRtX(sp.x);
             const sy = toRtY(sp.y);
-            const lenPx = sp.length * cam.zoom * lmScale;
-            const wPx = sp.width * cam.zoom * lmScale;
+            const lenPx = sp.length * cam.zoom;
+            const wPx = sp.width * cam.zoom;
             if (sx < -lenPx || sy < -lenPx || sx > rtW + lenPx || sy > rtH + lenPx) continue;
 
             const baseInt = sp.intensity ?? 0.95;
@@ -358,11 +469,20 @@ export class LightingSystem {
               .setScale(lenPx / 240, wPx / 112)
               .setTint(sp.color)
               .setAlpha(0.22 * nightFactor * baseInt)
-              .setBlendMode(Phaser.BlendModes.ADD);
-            this.beamMap.batchDraw(this.spotImg);
+              .setBlendMode(this.pureAddBlendMode);
+            if (glRenderer) {
+              renderImgWebGL(this.spotImg, bmCamera);
+            } else {
+              this.beamMap.draw(this.spotImg);
+            }
           }
         }
-        this.beamMap.endDraw();
+      };
+
+      if (glRenderer) {
+        renderDirectToRT(this.beamMap, drawBeamStamps);
+      } else {
+        drawBeamStamps();
       }
     }
 
@@ -373,18 +493,18 @@ export class LightingSystem {
     const vw = Math.max(320, width);
     const vh = Math.max(200, height);
     const pad = LightingSystem.EDGE_PAD;
-    const lmScale = LightingSystem.LIGHTMAP_SCALE;
-    const rtW = Math.ceil((vw + pad * 2) * lmScale);
-    const rtH = Math.ceil((vh + pad * 2) * lmScale);
+    const rtW = vw + pad * 2;
+    const rtH = vh + pad * 2;
     if (this.lightmap.width !== rtW || this.lightmap.height !== rtH) {
       this.lightmap.resize(rtW, rtH);
       this.beamMap.resize(rtW, rtH);
     }
     const cam = this.scene.cameras?.main;
     const zoom = cam?.zoom ?? 1;
-    const dispScale = 1 / (zoom * lmScale);
+    const dispScale = 1 / zoom;
     this.lightmap.setPosition(vw / 2, vh / 2).setScale(dispScale);
     this.beamMap.setPosition(vw / 2, vh / 2).setScale(dispScale);
+    this.forceRedraw = true;
   }
 
   public destroy(): void {

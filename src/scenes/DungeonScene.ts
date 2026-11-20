@@ -606,7 +606,7 @@ export class DungeonScene extends Phaser.Scene {
           this.add
             .image(px, py, vis.sheet, frame)
             .setTint(vis.wallTint)
-            .setDepth(0);
+            .setDepth(belowFloor ? 0 : ty * TILE_PX + 15);
         } else {
           this.add
             .image(px, py, vis.sheet, vis.floorFrames[0])

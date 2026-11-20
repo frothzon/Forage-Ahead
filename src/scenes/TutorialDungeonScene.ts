@@ -286,7 +286,7 @@ export class TutorialDungeonScene extends Phaser.Scene {
         this.add
           .image(tx * TILE_PX + 8, ty * TILE_PX + 8, vis.sheet, belowFloor ? vis.wallFrontFrame : vis.wallVoidFrame)
           .setTint(vis.wallTint)
-          .setDepth(0);
+          .setDepth(belowFloor ? 0 : ty * TILE_PX + 15);
       }
     }
 
