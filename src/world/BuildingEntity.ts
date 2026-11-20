@@ -4,6 +4,7 @@ import { SFX } from '../core/SoundFX';
 import { ITEMS } from '../data/items';
 import { RECIPES, type StructureType } from '../data/recipes';
 import { SPROUT_CROP_BY_STRUCTURE, type SproutCropDef } from '../data/sproutCrops';
+import { computeWallCollisionBox } from './OutdoorBuildingStamps';
 import { applyWindShader } from './WindShader';
 
 export interface StructurePreviewSpec {
@@ -39,11 +40,11 @@ export function getStructurePreviewSpec(type: StructureType): StructurePreviewSp
     case 'fence_gate':
       return { texture: 'sprout/fence_gates', frame: 0, offsetY: 2, originY: 0.75 };
     case 'house_floor':
-      return { texture: 'sprout/house_walls', frame: 11, offsetY: 0, originY: 0.5 };
+      return { texture: 'sprout/house_walls', frame: 6, offsetY: 0, originY: 0.5 };
     case 'house_wall':
       return { texture: 'sprout/house_walls', frame: 1, offsetY: 2, originY: 0.75 };
     case 'house_door':
-      return { texture: 'sprout/house_door', frame: 0, offsetY: 2, originY: 0.75 };
+      return { texture: 'sprout/house_door', frame: 5, offsetY: 2, originY: 0.75 };
     case 'furniture_bed':
       return { texture: 'sprout/furniture', frame: 18, offsetY: 2, originY: 0.75 };
     case 'furniture_lamp':
@@ -85,8 +86,12 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
   public readonly structureType: StructureType;
   public readonly tx: number;
   public readonly ty: number;
+  public readonly readOnly: boolean;
+  public readonly needsTick: boolean;
+  public readonly emitsLight: boolean;
   public solid: boolean;
   public isOpen = false;
+  public looted = false;
   public readonly interactStation?:
     | 'furnace'
     | 'anvil'
@@ -109,6 +114,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
   private mainSprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
   private auraCircle?: Phaser.GameObjects.Arc;
   private progressText?: Phaser.GameObjects.Text;
+  private collisionBox?: { offsetX: number; offsetY: number; halfW: number; halfH: number };
 
   // Floating glowing craft preview + bar + radial gauge
   private craftGlow?: Phaser.GameObjects.Arc;
@@ -125,6 +131,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     ty: number,
     initialQueue: CraftQueueJob[] = [],
     initialCropStage = 0,
+    readOnly = false,
   ) {
     const px = tx * 16 + 8;
     const py = ty * 16 + 8;
@@ -133,6 +140,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     this.structureType = type;
     this.tx = tx;
     this.ty = ty;
+    this.readOnly = readOnly;
     this.craftQueue = initialQueue;
     this.cropStage = initialCropStage;
     this.solid =
@@ -142,6 +150,26 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       type !== 'house_floor' &&
       type !== 'furniture_lamp' &&
       type !== 'furniture_rug';
+    this.emitsLight =
+      type === 'bonfire' ||
+      type === 'furnace' ||
+      type === 'infernal_forge' ||
+      type === 'frost_kiln' ||
+      type === 'mining_rod' ||
+      type === 'furniture_lamp' ||
+      type === 'lighthouse';
+    this.needsTick =
+      type === 'furnace' ||
+      type === 'anvil' ||
+      type === 'bonfire' ||
+      type === 'alchemy_lab' ||
+      type === 'frost_kiln' ||
+      type === 'infernal_forge' ||
+      type === 'void_altar' ||
+      type === 'mining_rod' ||
+      type === 'fish_trap' ||
+      type === 'nest' ||
+      type.startsWith('crop_');
 
     switch (type) {
       case 'furnace': {
@@ -214,7 +242,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         break;
       }
       case 'house_floor': {
-        this.mainSprite = scene.add.image(0, 0, 'sprout/house_walls', 11).setOrigin(0.5, 0.5);
+        this.mainSprite = scene.add.image(0, 0, 'sprout/house_walls', 6).setOrigin(0.5, 0.5);
         this.add(this.mainSprite);
         this.setDepth(2);
         break;
@@ -225,7 +253,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         break;
       }
       case 'house_door': {
-        this.mainSprite = scene.add.image(0, 2, 'sprout/house_door', 0).setOrigin(0.5, 0.75);
+        this.mainSprite = scene.add.image(0, 2, 'sprout/house_door', 5).setOrigin(0.5, 0.75);
         this.add(this.mainSprite);
         break;
       }
@@ -341,7 +369,24 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     this.collisionOffsetY = this.solid
       ? this.mainSprite.y + (0.75 - this.mainSprite.originY) * this.mainSprite.displayHeight
       : 0;
-    this.collisionRadius = type === 'lighthouse' ? 6.8 : 6;
+    this.collisionRadius =
+      type === 'lighthouse'
+        ? 6.8
+        : type === 'chest' ||
+            type === 'furniture_bed' ||
+            type === 'furniture_table' ||
+            type === 'water_well' ||
+            type === 'furnace' ||
+            type === 'anvil' ||
+            type === 'alchemy_lab'
+          ? 4.8
+          : 6;
+
+    if (type === 'house_wall') {
+      this.collisionBox = computeWallCollisionBox(1);
+    } else if (type === 'house_door') {
+      this.collisionBox = { offsetX: 0, offsetY: 0, halfW: 8.5, halfH: 6.5 };
+    }
 
     this.setDepth(
       type === 'house_floor' ? 2 : type === 'furniture_rug' ? 3 : this.solid ? py + this.collisionOffsetY : 6,
@@ -352,6 +397,40 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
 
   public getCollisionCenter(): { x: number; y: number } {
     return { x: this.x, y: this.y + this.collisionOffsetY };
+  }
+
+  public collidesAt(wx: number, wy: number): boolean {
+    if (!this.active || !this.solid) return false;
+    if (this.collisionBox) {
+      const cx = this.x + this.collisionBox.offsetX;
+      const cy = this.y + this.collisionBox.offsetY;
+      return (
+        Math.abs(wx - cx) < this.collisionBox.halfW &&
+        Math.abs(wy - cy) < this.collisionBox.halfH
+      );
+    }
+    const c = this.getCollisionCenter();
+    return Math.hypot(wx - c.x, wy - c.y) < this.collisionRadius;
+  }
+
+  public setIndoorLightVisible(alpha: number): void {
+    if (!this.auraCircle) return;
+    if (alpha <= 0.02) {
+      this.auraCircle.setVisible(false);
+    } else {
+      this.auraCircle.setVisible(true).setAlpha(alpha);
+    }
+  }
+
+  public playChestOpen(): void {
+    if (this.structureType !== 'chest') return;
+    SFX.playChestOpen();
+    if (this.scene.anims.exists('prop_chest_small_open')) {
+      const animSpr = this.scene.add.sprite(0, 2, 'objects/Chest_small', 0).setOrigin(0.5, 0.7);
+      this.mainSprite.setVisible(false);
+      this.add(animSpr);
+      animSpr.play('prop_chest_small_open');
+    }
   }
 
   public isCraftingStation(): boolean {
@@ -479,6 +558,14 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     });
   }
 
+  public setWallFrame(frame: number): void {
+    if (this.structureType !== 'house_wall') return;
+    if (this.mainSprite instanceof Phaser.GameObjects.Image) {
+      this.mainSprite.setFrame(frame);
+    }
+    this.collisionBox = computeWallCollisionBox(frame);
+  }
+
   public harvestCrop(): { itemId: string; count: number } | null {
     if (!this.isCropRipe()) return null;
     const baseSx = this.mainSprite.scaleX;
@@ -512,7 +599,9 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     if (this.structureType !== 'house_door' && this.structureType !== 'fence_gate') return false;
     this.isOpen = !this.isOpen;
     this.solid = !this.isOpen;
-    (this.mainSprite as Phaser.GameObjects.Image).setFrame(this.isOpen ? 4 : 0);
+    const openFrame = this.structureType === 'house_door' ? 0 : 4;
+    const closedFrame = this.structureType === 'house_door' ? 5 : 0;
+    (this.mainSprite as Phaser.GameObjects.Image).setFrame(this.isOpen ? openFrame : closedFrame);
     return this.isOpen;
   }
 

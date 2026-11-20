@@ -56,7 +56,6 @@ export class TutorialDungeonScene extends Phaser.Scene {
   private drops: LootDrop[] = [];
   private breakables: DungeonProp[] = [];
   private chests: TutorialChestEntry[] = [];
-  private targetIndicator?: Phaser.GameObjects.Rectangle;
 
   private room1Sigil!: { x: number; y: number; spr: Phaser.GameObjects.Image; active: boolean };
   private room3Sigils: Array<{ x: number; y: number; spr: Phaser.GameObjects.Image; active: boolean }> = [];
@@ -123,10 +122,6 @@ export class TutorialDungeonScene extends Phaser.Scene {
     this.lighting.timeOfDay = 0.88;
     this.lighting.paused = true;
     this.atmosphere = new DungeonAtmosphere(this, 0xe8dec8, 34);
-    this.targetIndicator = this.add
-      .rectangle(0, 0, 18, 18, 0x44ee88, 0.16)
-      .setStrokeStyle(1.4, 0x44ee88, 0.95)
-      .setVisible(false);
     this.player = new Player(this, 8 * TILE_PX, 6 * TILE_PX);
     if (gameState.heroClass === 'Beastmaster') {
       this.fox = new FoxCompanion(this, this.player.x - 14, this.player.y + 6);
@@ -465,14 +460,14 @@ export class TutorialDungeonScene extends Phaser.Scene {
       if (this.hud.activeModal !== 'none') this.hud.closeModal();
     });
 
-    for (let i = 1; i <= 9; i++) {
-      kb.on(`keydown-${i}`, () => {
-        if (this.hud.isBlockingInput()) return;
-        if (gameState.selectedHotbarIndex !== i - 1) SFX.playHotbarSelect();
-        gameState.selectedHotbarIndex = i - 1;
-        this.hud.render();
-      });
-    }
+    kb.on('keydown', (event: KeyboardEvent) => {
+      if (event.key < '1' || event.key > '9') return;
+      if (this.hud.isBlockingInput()) return;
+      const idx = Number(event.key) - 1;
+      if (gameState.selectedHotbarIndex !== idx) SFX.playHotbarSelect();
+      gameState.selectedHotbarIndex = idx;
+      this.hud.render();
+    });
 
     this.input.on(
       'pointerdown',
@@ -541,14 +536,7 @@ export class TutorialDungeonScene extends Phaser.Scene {
         return true;
       }
 
-      const iconMap: Record<TutorialChestEntry['id'], string | undefined> = {
-        pickaxe: ITEMS.pickaxe?.iconKey,
-        sword: ITEMS.sword?.iconKey,
-        shovel: ITEMS.shovel?.iconKey,
-        rod: ITEMS.fishing_rod?.iconKey,
-        vault_key: undefined,
-      };
-      ch.playOpenJuice(iconMap[entry.id]);
+      ch.playOpenJuice();
       this.cameraRig.zoomPunch(0.035, 110);
 
       if (entry.id === 'pickaxe') {
@@ -761,22 +749,12 @@ export class TutorialDungeonScene extends Phaser.Scene {
 
     let hintSet = false;
     if (nearExit) {
-      this.targetIndicator
-        ?.setSize(22, 16)
-        .setPosition(this.exitDoor.glow.x, this.exitDoor.glow.y)
-        .setDepth(this.exitDoor.spr.depth + 2)
-        .setVisible(true);
       this.hud.setTouchActionHint(this.exitUnlocked ? 'EXIT' : this.hasVaultKey ? 'UNLOCK' : 'LOCKED');
       hintSet = true;
     } else {
       for (const entry of this.chests) {
         const ch = entry.chest;
         if (!ch.opened && Math.hypot(ch.x - this.player.x, ch.y - this.player.y) <= 28) {
-          this.targetIndicator
-            ?.setSize(18, 18)
-            .setPosition(ch.x, ch.y)
-            .setDepth(ch.sprite.depth + 2)
-            .setVisible(true);
           this.hud.setTouchActionHint(ch.locked ? 'SEALED' : 'OPEN');
           hintSet = true;
           break;
@@ -784,7 +762,6 @@ export class TutorialDungeonScene extends Phaser.Scene {
       }
     }
     if (!hintSet) {
-      this.targetIndicator?.setVisible(false);
       this.hud.setTouchActionHint(null);
     }
 

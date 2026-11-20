@@ -449,12 +449,16 @@ export class Enemy extends Phaser.GameObjects.Container {
 
     const baseAng = Math.atan2(stepY, stepX);
     const probeDist = Math.max(stepLen, 7);
+    const midDist = probeDist * 0.5;
 
-    // If not actively detouring and straight ahead is clear, move directly with axis slide
+    // If not actively detouring and both midpoint and full probe ahead are clear, move directly with axis slide
     if (
       this.detourTimerMs <= 0 &&
+      isWalkable(this.x + Math.cos(baseAng) * midDist, this.y + Math.sin(baseAng) * midDist) &&
       isWalkable(this.x + Math.cos(baseAng) * probeDist, this.y + Math.sin(baseAng) * probeDist)
     ) {
+      const startX = this.x;
+      const startY = this.y;
       let moved = false;
       if (isWalkable(this.x + stepX, this.y)) {
         this.x += stepX;
@@ -464,7 +468,9 @@ export class Enemy extends Phaser.GameObjects.Container {
         this.y += stepY;
         moved = true;
       }
-      if (moved) return true;
+      if (moved && isWalkable(this.x, this.y)) return true;
+      this.x = startX;
+      this.y = startY;
     }
 
     // Steer around obstacles by probing angled directions around target vector
@@ -484,9 +490,11 @@ export class Enemy extends Phaser.GameObjects.Container {
       const ang = baseAng + off;
       const sx = Math.cos(ang) * stepLen;
       const sy = Math.sin(ang) * stepLen;
+      const mx = this.x + Math.cos(ang) * midDist;
+      const my = this.y + Math.sin(ang) * midDist;
       const px = this.x + Math.cos(ang) * probeDist;
       const py = this.y + Math.sin(ang) * probeDist;
-      if (isWalkable(px, py) && isWalkable(this.x + sx, this.y + sy)) {
+      if (isWalkable(mx, my) && isWalkable(px, py) && isWalkable(this.x + sx, this.y + sy)) {
         this.x += sx;
         this.y += sy;
         if (Math.abs(off) > 0.2) {

@@ -374,19 +374,23 @@ export class ResourceNode extends Phaser.GameObjects.Container {
       if (this.baseTint) this.sprite.setTint(this.baseTint);
       else this.sprite.clearTint();
     });
-    const recoilX = recoilDirX !== 0 ? Math.sign(recoilDirX) * 1.8 : (Math.random() < 0.5 ? -1.5 : 1.5);
+    const recoilX = recoilDirX !== 0 ? Math.sign(recoilDirX) * 2.2 : (Math.random() < 0.5 ? -2 : 2);
+    this.scene.tweens.killTweensOf(this.sprite);
     this.sprite.x = recoilX;
+    this.sprite.angle = Math.sign(recoilX) * 7;
     this.sprite.setScale(this.baseScale * 1.22, this.baseScale * 0.78);
     this.scene.tweens.add({
       targets: this.sprite,
       x: 0,
+      angle: 0,
       scaleX: this.baseScale,
       scaleY: this.baseScale,
-      duration: 90,
-      ease: 'Back.easeOut',
+      duration: 140,
+      ease: 'Elastic.Out',
       onComplete: () => {
         if (this.sprite.active) {
           this.sprite.x = 0;
+          this.sprite.angle = 0;
           this.sprite.setScale(this.baseScale, this.baseScale);
         }
       },

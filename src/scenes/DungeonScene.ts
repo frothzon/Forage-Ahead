@@ -166,6 +166,7 @@ interface WfcRoomRuntime {
   chest?: WfcChestRuntime;
   sigils: Array<{ x: number; y: number; spr: Phaser.GameObjects.Image; active: boolean }>;
   braziers: WfcBrazierRuntime[];
+  fogOverlay?: Phaser.GameObjects.Rectangle;
 }
 
 export class DungeonScene extends Phaser.Scene {
@@ -180,6 +181,8 @@ export class DungeonScene extends Phaser.Scene {
   private lighting!: LightingSystem;
   private atmosphere!: DungeonAtmosphere;
   private torchLights: PointLightSource[] = [];
+  private torchPositions: Array<{ x: number; y: number }> = [];
+  private torchEmberTimerMs = 0;
   private enemies: Enemy[] = [];
   private drops: LootDrop[] = [];
   private projectiles: ActiveProjectile[] = [];
@@ -287,6 +290,8 @@ export class DungeonScene extends Phaser.Scene {
     this.hasBossKey = false;
     this.returnPortal = undefined;
     this.torchLights = [];
+    this.torchPositions = [];
+    this.torchEmberTimerMs = 0;
 
     if (this.cfg.id === 'void_spire') {
       this.worldTilesW = ROOM_W;
@@ -576,21 +581,36 @@ export class DungeonScene extends Phaser.Scene {
     }
 
     const vis = DUNGEON_THEME_VISUALS[this.cfg.id];
-    // Render walls & doorway floor tiles using CuteRPG sheet
+    // Render autotiled walls, wall-base drop shadows, & floor tiles using CuteRPG sheet
     for (let ty = 0; ty < this.worldTilesH; ty++) {
       for (let tx = 0; tx < this.worldTilesW; tx++) {
         const isWall = this.solidGrid[ty][tx];
+        const px = tx * TILE_PX + 8;
+        const py = ty * TILE_PX + 8;
         if (isWall) {
           const belowFloor = ty + 1 < this.worldTilesH && !this.solidGrid[ty + 1][tx];
+          const aboveFloor = ty - 1 >= 0 && !this.solidGrid[ty - 1][tx];
+          const frame = belowFloor ? vis.wallFrontFrame : aboveFloor ? vis.wallTopFrame : vis.wallVoidFrame;
           this.add
-            .image(tx * TILE_PX + 8, ty * TILE_PX + 8, vis.sheet, belowFloor ? vis.wallFrontFrame : vis.wallVoidFrame)
+            .image(px, py, vis.sheet, frame)
             .setTint(vis.wallTint)
             .setDepth(0);
         } else {
           this.add
-            .image(tx * TILE_PX + 8, ty * TILE_PX + 8, vis.sheet, vis.floorFrames[0])
+            .image(px, py, vis.sheet, vis.floorFrames[0])
             .setTint(vis.floorTint)
             .setDepth(0);
+          // Wall-base drop shadow on floors directly south of a solid wall
+          if (ty - 1 >= 0 && this.solidGrid[ty - 1][tx]) {
+            this.add.rectangle(px, ty * TILE_PX + 2.5, TILE_PX, 5, 0x05040a, 0.36).setDepth(0.5);
+          }
+          // Subtle side-wall bevel shadow on floors adjacent to left/right walls
+          if (tx - 1 >= 0 && this.solidGrid[ty][tx - 1]) {
+            this.add.rectangle(tx * TILE_PX + 1.5, py, 3, TILE_PX, 0x05040a, 0.18).setDepth(0.5);
+          }
+          if (tx + 1 < this.worldTilesW && this.solidGrid[ty][tx + 1]) {
+            this.add.rectangle(tx * TILE_PX + TILE_PX - 1.5, py, 3, TILE_PX, 0x05040a, 0.18).setDepth(0.5);
+          }
         }
       }
     }
@@ -629,6 +649,15 @@ export class DungeonScene extends Phaser.Scene {
             .setDepth(0);
         }
       }
+      for (const dc of detail.decals) {
+        const dx = (ox + dc.lx) * TILE_PX + 8;
+        const dy = (oy + dc.ly) * TILE_PX + 8;
+        if (dc.kind === 'crack' || dc.kind === 'bone') {
+          this.add.rectangle(dx, dy, dc.size, 1.5, dc.color, dc.alpha).setAngle((dc.lx * 37 + dc.ly * 19) % 180).setDepth(0.6);
+        } else {
+          this.add.circle(dx, dy, dc.size * 0.55, dc.color, dc.alpha).setDepth(0.6);
+        }
+      }
       for (const rg of detail.rugs) {
         this.add
           .image((ox + rg.lx) * TILE_PX + 8, (oy + rg.ly) * TILE_PX + 8, vis.sheet, rg.frame)
@@ -639,9 +668,28 @@ export class DungeonScene extends Phaser.Scene {
       for (const t of detail.torches) {
         const txPx = (ox + t.lx) * TILE_PX + 8;
         const tyPx = (oy + t.ly) * TILE_PX + 8;
-        this.add
+        const torchSpr = this.add
           .image(txPx, tyPx, vis.torchSheet, vis.torchFrame)
           .setDepth(tyPx);
+        const halo = this.add.circle(txPx, tyPx - 2, 9, 0xff9e44, 0.16).setDepth(tyPx - 1);
+        this.tweens.add({
+          targets: halo,
+          scale: { from: 0.9, to: 1.2 },
+          alpha: { from: 0.11, to: 0.22 },
+          duration: 340 + ((ox + t.lx) % 5) * 45,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.InOut',
+        });
+        this.tweens.add({
+          targets: torchSpr,
+          scaleY: { from: 0.96, to: 1.05 },
+          duration: 240 + ((oy + t.ly) % 4) * 40,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.InOut',
+        });
+        this.torchPositions.push({ x: txPx, y: tyPx - 3 });
         this.torchLights.push({ x: txPx, y: tyPx, radius: 44, color: 0xffb85c, intensity: 1, flicker: true });
       }
       for (const pil of detail.pillars) {
@@ -657,6 +705,20 @@ export class DungeonScene extends Phaser.Scene {
         this.breakables.push(new DungeonProp(this, px, py, p.spec));
       }
 
+      const fogOverlay =
+        r.role === 'start'
+          ? undefined
+          : this.add
+              .rectangle(
+                ox * TILE_PX + (WFC_ROOM_W * TILE_PX) / 2,
+                oy * TILE_PX + (WFC_ROOM_H * TILE_PX) / 2,
+                WFC_ROOM_W * TILE_PX,
+                WFC_ROOM_H * TILE_PX,
+                0x07060d,
+                0.94,
+              )
+              .setDepth(8500);
+
       const rt: WfcRoomRuntime = {
         plan: r,
         ox,
@@ -669,6 +731,7 @@ export class DungeonScene extends Phaser.Scene {
         enemies: [],
         sigils: [],
         braziers: [],
+        fogOverlay,
       };
 
       if (r.role === 'start') {
@@ -897,14 +960,14 @@ export class DungeonScene extends Phaser.Scene {
       }
     });
 
-    for (let i = 1; i <= 9; i++) {
-      kb.on(`keydown-${i}`, () => {
-        if (this.hud.isBlockingInput()) return;
-        if (gameState.selectedHotbarIndex !== i - 1) SFX.playHotbarSelect();
-        gameState.selectedHotbarIndex = i - 1;
-        this.hud.render();
-      });
-    }
+    kb.on('keydown', (event: KeyboardEvent) => {
+      if (event.key < '1' || event.key > '9') return;
+      if (this.hud.isBlockingInput()) return;
+      const idx = Number(event.key) - 1;
+      if (gameState.selectedHotbarIndex !== idx) SFX.playHotbarSelect();
+      gameState.selectedHotbarIndex = idx;
+      this.hud.render();
+    });
 
     this.input.on(
       'pointerdown',
@@ -1034,8 +1097,7 @@ export class DungeonScene extends Phaser.Scene {
             this.hud.showToast('Chest Sealed — Solve the room puzzle first!');
             return true;
           }
-          const lootItem = this.cfg.chestLoot[0]?.itemId;
-          ch.playOpenJuice(lootItem ? ITEMS[lootItem]?.iconKey : undefined);
+          ch.playOpenJuice();
           this.cameraRig.zoomPunch(0.035, 110);
           this.spawnDrop(ch.x, ch.y + 10, 'coin', 30, true);
           for (const item of this.cfg.chestLoot) {
@@ -1348,6 +1410,17 @@ export class DungeonScene extends Phaser.Scene {
     if (enteredRm && enteredRm.plan.id !== this.currentRoomId) {
       this.currentRoomId = enteredRm.plan.id;
       this.discoveredRooms.add(enteredRm.plan.id);
+      if (enteredRm.fogOverlay) {
+        const shroud = enteredRm.fogOverlay;
+        enteredRm.fogOverlay = undefined;
+        this.tweens.add({
+          targets: shroud,
+          alpha: 0,
+          duration: 320,
+          ease: 'Quad.Out',
+          onComplete: () => shroud.destroy(),
+        });
+      }
       this.syncDungeonHud();
     }
 
@@ -1391,6 +1464,7 @@ export class DungeonScene extends Phaser.Scene {
           for (const d of this.wfcDoors) {
             if ((d.a === rm.plan.id || d.b === rm.plan.id) && d.opened) {
               this.applyDoorLockVisuals(d, 'combat_seal');
+              spawnBurstParticles(this, d.x, d.y, 0x9aa5b4, 6);
             }
           }
           SFX.playGateUnlock();
@@ -1442,6 +1516,11 @@ export class DungeonScene extends Phaser.Scene {
     if (bz.lit) return;
     bz.lit = true;
     bz.spr.clearTint().setAlpha(1);
+    if (this.anims.exists('prop_bonfire')) {
+      const animSpr = this.add.sprite(bz.x, bz.y, 'extras/Bonfire', 0).setDepth(bz.y + 1);
+      animSpr.play('prop_bonfire');
+      bz.spr.setVisible(false);
+    }
     SFX.playSwitch();
     spawnBurstParticles(this, bz.x, bz.y - 4, 0xffaa44, 8);
     if (!rm.puzzleSolved && rm.braziers.every((b) => b.lit)) {
@@ -1788,6 +1867,29 @@ export class DungeonScene extends Phaser.Scene {
       }
       if (rm.chest && !rm.chest.chest.opened && !rm.chest.chest.locked) {
         lights.push({ x: rm.chest.chest.x, y: rm.chest.chest.y, radius: 26, color: 0xffe066, intensity: 0.8 });
+      }
+    }
+
+    // Subtle rising ember specks from nearby wall torches
+    this.torchEmberTimerMs -= dt;
+    if (this.torchEmberTimerMs <= 0 && this.torchPositions.length > 0) {
+      this.torchEmberTimerMs = 260;
+      const view = this.cameras.main.worldView;
+      for (const tp of this.torchPositions) {
+        if (tp.x < view.x - 16 || tp.x > view.right + 16 || tp.y < view.y - 16 || tp.y > view.bottom + 16) continue;
+        if (Math.random() > 0.45) continue;
+        const ember = this.add
+          .rectangle(tp.x + (Math.random() - 0.5) * 4, tp.y, 1.5, 1.5, 0xffb85c, 0.9)
+          .setDepth(tp.y + 4);
+        this.tweens.add({
+          targets: ember,
+          y: tp.y - 10 - Math.random() * 6,
+          x: ember.x + (Math.random() - 0.5) * 5,
+          alpha: 0,
+          duration: 520,
+          ease: 'Quad.Out',
+          onComplete: () => ember.destroy(),
+        });
       }
     }
     this.lighting.update(dt, lights, []);

@@ -23,7 +23,11 @@ export function applySafeKnockback(
       isWalkable(nx + pad, ny) &&
       isWalkable(nx - pad, ny) &&
       isWalkable(nx, ny + pad) &&
-      isWalkable(nx, ny - pad)
+      isWalkable(nx, ny - pad) &&
+      isWalkable(nx + pad, ny + pad) &&
+      isWalkable(nx - pad, ny + pad) &&
+      isWalkable(nx + pad, ny - pad) &&
+      isWalkable(nx - pad, ny - pad)
     );
   };
 

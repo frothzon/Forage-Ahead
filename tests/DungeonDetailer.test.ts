@@ -20,6 +20,7 @@ describe('DungeonDetailer', () => {
 
       expect(plan.floors.length).toBe(14 * 10);
       expect(plan.props.length).toBeGreaterThanOrEqual(3);
+      expect(plan.decals.length).toBeGreaterThanOrEqual(6);
       // Center 3x3 (7..9, 5..7) and doorways must never be blocked
       expect(plan.blockedSet.has('8,6')).toBe(false);
       expect(plan.blockedSet.has('8,1')).toBe(false);

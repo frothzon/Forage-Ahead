@@ -20,12 +20,22 @@ export interface DetailedPillarPlacement {
   ly: number;
 }
 
+export interface DetailedDecal {
+  lx: number;
+  ly: number;
+  kind: 'crack' | 'moss' | 'scorch' | 'frost' | 'bone';
+  color: number;
+  alpha: number;
+  size: number;
+}
+
 export interface RoomDetailPlan {
   floors: DetailedTile[];
   rugs: DetailedTile[];
   torches: Array<{ lx: number; ly: number }>;
   pillars: DetailedPillarPlacement[];
   props: DetailedPropPlacement[];
+  decals: DetailedDecal[];
   /** Local `(lx, ly)` keys occupied by solid pillars or props. */
   blockedSet: Set<string>;
 }
@@ -110,15 +120,31 @@ export function detailDungeonRoom(opts: DetailRoomOptions): RoomDetailPlan {
 
   const blockedSet = new Set<string>();
 
-  // 4. Tactical pillars in combat/miniboss/boss rooms (55% chance)
+  // 4. Tactical pillars in combat/miniboss/boss rooms (varied silhouette patterns)
   const pillars: DetailedPillarPlacement[] = [];
-  if ((role === 'combat' || role === 'miniboss' || role === 'boss') && rng() < 0.55) {
-    const candidates: Array<[number, number]> = [
-      [4, 3],
-      [roomW - 5, 3],
-      [4, roomH - 4],
-      [roomW - 5, roomH - 4],
-    ];
+  if ((role === 'combat' || role === 'miniboss' || role === 'boss') && rng() < 0.65) {
+    const midX = Math.floor(roomW / 2);
+    const midY = Math.floor(roomH / 2);
+    const pattern = Math.floor(rng() * 3);
+    const candidates: Array<[number, number]> =
+      pattern === 0
+        ? [
+            [4, 3],
+            [roomW - 5, 3],
+            [4, roomH - 4],
+            [roomW - 5, roomH - 4],
+          ]
+        : pattern === 1
+          ? [
+              [4, midY],
+              [roomW - 5, midY],
+            ]
+          : [
+              [midX - 3, 3],
+              [midX + 2, 3],
+              [midX - 3, roomH - 4],
+              [midX + 2, roomH - 4],
+            ];
     for (const [lx, ly] of candidates) {
       const k = `${lx},${ly}`;
       if (!safeSet.has(k) && !blockedSet.has(k)) {
@@ -159,5 +185,39 @@ export function detailDungeonRoom(opts: DetailRoomOptions): RoomDetailPlan {
     blockedSet.add(k);
   }
 
-  return { floors, rugs, torches, pillars, props, blockedSet };
+  // 6. Non-colliding environmental storytelling floor decals (wear, moss, frost, scorch)
+  const decals: DetailedDecal[] = [];
+  const themeDecalKind: DetailedDecal['kind'] =
+    theme.key === 'frost_cavern'
+      ? 'frost'
+      : theme.key === 'infernal_sanctum'
+        ? 'scorch'
+        : theme.key === 'skull_crypt'
+          ? 'bone'
+          : theme.key === 'sunken_tomb'
+            ? 'moss'
+            : 'crack';
+  const decalColorMap: Record<DetailedDecal['kind'], number> = {
+    crack: 0x1e1a24,
+    moss: 0x2c4a34,
+    scorch: 0x2a1410,
+    frost: 0xc2f0ff,
+    bone: 0xd8d0c0,
+  };
+  const decalCount = 6 + Math.floor(rng() * 5);
+  for (let i = 0; i < decalCount; i++) {
+    const lx = 1 + Math.floor(rng() * (roomW - 2));
+    const ly = 1 + Math.floor(rng() * (roomH - 2));
+    const kind = rng() < 0.65 ? themeDecalKind : 'crack';
+    decals.push({
+      lx,
+      ly,
+      kind,
+      color: decalColorMap[kind],
+      alpha: kind === 'frost' ? 0.22 : 0.28,
+      size: 4 + Math.floor(rng() * 5),
+    });
+  }
+
+  return { floors, rugs, torches, pillars, props, decals, blockedSet };
 }

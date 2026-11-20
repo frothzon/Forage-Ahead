@@ -54,7 +54,7 @@ function multiplyColors(c1: number, c2: number): number {
  */
 export class LightingSystem {
   private static readonly EDGE_PAD = 48;
-  private static readonly MAX_DARKNESS_OPACITY = 0.58;
+  private static readonly MAX_DARKNESS_OPACITY = 0.65;
 
   private scene: Phaser.Scene;
   private lightmap: Phaser.GameObjects.RenderTexture;
@@ -173,7 +173,7 @@ export class LightingSystem {
     const mins = totalMinutes % 60;
     const clockStr = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
     if (t < 0.22) return { label: 'Dawn', clockStr, darkness: 0.45 };
-    if (t < 0.60) return { label: 'Day', clockStr, darkness: 0 };
+    if (t < 0.60) return { label: 'Midday', clockStr, darkness: 0 };
     if (t < 0.72) return { label: 'Dusk', clockStr, darkness: 0.55 };
     return { label: 'Night', clockStr, darkness: 1 };
   }
@@ -183,7 +183,7 @@ export class LightingSystem {
     const DAY = 0xffffff;
     const DAWN = 0xffbfa0; // Soft peach dawn
     const DUSK = 0xd98aa8; // Amber-violet dusk
-    const NIGHT = 0x1b2247; // Deep indigo night so light sources pop without crushing readability
+    const NIGHT = 0x0e1430; // Deep indigo night (~35% light / 65% darkness)
 
     if (t < 0.16) {
       const k = t / 0.16;
@@ -251,7 +251,7 @@ export class LightingSystem {
     if (weatherMod?.darknessBoost && weatherMod.darknessBoost > 0) {
       ambient = lerpColor(ambient, 0x0a1024, Math.min(1, weatherMod.darknessBoost));
     }
-    // Cap darkness overlay so it bottoms out at 25% opacity (75% brightness)
+    // Cap darkness overlay at 65% opacity (35% light at peak night)
     ambient = lerpColor(0xffffff, ambient, LightingSystem.MAX_DARKNESS_OPACITY);
 
     this.lightmap.fill(ambient, 1);

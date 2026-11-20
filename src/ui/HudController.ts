@@ -121,6 +121,8 @@ export class HudController {
   private chromeBuilt = false;
   private minimapVisible = false;
   private minimapCanvas?: HTMLCanvasElement;
+  private minimapZoom = 1;
+  private lastMinimapSnapshot: MinimapSnapshot | null = null;
   private wasModalOpen = false;
   private lastModalTab: HudModal = 'none';
   private toastTimer?: number;
@@ -531,20 +533,61 @@ export class HudController {
     const wrap = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-wrap');
     const body = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-body');
     const btn = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-toggle');
+    const zoomControls = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-zoom-controls');
     if (wrap) wrap.classList.toggle('minimap-collapsed', !this.minimapVisible);
     if (body) body.style.display = this.minimapVisible ? 'block' : 'none';
+    if (zoomControls) zoomControls.style.display = this.minimapVisible ? 'inline-flex' : 'none';
     if (btn) btn.textContent = this.minimapVisible ? 'Hide' : this.isTouchDevice() ? 'MAP' : 'Show';
+    if (this.minimapVisible && this.lastMinimapSnapshot) {
+      this.updateMinimap(this.lastMinimapSnapshot);
+    }
+  }
+
+  public adjustMinimapZoom(delta: number): void {
+    const next = Math.max(0.5, Math.min(3.0, Math.round((this.minimapZoom + delta) * 100) / 100));
+    if (next === this.minimapZoom) return;
+    this.minimapZoom = next;
+    const label = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-zoom-label');
+    if (label) label.textContent = `${this.minimapZoom.toFixed(2).replace(/\.?0+$/, '')}x`;
+    if (this.lastMinimapSnapshot) {
+      this.updateMinimap(this.lastMinimapSnapshot);
+    }
+  }
+
+  private getDynamicMinimapSize(): number {
+    const s = this.hudScale || 1;
+    const vw = (typeof window !== 'undefined' ? window.innerWidth : 1280) / s;
+    const vh = (typeof window !== 'undefined' ? window.innerHeight : 720) / s;
+    const vitals = this.chromeLayer?.querySelector<HTMLElement>('#hud-vitals-panel');
+    const nav = this.chromeLayer?.querySelector<HTMLElement>('#hud-top-nav');
+    let maxGapW = vw * 0.34;
+    if (vitals && nav) {
+      const vRect = vitals.getBoundingClientRect();
+      const nRect = nav.getBoundingClientRect();
+      const gapPx = (nRect.left - vRect.right) / s - 28;
+      if (gapPx > 60) maxGapW = gapPx;
+    }
+    const idealH = vh * 0.30;
+    return Math.round(Math.max(116, Math.min(260, maxGapW, idealH)));
   }
 
   public updateMinimap(data: MinimapSnapshot): void {
+    this.lastMinimapSnapshot = data;
     if (!this.minimapVisible || !this.minimapCanvas) return;
+    const targetSize = this.getDynamicMinimapSize();
+    if (this.minimapCanvas.width !== targetSize || this.minimapCanvas.height !== targetSize) {
+      this.minimapCanvas.width = targetSize;
+      this.minimapCanvas.height = targetSize;
+      this.minimapCanvas.style.width = `${targetSize}px`;
+      this.minimapCanvas.style.height = `${targetSize}px`;
+    }
     const ctx = this.minimapCanvas.getContext('2d');
     if (!ctx) return;
     const W = this.minimapCanvas.width;
     const H = this.minimapCanvas.height;
 
-    // 1/2 world coverage centered directly on the player
-    const viewTiles = Math.max(20, data.worldTiles / 2);
+    // Coverage centered on player, scaled by minimapZoom (0.5x = full world, 3x = close-up)
+    const viewTiles = Math.max(10, Math.min(data.worldTiles, (data.worldTiles / 2) / this.minimapZoom));
     const halfView = viewTiles / 2;
     const startTx = data.playerTx - halfView;
     const startTy = data.playerTy - halfView;
@@ -973,7 +1016,8 @@ export class HudController {
         border-image-slice: 4 4 6 4 fill;
         border-image-width: 8px 8px 12px 8px;
         border-width: 6px 8px 10px 8px;
-        color: #3b2316;
+        color: #fff6e5;
+        text-shadow: -1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109, 0 1px 2px rgba(0, 0, 0, 0.7);
         image-rendering: pixelated;
         box-shadow: 0 6px 18px rgba(16, 10, 4, 0.55);
       }
@@ -993,8 +1037,8 @@ export class HudController {
       }
       .hud-alert-badge {
         position: absolute;
-        top: -6px;
-        right: -6px;
+        top: -8px;
+        right: -8px;
         min-width: 17px;
         height: 17px;
         padding: 0 4px;
@@ -1250,7 +1294,7 @@ export class HudController {
       /* Right-side ascending stacking item notification feed */
       .item-feed-stack {
         position: absolute;
-        top: 56px;
+        top: 68px;
         right: 12px;
         width: 240px;
         display: flex;
@@ -1364,7 +1408,6 @@ export class HudController {
           right: auto !important;
           transform: translateX(-50%);
         }
-        #hud-minimap-canvas { width: 120px !important; height: 120px !important; }
         #hud-minimap-wrap.minimap-collapsed {
           border: none !important;
           border-image: none !important;
@@ -1706,13 +1749,18 @@ export class HudController {
 
         <div id="hud-dungeon-panel" class="hud-panel" style="position:absolute; top:104px; left:10px; padding:5px 8px; display:none; z-index:14;"></div>
 
-        <div id="hud-minimap-wrap" class="sl-frame-big hud-interactive minimap-collapsed" style="position:absolute; bottom:12px; right:12px; padding:3px; z-index:25;">
-          <div id="hud-minimap-header" style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:3px;">
+        <div id="hud-minimap-wrap" class="sl-frame-big hud-interactive minimap-collapsed" style="position:absolute; top:max(8px, env(safe-area-inset-top)); left:50%; transform:translateX(-50%); padding:4px; z-index:25;">
+          <div id="hud-minimap-header" style="display:flex; justify-content:space-between; align-items:center; gap:5px; margin-bottom:3px;">
             <span id="hud-minimap-title" style="font-size:10px; font-weight:800; color:#3b2316;">${fmtKeySuffix('Map', 'N')}</span>
+            <span id="hud-minimap-zoom-controls" style="display:none; align-items:center; gap:3px;">
+              <button class="hud-btn" id="hud-minimap-zoom-out" title="Zoom Out" style="padding:0px 5px; font-size:10px; font-weight:900; line-height:1.1;">-</button>
+              <span id="hud-minimap-zoom-label" style="font-size:9px; font-weight:800; color:#3b2316; min-width:22px; text-align:center;">1x</span>
+              <button class="hud-btn" id="hud-minimap-zoom-in" title="Zoom In" style="padding:0px 5px; font-size:10px; font-weight:900; line-height:1.1;">+</button>
+            </span>
             <button class="hud-btn" id="hud-minimap-toggle" style="padding:0px 5px; font-size:9px;">${this.isTouchDevice() ? 'MAP' : 'Show'}</button>
           </div>
           <div id="hud-minimap-body" style="display:none;">
-            <canvas id="hud-minimap-canvas" width="104" height="104" style="display:block; border:2px solid #5c3a24; border-radius:2px; image-rendering:pixelated;"></canvas>
+            <canvas id="hud-minimap-canvas" width="160" height="160" style="display:block; border:2px solid #5c3a24; border-radius:2px; image-rendering:pixelated;"></canvas>
           </div>
         </div>
 
@@ -1792,6 +1840,14 @@ export class HudController {
       });
       this.bindMultiTouchTap(this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-toggle'), () => {
         this.toggleMinimap();
+      });
+      this.bindMultiTouchTap(this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-zoom-in'), () => {
+        SFX.playUiClick();
+        this.adjustMinimapZoom(0.25);
+      });
+      this.bindMultiTouchTap(this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-zoom-out'), () => {
+        SFX.playUiClick();
+        this.adjustMinimapZoom(-0.25);
       });
       this.bindTouchControls();
       this.chromeBuilt = true;

@@ -254,6 +254,22 @@ export class Player extends Phaser.GameObjects.Container {
     return true;
   }
 
+  private canStandAt(
+    px: number,
+    py: number,
+    isWalkable: (nx: number, ny: number) => boolean,
+  ): boolean {
+    const hw = 3.5;
+    const hh = 2;
+    return (
+      isWalkable(px, py) &&
+      isWalkable(px - hw, py - hh) &&
+      isWalkable(px + hw, py - hh) &&
+      isWalkable(px - hw, py + hh) &&
+      isWalkable(px + hw, py + hh)
+    );
+  }
+
   public updatePlayer(
     dtMs: number,
     inputDir: Phaser.Math.Vector2,
@@ -355,14 +371,29 @@ export class Player extends Phaser.GameObjects.Container {
       this.playHeroAnim('idle');
     }
 
-    // Separate X / Y collision slide (and allow stepping out if currently overlapping a solid)
-    const stuckNow = !isWalkable(this.x, this.y);
+    // If ever wedged on a shoreline/edge (e.g. from knockback), nudge back onto safe walkable ground
+    if (!this.canStandAt(this.x, this.y, isWalkable)) {
+      outer: for (let r = 2; r <= 18; r += 2) {
+        for (const [dx, dy] of [
+          [1, 0], [-1, 0], [0, 1], [0, -1],
+          [1, 1], [-1, 1], [1, -1], [-1, -1],
+        ]) {
+          if (this.canStandAt(this.x + dx * r, this.y + dy * r, isWalkable)) {
+            this.x += dx * r;
+            this.y += dy * r;
+            break outer;
+          }
+        }
+      }
+    }
+
+    // Separate X / Y collision slide using the player's feet collision mask (7x4px)
     const nextX = this.x + vx * dt;
-    if (isWalkable(nextX, this.y) || (stuckNow && Math.abs(vx) > 0)) {
+    if (this.canStandAt(nextX, this.y, isWalkable)) {
       this.x = nextX;
     }
     const nextY = this.y + vy * dt;
-    if (isWalkable(this.x, nextY) || (stuckNow && Math.abs(vy) > 0)) {
+    if (this.canStandAt(this.x, nextY, isWalkable)) {
       this.y = nextY;
     }
 

@@ -3,6 +3,7 @@ import { transitionManager } from './core/TransitionManager';
 import { BootScene } from './scenes/BootScene';
 import { DungeonScene } from './scenes/DungeonScene';
 import { HouseScene } from './scenes/HouseScene';
+import { HouseTestScene } from './scenes/HouseTestScene';
 import { OverworldScene } from './scenes/OverworldScene';
 import { TitleScene } from './scenes/TitleScene';
 import { TutorialDungeonScene } from './scenes/TutorialDungeonScene';
@@ -19,7 +20,7 @@ const config: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.NO_CENTER,
   },
-  scene: [BootScene, TitleScene, TutorialDungeonScene, OverworldScene, DungeonScene, HouseScene],
+  scene: [BootScene, TitleScene, TutorialDungeonScene, OverworldScene, DungeonScene, HouseScene, HouseTestScene],
 };
 
 transitionManager.mount();

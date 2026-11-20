@@ -5,7 +5,13 @@ import { getSpeciesByEgg, getSpeciesById, RANCH_SPECIES } from '../data/ranchCre
 import { fmtKeyPrompt, fmtKeySuffix, isMobileTouchDevice } from '../core/Platform';
 import { SFX } from '../core/SoundFX';
 import { startSceneAndWaitCreate, transitionManager } from '../core/TransitionManager';
-import { HOUSE_THEME_SPECS, type HouseThemeId } from '../world/HouseLayoutBuilder';
+import { type HouseThemeId } from '../world/HouseLayoutBuilder';
+import {
+  OUTDOOR_NPC_BUILDINGS,
+  computeHouseRoofFrame,
+  computeHouseWallFrame,
+  groupConnectedHouseTiles,
+} from '../world/OutdoorBuildingStamps';
 import { ITEMS } from '../data/items';
 import {
   ISLANDS,
@@ -165,13 +171,16 @@ export class OverworldScene extends Phaser.Scene {
 
   private nodes: ResourceNode[] = [];
   private buildings: BuildingEntity[] = [];
+  private buildingsByTile = new Map<number, BuildingEntity[]>();
+  private houseDoors: BuildingEntity[] = [];
+  private cachedMinimapBuildings: Array<{ tx: number; ty: number }> | null = null;
+  private buildingTickCallbacks?: Parameters<BuildingEntity['updateBuilding']>[1];
   private enemies: Enemy[] = [];
   private drops: LootDrop[] = [];
   private projectiles: ActiveProjectile[] = [];
   private bombs: ActiveBomb[] = [];
   private purchaseMarkers: IslandPurchaseMarker[] = [];
   private npcs: NpcEntity[] = [];
-  private npcHouses: Array<{ theme: HouseThemeId; x: number; y: number; name: string }> = [];
   private ranchEntities: RanchEntity[] = [];
   private animals: Array<{
     kind: 'Cow' | 'Deer' | 'Hen' | 'Rabbit';
@@ -189,6 +198,10 @@ export class OverworldScene extends Phaser.Scene {
   private bridgeSprites = new Map<string, Phaser.GameObjects.Image>();
   private houseRoofSprites = new Map<string, Phaser.GameObjects.Image>();
   private houseTileSet = new Set<string>();
+  private houseGroupByTile = new Map<string, number>();
+  private houseRoofGroup = new Map<string, number>();
+  private houseGroupRoofAlpha = new Map<number, number>();
+  private activeHouseGroupId = 0;
   private buildCursor!: Phaser.GameObjects.Rectangle;
   private targetIndicator!: Phaser.GameObjects.Arc;
   private mobilePlaceActive = false;
@@ -238,6 +251,10 @@ export class OverworldScene extends Phaser.Scene {
   create(): void {
     this.nodes = [];
     this.buildings = [];
+    this.buildingsByTile.clear();
+    this.houseDoors = [];
+    this.cachedMinimapBuildings = null;
+    this.buildingTickCallbacks = undefined;
     this.enemies = [];
     this.drops = [];
     this.projectiles = [];
@@ -245,10 +262,17 @@ export class OverworldScene extends Phaser.Scene {
     this.purchaseMarkers = [];
     this.npcs = [];
     this.ranchEntities = [];
+    this.animals = [];
     this.dungeonPortals = [];
+    this.buildPreviewSprite = undefined;
+    this.buildGizmoGfx = undefined;
     this.bridgeSprites.clear();
     this.houseRoofSprites.clear();
     this.houseTileSet.clear();
+    this.houseGroupByTile.clear();
+    this.houseRoofGroup.clear();
+    this.houseGroupRoofAlpha.clear();
+    this.activeHouseGroupId = 0;
     this.bridgeSet.clear();
 
     this.initGrids();
@@ -561,7 +585,7 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
     for (const b of gameState.buildings) {
-      this.buildings.push(
+      this.registerBuilding(
         new BuildingEntity(this, b.id, b.type, b.tx, b.ty, b.craftQueue ?? [], b.cropStage ?? 0),
       );
     }
@@ -569,6 +593,21 @@ export class OverworldScene extends Phaser.Scene {
       this.spawnRanchSprite(rc);
     }
     this.rebuildHouseRoofs();
+  }
+
+  private registerBuilding(b: BuildingEntity): void {
+    this.buildings.push(b);
+    this.cachedMinimapBuildings = null;
+    const key = (b.ty << 10) | b.tx;
+    let bucket = this.buildingsByTile.get(key);
+    if (!bucket) {
+      bucket = [];
+      this.buildingsByTile.set(key, bucket);
+    }
+    bucket.push(b);
+    if (b.structureType === 'house_door') {
+      this.houseDoors.push(b);
+    }
   }
 
   private isHousePart(st: string): boolean {
@@ -582,23 +621,71 @@ export class OverworldScene extends Phaser.Scene {
 
   private rebuildHouseRoofs(): void {
     this.houseTileSet.clear();
+    const wallOrDoorSet = new Set<string>();
     for (const b of this.buildings) {
-      if (b.active && this.isHousePart(b.structureType)) {
+      if (!b.active) continue;
+      if (this.isHousePart(b.structureType)) {
         this.houseTileSet.add(`${b.tx},${b.ty}`);
       }
-    }
-    for (const [k, spr] of this.houseRoofSprites) {
-      if (!this.houseTileSet.has(k)) {
-        spr.destroy();
-        this.houseRoofSprites.delete(k);
+      if (b.structureType === 'house_wall' || b.structureType === 'house_door') {
+        wallOrDoorSet.add(`${b.tx},${b.ty}`);
       }
     }
-    for (const k of this.houseTileSet) {
+
+    // Autotile all house_wall sprites (NPC-built and player-built alike)
+    for (const b of this.buildings) {
+      if (!b.active || b.structureType !== 'house_wall') continue;
+      const hasN = wallOrDoorSet.has(`${b.tx},${b.ty - 1}`);
+      const hasS = wallOrDoorSet.has(`${b.tx},${b.ty + 1}`);
+      const hasW = wallOrDoorSet.has(`${b.tx - 1},${b.ty}`);
+      const hasE = wallOrDoorSet.has(`${b.tx + 1},${b.ty}`);
+      const hasFloorW = this.houseTileSet.has(`${b.tx - 1},${b.ty}`);
+      const hasFloorE = this.houseTileSet.has(`${b.tx + 1},${b.ty}`);
+      b.setWallFrame(computeHouseWallFrame(hasN, hasS, hasW, hasE, hasFloorW, hasFloorE));
+    }
+
+    this.houseGroupByTile = groupConnectedHouseTiles(this.houseTileSet);
+
+    const roofKeys = [...this.houseTileSet].filter((k) => {
       const [tx, ty] = k.split(',').map(Number);
-      const hasN = this.houseTileSet.has(`${tx},${ty - 1}`);
-      const hasS = this.houseTileSet.has(`${tx},${ty + 1}`);
-      // Pick shingle frame from 7x5 sprout/house_roof (row 3 col 2 = 23 interior, row 2 col 2 = 16 north ridge, row 4 col 2 = 30 south eave)
-      const frame = !hasN ? 16 : !hasS ? 30 : 23;
+      return this.houseTileSet.has(`${tx},${ty + 1}`);
+    });
+    const roofKeySet = new Set(roofKeys);
+
+    for (const [k, spr] of this.houseRoofSprites) {
+      if (!roofKeySet.has(k)) {
+        spr.destroy();
+        this.houseRoofSprites.delete(k);
+        this.houseRoofGroup.delete(k);
+      }
+    }
+    const groupYBounds = new Map<number, { minTy: number; maxTy: number }>();
+    for (const k of roofKeys) {
+      const ty = Number(k.split(',')[1]);
+      const gid = this.houseGroupByTile.get(k) ?? 0;
+      const cur = groupYBounds.get(gid) ?? { minTy: ty, maxTy: ty };
+      if (ty < cur.minTy) cur.minTy = ty;
+      if (ty > cur.maxTy) cur.maxTy = ty;
+      groupYBounds.set(gid, cur);
+    }
+
+    for (const k of roofKeys) {
+      const [tx, ty] = k.split(',').map(Number);
+      const gid = this.houseGroupByTile.get(k) ?? 0;
+      const bounds = groupYBounds.get(gid) ?? { minTy: ty, maxTy: ty };
+      const hasW = roofKeySet.has(`${tx - 1},${ty}`);
+      const hasE = roofKeySet.has(`${tx + 1},${ty}`);
+      const hasN = roofKeySet.has(`${tx},${ty - 1}`);
+      const hasS = roofKeySet.has(`${tx},${ty + 1}`);
+      let concave: 'se' | 'sw' | 'ne' | 'nw' | undefined;
+      if (hasN && hasS && hasW && hasE) {
+        if (!this.houseTileSet.has(`${tx + 1},${ty + 1}`)) concave = 'se';
+        else if (!this.houseTileSet.has(`${tx - 1},${ty + 1}`)) concave = 'sw';
+        else if (!this.houseTileSet.has(`${tx + 1},${ty - 1}`)) concave = 'ne';
+        else if (!this.houseTileSet.has(`${tx - 1},${ty - 1}`)) concave = 'nw';
+      }
+      const frame = computeHouseRoofFrame(ty, bounds.minTy, bounds.maxTy, hasW, hasE, concave);
+      this.houseRoofGroup.set(k, gid);
       let spr = this.houseRoofSprites.get(k);
       if (!spr) {
         spr = this.add
@@ -606,6 +693,7 @@ export class OverworldScene extends Phaser.Scene {
           .setDepth(8500);
         this.houseRoofSprites.set(k, spr);
       } else {
+        spr.setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8);
         spr.setFrame(frame);
       }
     }
@@ -649,6 +737,50 @@ export class OverworldScene extends Phaser.Scene {
         if (d < bestDist) {
           bestDist = d;
           best = { tx, ty };
+        }
+      }
+    }
+    return best;
+  }
+
+  private findFlatLandRect(
+    gx: number,
+    gy: number,
+    w: number,
+    h: number,
+    avoidPxX: number,
+    avoidPxY: number,
+  ): { ox: number; oy: number } | null {
+    const baseOx = gx * ISLAND_CELL_TILES;
+    const baseOy = gy * ISLAND_CELL_TILES;
+    const half = Math.floor(ISLAND_CELL_TILES / 2);
+    let best: { ox: number; oy: number } | null = null;
+    let bestScore = Infinity;
+
+    for (let ly = 2; ly <= ISLAND_CELL_TILES - h - 2; ly++) {
+      for (let lx = 2; lx <= ISLAND_CELL_TILES - w - 2; lx++) {
+        const tx0 = baseOx + lx;
+        const ty0 = baseOy + ly;
+        let allLand = true;
+        for (let dy = -1; dy <= h && allLand; dy++) {
+          for (let dx = -1; dx <= w && allLand; dx++) {
+            const tx = tx0 + dx;
+            const ty = ty0 + dy;
+            if (!isLand(this.terrainGrid[ty]?.[tx])) allLand = false;
+            if (this.hasBuildingAt(tx, ty)) allLand = false;
+          }
+        }
+        if (!allLand) continue;
+
+        const cx = (tx0 + w / 2) * TILE_PX;
+        const cy = (ty0 + h / 2) * TILE_PX;
+        if (Math.hypot(cx - avoidPxX, cy - avoidPxY) < 42) continue;
+        if (this.dungeonPortals.some((dp) => Math.hypot(cx - dp.x, cy - dp.y) < 48)) continue;
+
+        const centerDist = Math.hypot(lx + w / 2 - half, ly + h / 2 - half);
+        if (centerDist < bestScore) {
+          bestScore = centerDist;
+          best = { ox: tx0, oy: ty0 };
         }
       }
     }
@@ -782,26 +914,38 @@ export class OverworldScene extends Phaser.Scene {
       });
       this.npcs.push({ spec: spec.npc, sprite: spr, prompt, x: nx, y: ny });
 
-      // 2b. Enterable NPC House (2-3 WFC rooms)
+      // 2b. Outdoor Tile-Built NPC Building (same tileset & BuildingEntity system as player-built structures)
       const theme = spec.npc.id as HouseThemeId;
-      if (HOUSE_THEME_SPECS[theme]) {
-        const hTile = this.findNearestLandTileOnIsland(
+      const stamp = OUTDOOR_NPC_BUILDINGS[theme];
+      if (stamp) {
+        const plot = this.findFlatLandRect(
           gx,
           gy,
-          Math.max(2, Math.floor(ISLAND_CELL_TILES * 0.24)),
-          Math.max(2, half - 2),
+          stamp.width,
+          stamp.height,
+          nx,
+          ny,
         );
-        const hx = hTile.tx * TILE_PX + 8;
-        const hy = hTile.ty * TILE_PX + 8;
-        if (Math.hypot(hx - nx, hy - ny) >= 22) {
-          this.add.image(hx - 8, hy, 'sprout/house_walls', 0).setDepth(hy);
-          this.add.image(hx + 8, hy, 'sprout/house_walls', 2).setDepth(hy);
-          this.add.image(hx, hy, 'sprout/house_door', 0).setDepth(hy + 1);
-          this.add.image(hx - 8, hy - 14, 'sprout/house_roof', 0).setDepth(hy + 2);
-          this.add.image(hx, hy - 14, 'sprout/house_roof', 1).setDepth(hy + 2);
-          this.add.image(hx + 8, hy - 14, 'sprout/house_roof', 2).setDepth(hy + 2);
+        if (plot) {
+          for (const pl of stamp.placements) {
+            const tx = plot.ox + pl.lx;
+            const ty = plot.oy + pl.ly;
+            // Remove any overlapping resource node so the building interior is clean
+            for (let ni = this.nodes.length - 1; ni >= 0; ni--) {
+              const nd = this.nodes[ni];
+              if (nd.tx === tx && nd.ty === ty) {
+                nd.destroy();
+                this.nodes.splice(ni, 1);
+              }
+            }
+            const id = `npc_bld_${theme}_${pl.type}_${tx}_${ty}`;
+            const bld = new BuildingEntity(this, id, pl.type, tx, ty, [], 0, true);
+            this.registerBuilding(bld);
+          }
+          const doorX = (plot.ox + stamp.doorLx) * TILE_PX + 8;
+          const doorY = (plot.oy + stamp.doorLy) * TILE_PX + 8;
           this.add
-            .text(hx, hy - 26, fmtKeyPrompt('E', HOUSE_THEME_SPECS[theme].houseName), {
+            .text(doorX, doorY - 22, stamp.name, {
               fontSize: '7px',
               fontStyle: 'bold',
               color: '#ffe6a8',
@@ -810,8 +954,8 @@ export class OverworldScene extends Phaser.Scene {
               resolution: 4,
             })
             .setOrigin(0.5)
-            .setDepth(8000);
-          this.npcHouses.push({ theme, x: hx, y: hy, name: HOUSE_THEME_SPECS[theme].houseName });
+            .setDepth(8600);
+          this.rebuildHouseRoofs();
         }
       }
     }
@@ -935,6 +1079,7 @@ export class OverworldScene extends Phaser.Scene {
       if (this.player && Math.hypot(px - this.player.x, py - this.player.y) < 40) continue;
       if (this.npcs.some((npc) => Math.hypot(px - npc.x, py - npc.y) < 28)) continue;
       if (this.dungeonPortals.some((dp) => Math.hypot(px - dp.x, py - dp.y) < 28)) continue;
+      if (this.houseTileSet.has(`${tx},${ty}`)) continue;
       if (this.hasNodeAt(tx, ty) || this.hasBuildingAt(tx, ty)) continue;
 
       const kind = this.pickNodeKindForBiome(spec.biome);
@@ -1370,14 +1515,14 @@ export class OverworldScene extends Phaser.Scene {
       }
     });
 
-    for (let i = 1; i <= 9; i++) {
-      kb.on(`keydown-${i}`, () => {
-        if (this.hud.isBlockingInput()) return;
-        if (gameState.selectedHotbarIndex !== i - 1) SFX.playHotbarSelect();
-        gameState.selectedHotbarIndex = i - 1;
-        this.hud.render();
-      });
-    }
+    kb.on('keydown', (event: KeyboardEvent) => {
+      if (event.key < '1' || event.key > '9') return;
+      if (this.hud.isBlockingInput()) return;
+      const idx = Number(event.key) - 1;
+      if (gameState.selectedHotbarIndex !== idx) SFX.playHotbarSelect();
+      gameState.selectedHotbarIndex = idx;
+      this.hud.render();
+    });
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
       if (this.hud.isBlockingInput()) return;
@@ -1491,7 +1636,7 @@ export class OverworldScene extends Phaser.Scene {
         spawnBuilding: (type, tx, ty) => {
           const id = `promo_${type}_${tx}_${ty}`;
           const b = new BuildingEntity(this, id, type, tx, ty);
-          this.buildings.push(b);
+          this.registerBuilding(b);
           return b;
         },
         detonateBombAt: (wx, wy) => this.detonateBomb(wx, wy),
@@ -1642,7 +1787,7 @@ export class OverworldScene extends Phaser.Scene {
       const id = `bld_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       const bld = new BuildingEntity(this, id, st, tx, ty);
       bld.playPlacePop();
-      this.buildings.push(bld);
+      this.registerBuilding(bld);
       gameState.buildings.push({ id, type: st, tx, ty });
       if (this.isHousePart(st)) this.rebuildHouseRoofs();
     }
@@ -2136,6 +2281,47 @@ export class OverworldScene extends Phaser.Scene {
     return false;
   }
 
+  private findBestInteractableBuilding(skipStations = false): BuildingEntity | null {
+    let best: BuildingEntity | null = null;
+    let bestScore = Infinity;
+    const ptx = Math.floor(this.player.x / TILE_PX);
+    const pty = Math.floor(this.player.y / TILE_PX);
+
+    for (const b of this.buildings) {
+      if (!b.active) continue;
+      if (Math.abs(b.tx - ptx) > 2 || Math.abs(b.ty - pty) > 2) continue;
+      const dist = Math.hypot(b.x - this.player.x, b.y - this.player.y);
+      if (dist > 28) continue;
+
+      let priority = -1;
+      if (b.interactStation) {
+        if (skipStations) continue;
+        if (dist > 20 && !isFacingTarget(this.player.x, this.player.y, this.player.facing, b.x, b.y, 0.35)) {
+          continue;
+        }
+        priority = 0; // Chests & crafting stations highest priority
+      } else if (
+        b.structureType === 'furniture_bed' ||
+        b.structureType === 'water_well' ||
+        b.structureType === 'nest' ||
+        b.isCropRipe()
+      ) {
+        priority = 1;
+      } else if (b.structureType === 'house_door' || b.structureType === 'fence_gate') {
+        priority = 2; // Doors/gates lowest building priority (house_door auto-opens on proximity)
+      }
+      if (priority < 0) continue;
+
+      const facingBonus = isFacingTarget(this.player.x, this.player.y, this.player.facing, b.x, b.y, 0.45) ? -6 : 0;
+      const score = priority * 100 + dist + facingBonus;
+      if (score < bestScore) {
+        bestScore = score;
+        best = b;
+      }
+    }
+    return best;
+  }
+
   private findInteractableTarget(
     skipStations = false,
   ): { kind: 'portal' | 'animal' | 'ranch' | 'building' | 'npc'; actionLabel: string; x: number; y: number; depth: number } | null {
@@ -2144,49 +2330,26 @@ export class OverworldScene extends Phaser.Scene {
         return { kind: 'portal', actionLabel: 'ENTER', x: dp.x, y: dp.y + dp.sprite.displayHeight * 0.25, depth: dp.sprite.depth };
       }
     }
-    for (const nh of this.npcHouses) {
-      if (Math.hypot(nh.x - this.player.x, nh.y - this.player.y) <= 28) {
-        return { kind: 'portal', actionLabel: 'ENTER', x: nh.x, y: nh.y, depth: nh.y };
-      }
-    }
-    for (const b of this.buildings) {
-      if (!b.active || Math.hypot(b.x - this.player.x, b.y - this.player.y) > 28) continue;
-      if (b.interactStation) {
-        if (skipStations || !isFacingTarget(this.player.x, this.player.y, this.player.facing, b.x, b.y, 0.35)) {
-          continue;
-        }
-        return {
-          kind: 'building',
-          actionLabel: b.interactStation === 'chest' ? 'OPEN' : 'CRAFT',
-          x: b.x,
-          y: b.getCollisionCenter().y,
-          depth: b.depth,
-        };
-      }
-      if (
-        b.structureType === 'nest' ||
-        b.structureType === 'house_door' ||
-        b.structureType === 'fence_gate' ||
-        b.structureType === 'furniture_bed' ||
-        b.structureType === 'water_well' ||
-        b.isCropRipe()
-      ) {
-        const actionLabel =
-          b.structureType === 'furniture_bed'
-            ? 'REST'
-            : b.isCropRipe()
-              ? 'HARVEST'
-              : b.structureType === 'water_well'
-                ? 'DRINK'
-                : 'USE';
-        return {
-          kind: 'building',
-          actionLabel,
-          x: b.x,
-          y: b.getCollisionCenter().y,
-          depth: b.depth,
-        };
-      }
+    const bestBld = this.findBestInteractableBuilding(skipStations);
+    if (bestBld) {
+      const actionLabel = bestBld.interactStation
+        ? bestBld.interactStation === 'chest'
+          ? 'OPEN'
+          : 'CRAFT'
+        : bestBld.structureType === 'furniture_bed'
+          ? 'REST'
+          : bestBld.isCropRipe()
+            ? 'HARVEST'
+            : bestBld.structureType === 'water_well'
+              ? 'DRINK'
+              : 'USE';
+      return {
+        kind: 'building',
+        actionLabel,
+        x: bestBld.x,
+        y: bestBld.getCollisionCenter().y,
+        depth: bestBld.depth,
+      };
     }
     const heldItemId = gameState.hotbar[gameState.selectedHotbarIndex] ?? '';
     const holdingSword = heldItemId.startsWith('sword');
@@ -2261,6 +2424,10 @@ export class OverworldScene extends Phaser.Scene {
     // Non-NPC interactables take priority over nodes/animals, while NPCs are lowest priority
     if (interactable && (interactable.kind !== 'npc' || !aimed)) {
       this.hud.setTouchActionHint(interactable.actionLabel);
+      if (interactable.kind === 'portal') {
+        this.targetIndicator.setVisible(false);
+        return;
+      }
       this.targetIndicator
         .setPosition(interactable.x, interactable.y)
         .setDepth(interactable.depth - 0.5)
@@ -2495,7 +2662,15 @@ export class OverworldScene extends Phaser.Scene {
     const ty = Math.floor(wy / TILE_PX);
     if (tx < 0 || ty < 0 || tx >= WORLD_TILES || ty >= WORLD_TILES) return false;
     const terrain = this.terrainGrid[ty][tx];
-    if (terrain === 'water' && !this.bridgeSet.has(`${tx},${ty}`)) return false;
+    if (terrain === 'water' && !this.bridgeSet.has(`${tx},${ty}`)) {
+      // 1-tile bridge guard-rail forgiveness (3.5px edge margin) so walking across bridges never snags
+      const nearBridge =
+        (this.bridgeSet.has(`${tx - 1},${ty}`) && wx - tx * TILE_PX < 3.5) ||
+        (this.bridgeSet.has(`${tx + 1},${ty}`) && (tx + 1) * TILE_PX - wx < 3.5) ||
+        (this.bridgeSet.has(`${tx},${ty - 1}`) && wy - ty * TILE_PX < 3.5) ||
+        (this.bridgeSet.has(`${tx},${ty + 1}`) && (ty + 1) * TILE_PX - wy < 3.5);
+      if (!nearBridge) return false;
+    }
 
     for (const n of this.nodes) {
       if (!n.active || !n.solid) continue;
@@ -2503,11 +2678,18 @@ export class OverworldScene extends Phaser.Scene {
       const c = n.getCollisionCenter();
       if (Math.hypot(wx - c.x, wy - c.y) < n.collisionRadius) return false;
     }
-    for (const b of this.buildings) {
-      if (!b.active || !b.solid) continue;
-      if (Math.abs(b.tx - tx) > 1 || Math.abs(b.ty - ty) > 1) continue;
-      const c = b.getCollisionCenter();
-      if (Math.hypot(wx - c.x, wy - c.y) < b.collisionRadius) return false;
+    for (let dy = -1; dy <= 1; dy++) {
+      const ny = ty + dy;
+      if (ny < 0 || ny >= WORLD_TILES) continue;
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = tx + dx;
+        if (nx < 0 || nx >= WORLD_TILES) continue;
+        const bucket = this.buildingsByTile.get((ny << 10) | nx);
+        if (!bucket) continue;
+        for (const b of bucket) {
+          if (b.collidesAt(wx, wy)) return false;
+        }
+      }
     }
     for (const npc of this.npcs) {
       if (Math.hypot(wx - npc.x, wy - (npc.y - 2)) < 11) return false;
@@ -2545,24 +2727,6 @@ export class OverworldScene extends Phaser.Scene {
             this.hud.destroy();
             SFX.setMusicSituation('dungeon');
             await startSceneAndWaitCreate(this, 'DungeonScene', targetData);
-          },
-        });
-        return true;
-      }
-    }
-
-    // 1b. Check nearby NPC House Door
-    for (const nh of this.npcHouses) {
-      if (Math.hypot(nh.x - this.player.x, nh.y - this.player.y) <= 28) {
-        if (transitionManager.isActive) return true;
-        SFX.playPortalWarp();
-        void transitionManager.transitionTo({
-          onMidpoint: async () => {
-            gameState.playerPos = { x: nh.x, y: nh.y + 18 };
-            this.syncBuildingQueuesToSave();
-            gameState.save();
-            this.hud.destroy();
-            await startSceneAndWaitCreate(this, 'HouseScene', { theme: nh.theme });
           },
         });
         return true;
@@ -2644,9 +2808,10 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    // 4. Check nearby Doors, Gates, Bed, Water Well, Crafting Station or Chest
-    for (const b of this.buildings) {
-      if (!b.active || Math.hypot(b.x - this.player.x, b.y - this.player.y) > 28) continue;
+    // 4. Priority-sorted Building Interaction (stations/chests/bed/well take priority over doors)
+    const targetBld = this.findBestInteractableBuilding(fromPrimaryAction && this.hasNearbyCombatEnemy());
+    if (targetBld) {
+      const b = targetBld;
       if (b.structureType === 'house_door' || b.structureType === 'fence_gate') {
         const opened = b.toggleDoor();
         SFX.playChop();
@@ -2674,27 +2839,30 @@ export class OverworldScene extends Phaser.Scene {
         this.hud.showToast(`Water Well: +30 EN${watered > 0 ? ` • Watered ${watered} crops!` : ''}`);
         return true;
       }
-      if (b.interactStation) {
-        if (fromPrimaryAction && this.hasNearbyCombatEnemy()) continue;
-        if (!isFacingTarget(this.player.x, this.player.y, this.player.facing, b.x, b.y, 0.35)) continue;
-        if (b.interactStation === 'chest') {
-          this.hud.toggleModal('inventory');
-        } else {
-          this.hud.toggleModal('craft', b.interactStation, b.id);
-        }
-        return true;
-      }
-    }
-
-    // 4. Check ripe Crops via [E]
-    for (const b of this.buildings) {
-      if (b.active && b.isCropRipe() && Math.hypot(b.x - this.player.x, b.y - this.player.y) <= 28) {
+      if (b.isCropRipe()) {
         const res = b.harvestCrop();
         if (res) {
           SFX.playHarvestCrop();
           spawnArcParticles(this, b.x, b.y - 4, 0x7ef29d, 8);
           this.spawnLoot(b.x, b.y, res.itemId, res.count);
           this.awardXp(8);
+        }
+        return true;
+      }
+      if (b.interactStation) {
+        if (b.interactStation === 'chest') {
+          b.playChestOpen();
+          if (b.readOnly && !b.looted) {
+            b.looted = true;
+            this.spawnCoin(b.x, b.y + 8, 15);
+            this.spawnLoot(b.x, b.y + 8, 'potion_red', 1);
+            spawnSparklers(this, b.x, b.y - 4, 10);
+            this.hud.showToast('Found a house stash!');
+          } else {
+            this.hud.toggleModal('inventory');
+          }
+        } else {
+          this.hud.toggleModal('craft', b.interactStation, b.id);
         }
         return true;
       }
@@ -3056,6 +3224,7 @@ export class OverworldScene extends Phaser.Scene {
       // Update wandering wildlife animals
       const aDtSec = dt / 1000;
       for (const a of this.animals) {
+        if (!a.sprite?.active || !a.sprite.anims) continue;
         if (a.petCooldownMs > 0) a.petCooldownMs = Math.max(0, a.petCooldownMs - dt);
         a.wanderTimerMs -= dt;
         if (a.wanderTimerMs <= 0) {
@@ -3193,15 +3362,8 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    for (const b of this.buildings) {
-      if (!b.active) continue;
-      const inCam = this.isNearCamera(b.x, b.y, 110);
-      if (b.interactStation) {
-        b.setPromptVisible(inCam && Math.hypot(b.x - this.player.x, b.y - this.player.y) <= 28);
-      }
-      if (!inCam && !runOffscreenTick) continue;
-      const tickDt = inCam ? dt : offscreenDt;
-      b.updateBuilding(tickDt, {
+    if (!this.buildingTickCallbacks) {
+      this.buildingTickCallbacks = {
         onMiningRodPulse: (bx, by, radiusPx, dmg) => {
           const target = this.nodes.find((n) => n.active && n.solid && Math.hypot(n.x - bx, n.y - by) <= radiusPx);
           if (target) {
@@ -3248,7 +3410,21 @@ export class OverworldScene extends Phaser.Scene {
         },
         isFertileSoil: (tx, ty) => this.overlayGrid[ty]?.[tx] === 'dirt',
         rainWatered: this.weather.weather === 'rain',
-      });
+      };
+    } else {
+      this.buildingTickCallbacks.rainWatered = this.weather.weather === 'rain';
+    }
+
+    for (const b of this.buildings) {
+      if (!b.active) continue;
+      if (b.interactStation) {
+        const inCam = this.isNearCamera(b.x, b.y, 110);
+        b.setPromptVisible(inCam && Math.hypot(b.x - this.player.x, b.y - this.player.y) <= 28);
+      }
+      if (!b.needsTick) continue;
+      const inCam = this.isNearCamera(b.x, b.y, 110);
+      if (!inCam && !runOffscreenTick) continue;
+      b.updateBuilding(inCam ? dt : offscreenDt, this.buildingTickCallbacks);
     }
 
     // Friendly Ranch Creatures (wander on walkable land, blocked by water & fences, lay eggs when happy)
@@ -3427,19 +3603,44 @@ export class OverworldScene extends Phaser.Scene {
       this.weather.currentBiome,
       nightFactor,
     );
-    this.updateLighting(dt);
-
-    // Blocked-out House Roof Fade: fade roofs when player steps inside a house
+    // Per-building Roof Fade: run before updateLighting() and cull invisible roofs from WebGL
+    this.houseGroupRoofAlpha.clear();
     if (this.houseRoofSprites.size > 0) {
       const ptx = Math.floor(this.player.x / TILE_PX);
       const pty = Math.floor(this.player.y / TILE_PX);
-      const insideHouse = this.houseTileSet.has(`${ptx},${pty}`);
-      const targetAlpha = insideHouse ? 0.12 : 1.0;
+      this.activeHouseGroupId = this.houseGroupByTile.get(`${ptx},${pty}`) ?? 0;
       const step = Math.min(1, dt / 160);
-      for (const spr of this.houseRoofSprites.values()) {
-        spr.setAlpha(Phaser.Math.Linear(spr.alpha, targetAlpha, step));
+      for (const [k, spr] of this.houseRoofSprites) {
+        const gid = this.houseRoofGroup.get(k) ?? 0;
+        const targetAlpha = this.activeHouseGroupId > 0 && gid === this.activeHouseGroupId ? 0 : 1.0;
+        if (Math.abs(spr.alpha - targetAlpha) < 0.01) {
+          spr.setAlpha(targetAlpha);
+          spr.setVisible(targetAlpha > 0.01);
+          this.houseGroupRoofAlpha.set(gid, targetAlpha);
+        } else {
+          if (!spr.visible && targetAlpha > 0.01) spr.setVisible(true);
+          const nextAlpha = Phaser.Math.Linear(spr.alpha, targetAlpha, step);
+          spr.setAlpha(nextAlpha);
+          this.houseGroupRoofAlpha.set(gid, nextAlpha);
+        }
+      }
+    } else {
+      this.activeHouseGroupId = 0;
+    }
+
+    // Seamless auto-open/close for house doors on approach & departure
+    for (const b of this.houseDoors) {
+      if (!b.active) continue;
+      const dist = Math.hypot(b.x - this.player.x, b.y - this.player.y);
+      if (!b.isOpen && dist <= 22) {
+        b.toggleDoor();
+        SFX.playChop();
+      } else if (b.isOpen && dist > 34) {
+        b.toggleDoor();
       }
     }
+
+    this.updateLighting(dt);
 
     // Desert Sandstorm periodic wind-blown coin / amber finds
     if (this.weather.weather === 'sandstorm' && this.weather.currentBiome === 'autumn') {
@@ -3472,13 +3673,18 @@ export class OverworldScene extends Phaser.Scene {
             label: tracked.waypoint.label,
           }
         : undefined;
+      if (!this.cachedMinimapBuildings) {
+        this.cachedMinimapBuildings = this.buildings
+          .filter((b) => b.active)
+          .map((b) => ({ tx: b.tx, ty: b.ty }));
+      }
       this.hud.updateMinimap({
         worldTiles: WORLD_TILES,
         playerTx: Math.floor(this.player.x / TILE_PX),
         playerTy: Math.floor(this.player.y / TILE_PX),
         terrainGrid: this.terrainGrid,
         bridges,
-        buildings: this.buildings.filter((b) => b.active).map((b) => ({ tx: b.tx, ty: b.ty })),
+        buildings: this.cachedMinimapBuildings,
         portals: this.dungeonPortals.map((p) => ({ tx: Math.floor(p.x / TILE_PX), ty: Math.floor(p.y / TILE_PX) })),
         enemies: this.enemies
           .filter((e) => e.active && !e.isDead)
@@ -3537,20 +3743,35 @@ export class OverworldScene extends Phaser.Scene {
       // Simple smooth circular light field fading outward around the player
       { x: this.player.x, y: this.player.y - 4, radius: 24, color: 0xffe4aa, intensity: 1.0 },
     ];
+    if (this.activeHouseGroupId > 0) {
+      pointLights.push({ x: this.player.x, y: this.player.y - 4, radius: 52, color: 0xffe4aa, intensity: 0.45 });
+    }
     const spotLights: SpotLightSource[] = [];
 
     for (const b of this.buildings) {
-      if (!b.active) continue;
+      if (!b.active || !b.emitsLight) continue;
+      // Suppress indoor lights & aura circles when the building's roof is visible
+      const gid = this.houseGroupByTile.get(`${b.tx},${b.ty}`) ?? 0;
+      let visAlpha = 1;
+      if (gid > 0) {
+        const roofAlpha = this.houseGroupRoofAlpha.get(gid) ?? 1;
+        visAlpha = gid === this.activeHouseGroupId ? Math.max(0, 1 - roofAlpha) : 0;
+        b.setIndoorLightVisible(visAlpha);
+        if (visAlpha <= 0.02) continue;
+      } else {
+        b.setIndoorLightVisible(1);
+      }
+
       if (b.structureType === 'bonfire') {
-        pointLights.push({ x: b.x, y: b.y, radius: 56 * flicker, color: 0xff8c3b, intensity: 1, flicker: true });
+        pointLights.push({ x: b.x, y: b.y, radius: 56 * flicker, color: 0xff8c3b, intensity: 1 * visAlpha, flicker: true });
       } else if (b.structureType === 'furnace' || b.structureType === 'infernal_forge') {
-        pointLights.push({ x: b.x, y: b.y, radius: 24 * flicker, color: 0xff5f2e, intensity: 0.95, flicker: true });
+        pointLights.push({ x: b.x, y: b.y, radius: 24 * flicker, color: 0xff5f2e, intensity: 0.95 * visAlpha, flicker: true });
       } else if (b.structureType === 'frost_kiln') {
-        pointLights.push({ x: b.x, y: b.y, radius: 22 * flicker, color: 0x7ce8ff, intensity: 0.9, flicker: true });
+        pointLights.push({ x: b.x, y: b.y, radius: 22 * flicker, color: 0x7ce8ff, intensity: 0.9 * visAlpha, flicker: true });
       } else if (b.structureType === 'mining_rod') {
-        pointLights.push({ x: b.x, y: b.y - 6, radius: 20, color: 0x5be6ff, intensity: 0.9, dayVisible: true });
+        pointLights.push({ x: b.x, y: b.y - 6, radius: 20, color: 0x5be6ff, intensity: 0.9 * visAlpha, dayVisible: true });
       } else if (b.structureType === 'furniture_lamp') {
-        pointLights.push({ x: b.x, y: b.y - 4, radius: 24, color: 0xffe08a, intensity: 0.85, flicker: true });
+        pointLights.push({ x: b.x, y: b.y - 4, radius: 24, color: 0xffe08a, intensity: 0.85 * visAlpha, flicker: true });
       } else if (b.structureType === 'lighthouse') {
         const beaconY = b.y - 11;
         pointLights.push({ x: b.x, y: beaconY, radius: 28, color: 0xfff08a, intensity: 0.95, flicker: true });

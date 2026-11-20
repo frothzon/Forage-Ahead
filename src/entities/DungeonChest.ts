@@ -105,7 +105,7 @@ export class DungeonChest {
     }
   }
 
-  public playOpenJuice(rewardIconKey?: string): void {
+  public playOpenJuice(): void {
     if (this.opened) return;
     this.opened = true;
     this.bobTween?.stop();
@@ -139,21 +139,5 @@ export class DungeonChest {
     spawnShockwaveRing(this.scene, this.x, this.y, 0xffe066, 36, 360);
     spawnSparklers(this.scene, this.x, this.y - 4, 20);
     spawnArcParticles(this.scene, this.x, this.y - 2, 0xffd95a, 10);
-
-    if (rewardIconKey && this.scene.textures.exists(rewardIconKey)) {
-      const halo = this.scene.add.circle(this.x, this.y - 8, 9, 0xffe066, 0.45).setDepth(7500);
-      const icon = this.scene.add.image(this.x, this.y - 8, rewardIconKey).setDepth(7501);
-      this.scene.tweens.add({
-        targets: [halo, icon],
-        y: this.y - 28,
-        alpha: 0,
-        duration: 850,
-        ease: 'Cubic.Out',
-        onComplete: () => {
-          halo.destroy();
-          icon.destroy();
-        },
-      });
-    }
   }
 }

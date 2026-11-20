@@ -133,6 +133,7 @@ export class BootScene extends Phaser.Scene {
         key.startsWith('icons/') ||
         key.startsWith('extras/') ||
         key.startsWith('ui_icons/') ||
+        key.startsWith('sprout/') ||
         key.startsWith('sprout_ui/')
       ) {
         if (!this.textures.exists(key) && !sheetLoads.some((s) => s.key === key) && !uiSheets[key]) {
@@ -144,6 +145,13 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     registerAllAnimations(this);
+    if (typeof window !== 'undefined') {
+      const testMode = new URLSearchParams(window.location.search).get('test');
+      if (testMode === 'houses') {
+        this.scene.start('HouseTestScene');
+        return;
+      }
+    }
     const promo = getPromoBootTarget();
     if (promo) {
       this.scene.start(promo.scene, promo.data);
