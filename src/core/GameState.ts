@@ -55,6 +55,9 @@ export interface PlacedBuildingSave {
   ty: number;
   craftQueue?: CraftQueueJob[];
   cropStage?: number;
+  stageWatered?: boolean;
+  wateredCount?: number;
+  harvestsLeft?: number;
 }
 
 export interface SavedNodeData {

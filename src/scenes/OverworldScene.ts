@@ -129,6 +129,15 @@ interface DungeonPortalEntity {
   prompt: Phaser.GameObjects.Text;
 }
 
+export function computeBridgeBobY(tx: number, ty: number, timeMs: number, baseY: number): number {
+  const phase = tx * 0.55 + ty * 0.35;
+  return baseY + Math.sin((timeMs / 2000) * Math.PI * 2 + phase) * 1.5;
+}
+
+export function computeSalvageRefundCount(usedCount: number): number {
+  return Math.max(1, Math.floor(usedCount * 0.5));
+}
+
 export class OverworldScene extends Phaser.Scene {
   private terrainGrid: TerrainType[][] = [];
   private overlayGrid: OverlayType[][] = [];
@@ -149,6 +158,9 @@ export class OverworldScene extends Phaser.Scene {
     hoedSoil: Phaser.Tilemaps.Tileset;
     road: Phaser.Tilemaps.Tileset;
   };
+
+  public static readonly SOIL_UNUSED_DECAY_MS = 5 * 60 * 1000;
+  public static readonly SOIL_UNWATERED_DECAY_MS = 10 * 60 * 1000;
 
   private player!: Player;
   private fox!: FoxCompanion;
@@ -175,6 +187,9 @@ export class OverworldScene extends Phaser.Scene {
   private houseDoors: BuildingEntity[] = [];
   private cachedMinimapBuildings: Array<{ tx: number; ty: number }> | null = null;
   private buildingTickCallbacks?: Parameters<BuildingEntity['updateBuilding']>[1];
+  private soilStateMap = new Map<string, { lastWateredMs: number; lastUsedMs: number }>();
+  private soilDecayTimerMs = 0;
+  private cropStatusLabel?: Phaser.GameObjects.Text;
   private enemies: Enemy[] = [];
   private drops: LootDrop[] = [];
   private projectiles: ActiveProjectile[] = [];
@@ -195,13 +210,19 @@ export class OverworldScene extends Phaser.Scene {
     petCooldownMs: number;
   }> = [];
   private dungeonPortals: DungeonPortalEntity[] = [];
-  private bridgeSprites = new Map<string, Phaser.GameObjects.Image>();
+  private bridgeSprites = new Map<string, { sprite: Phaser.GameObjects.Image; tx: number; ty: number; baseY: number }>();
   private houseRoofSprites = new Map<string, Phaser.GameObjects.Image>();
+  private houseRoofUnderlaySprites = new Map<string, Phaser.GameObjects.Image>();
+  private houseUnderWallFloors = new Map<string, Phaser.GameObjects.Image>();
   private houseTileSet = new Set<string>();
+  private houseInteriorTileSet = new Set<string>();
   private houseGroupByTile = new Map<string, number>();
   private houseRoofGroup = new Map<string, number>();
   private houseGroupRoofAlpha = new Map<number, number>();
   private activeHouseGroupId = 0;
+  private lastHarvestMs = 0;
+  private harvestComboCount = 0;
+  private stokeCooldownMs = 0;
   private buildCursor!: Phaser.GameObjects.Rectangle;
   private targetIndicator!: Phaser.GameObjects.Arc;
   private mobilePlaceActive = false;
@@ -552,18 +573,53 @@ export class OverworldScene extends Phaser.Scene {
     if (this.bridgeSprites.has(key)) return;
     const baseY = ty * TILE_PX + 8;
     const spr = this.add.image(tx * TILE_PX + 8, baseY, 'ui_icons/bridge').setDepth(2.5);
-    // Gentle 2-second bobbing wave cycle staggered per plank
-    const phaseMs = ((tx * 3 + ty * 5) % 10) * 180;
-    this.tweens.add({
-      targets: spr,
-      y: { from: baseY - 1.5, to: baseY + 1.5 },
-      duration: 1000,
-      ease: 'Sine.easeInOut',
-      yoyo: true,
-      repeat: -1,
-      delay: phaseMs,
-    });
-    this.bridgeSprites.set(key, spr);
+    this.bridgeSprites.set(key, { sprite: spr, tx, ty, baseY });
+  }
+
+  private removeBridgesOnLand(minX: number, minY: number, maxX: number, maxY: number, refundLoot = true): number {
+    const x0 = Math.max(0, minX);
+    const y0 = Math.max(0, minY);
+    const x1 = Math.min(WORLD_TILES - 1, maxX);
+    const y1 = Math.min(WORLD_TILES - 1, maxY);
+    let removed = 0;
+
+    for (let ty = y0; ty <= y1; ty++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        if (!isLand(this.terrainGrid[ty]?.[tx])) continue;
+        const key = `${tx},${ty}`;
+        if (this.overlayGrid[ty]?.[tx] !== 'bridge' && !this.bridgeSet.has(key)) continue;
+
+        this.overlayGrid[ty][tx] = 'none';
+        this.bridgeSet.delete(key);
+        const entry = this.bridgeSprites.get(key);
+        if (entry) {
+          entry.sprite.destroy();
+          this.bridgeSprites.delete(key);
+        }
+        spawnBurstParticles(this, tx * TILE_PX + 8, ty * TILE_PX + 8, 0xb8763e, 5);
+        removed += 1;
+      }
+    }
+
+    if (removed > 0) {
+      gameState.overlays = gameState.overlays.filter(
+        (o) => !(o.type === 'bridge' && o.tx >= x0 && o.tx <= x1 && o.ty >= y0 && o.ty <= y1 && isLand(this.terrainGrid[o.ty]?.[o.tx])),
+      );
+      if (refundLoot) {
+        const bridgeRec = RECIPES.find((r) => r.id === 'build_bridge');
+        if (bridgeRec) {
+          for (let i = 0; i < removed; i++) {
+            gameState.refundIngredients(bridgeRec);
+          }
+          const woodTotal = bridgeRec.ingredients.reduce(
+            (sum, ing) => sum + (ing.itemId === 'wood' ? gameState.getStructureCostCount(ing.itemId, ing.count, true) : 0),
+            0,
+          ) * removed;
+          this.hud?.showToast(`Cleared ${removed} landlocked bridge(s) — refunded +${woodTotal} Wood!`);
+        }
+      }
+    }
+    return removed;
   }
 
   private populateOwnedWorld(): void {
@@ -586,12 +642,23 @@ export class OverworldScene extends Phaser.Scene {
     }
     for (const b of gameState.buildings) {
       this.registerBuilding(
-        new BuildingEntity(this, b.id, b.type, b.tx, b.ty, b.craftQueue ?? [], b.cropStage ?? 0),
+        new BuildingEntity(this, b.id, b.type, b.tx, b.ty, b.craftQueue ?? [], b.cropStage ?? 0, false, {
+          stageWatered: b.stageWatered,
+          wateredCount: b.wateredCount,
+          harvestsLeft: b.harvestsLeft,
+        }),
       );
+    }
+    const nowMs = this.time?.now ?? 0;
+    for (const ov of gameState.overlays) {
+      if (ov.type === 'dirt') {
+        this.soilStateMap.set(`${ov.tx},${ov.ty}`, { lastWateredMs: nowMs, lastUsedMs: nowMs });
+      }
     }
     for (const rc of gameState.ranchCreatures) {
       this.spawnRanchSprite(rc);
     }
+    this.removeBridgesOnLand(0, 0, WORLD_TILES - 1, WORLD_TILES - 1, true);
     this.rebuildHouseRoofs();
   }
 
@@ -621,15 +688,56 @@ export class OverworldScene extends Phaser.Scene {
 
   private rebuildHouseRoofs(): void {
     this.houseTileSet.clear();
+    this.houseInteriorTileSet.clear();
     const wallOrDoorSet = new Set<string>();
+    const openDoorSet = new Set<string>();
     for (const b of this.buildings) {
       if (!b.active) continue;
       if (this.isHousePart(b.structureType)) {
-        this.houseTileSet.add(`${b.tx},${b.ty}`);
+        const key = `${b.tx},${b.ty}`;
+        this.houseTileSet.add(key);
+        if (b.structureType === 'house_floor' || b.structureType.startsWith('furniture_')) {
+          this.houseInteriorTileSet.add(key);
+        }
+        if (b.structureType === 'house_door' && b.isOpen) {
+          openDoorSet.add(key);
+        }
       }
       if (b.structureType === 'house_wall' || b.structureType === 'house_door') {
         wallOrDoorSet.add(`${b.tx},${b.ty}`);
       }
+    }
+    // Exclude exterior wall/closed-door tiles from interior trigger set
+    for (const wk of wallOrDoorSet) {
+      if (!openDoorSet.has(wk)) {
+        this.houseInteriorTileSet.delete(wk);
+      } else {
+        this.houseInteriorTileSet.add(wk);
+      }
+    }
+
+    // Extra floor layer under north/south walls & doors so world ground never pokes through inside houses
+    const underFloorKeys = new Set<string>();
+    for (const wk of wallOrDoorSet) {
+      const [tx, ty] = wk.split(',').map(Number);
+      if (this.houseTileSet.has(`${tx},${ty + 1}`) || this.houseTileSet.has(`${tx},${ty - 1}`)) {
+        underFloorKeys.add(wk);
+      }
+    }
+    for (const [k, spr] of this.houseUnderWallFloors) {
+      if (!underFloorKeys.has(k)) {
+        spr.destroy();
+        this.houseUnderWallFloors.delete(k);
+      }
+    }
+    for (const k of underFloorKeys) {
+      if (this.houseUnderWallFloors.has(k)) continue;
+      const [tx, ty] = k.split(',').map(Number);
+      const spr = this.add
+        .image(tx * TILE_PX + 8, ty * TILE_PX + 8, 'sprout/house_walls', 6)
+        .setDepth(2.9)
+        .setDisplaySize(16, 20);
+      this.houseUnderWallFloors.set(k, spr);
     }
 
     // Autotile all house_wall sprites (NPC-built and player-built alike)
@@ -646,10 +754,7 @@ export class OverworldScene extends Phaser.Scene {
 
     this.houseGroupByTile = groupConnectedHouseTiles(this.houseTileSet);
 
-    const roofKeys = [...this.houseTileSet].filter((k) => {
-      const [tx, ty] = k.split(',').map(Number);
-      return this.houseTileSet.has(`${tx},${ty + 1}`);
-    });
+    const roofKeys = [...this.houseTileSet];
     const roofKeySet = new Set(roofKeys);
 
     for (const [k, spr] of this.houseRoofSprites) {
@@ -657,6 +762,12 @@ export class OverworldScene extends Phaser.Scene {
         spr.destroy();
         this.houseRoofSprites.delete(k);
         this.houseRoofGroup.delete(k);
+      }
+    }
+    for (const [k, spr] of this.houseRoofUnderlaySprites) {
+      if (!roofKeySet.has(k)) {
+        spr.destroy();
+        this.houseRoofUnderlaySprites.delete(k);
       }
     }
     const groupYBounds = new Map<number, { minTy: number; maxTy: number }>();
@@ -686,6 +797,17 @@ export class OverworldScene extends Phaser.Scene {
       }
       const frame = computeHouseRoofFrame(ty, bounds.minTy, bounds.maxTy, hasW, hasE, concave);
       this.houseRoofGroup.set(k, gid);
+      let underlay = this.houseRoofUnderlaySprites.get(k);
+      if (!underlay) {
+        underlay = this.add
+          .image(tx * TILE_PX + 8, ty * TILE_PX + 8, 'sprout/house_walls', 6)
+          .setTint(0x100906)
+          .setDisplaySize(16, 18)
+          .setDepth(8499);
+        this.houseRoofUnderlaySprites.set(k, underlay);
+      } else {
+        underlay.setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8);
+      }
       let spr = this.houseRoofSprites.get(k);
       if (!spr) {
         spr = this.add
@@ -1267,6 +1389,7 @@ export class OverworldScene extends Phaser.Scene {
     this.stampIslandTerrain(gx, gy);
     const ox = gx * ISLAND_CELL_TILES;
     const oy = gy * ISLAND_CELL_TILES;
+    this.removeBridgesOnLand(ox, oy, ox + ISLAND_CELL_TILES - 1, oy + ISLAND_CELL_TILES - 1, true);
     this.refreshAutoTiles(ox - 1, oy - 1, ox + ISLAND_CELL_TILES, oy + ISLAND_CELL_TILES);
     this.populateIslandContent(gx, gy);
     this.refreshPurchaseMarkers();
@@ -1290,7 +1413,12 @@ export class OverworldScene extends Phaser.Scene {
       const ent = this.buildings.find((b) => b.id === bSave.id);
       if (ent) {
         bSave.craftQueue = ent.craftQueue.map((j) => ({ ...j }));
-        if (ent.isCrop()) bSave.cropStage = ent.getCropStage();
+        if (ent.isCrop()) {
+          bSave.cropStage = ent.getCropStage();
+          bSave.stageWatered = ent.isStageWatered();
+          bSave.wateredCount = ent.getWateredCount();
+          bSave.harvestsLeft = ent.getHarvestsLeft();
+        }
       }
     }
     gameState.savedNodes = this.nodes
@@ -1394,6 +1522,7 @@ export class OverworldScene extends Phaser.Scene {
         }
         return ok;
       },
+      onStokeStation: (stationId) => this.stokeStation(stationId),
       getWorldDebugStats: () => ({
         scene: 'OverworldScene',
         playerTx: Math.floor(this.player.x / TILE_PX),
@@ -1427,6 +1556,7 @@ export class OverworldScene extends Phaser.Scene {
             this.stampIslandTerrain(gx, gy);
             const ox = gx * ISLAND_CELL_TILES;
             const oy = gy * ISLAND_CELL_TILES;
+            this.removeBridgesOnLand(ox, oy, ox + ISLAND_CELL_TILES - 1, oy + ISLAND_CELL_TILES - 1, true);
             this.refreshAutoTiles(ox - 1, oy - 1, ox + ISLAND_CELL_TILES, oy + ISLAND_CELL_TILES);
             this.populateIslandContent(gx, gy);
             this.refreshPurchaseMarkers();
@@ -1709,8 +1839,18 @@ export class OverworldScene extends Phaser.Scene {
     const st = rec.structureType;
     if (st === 'bridge' || st === 'fish_trap') {
       if (terrain !== 'water') return { ok: false, reason: `${rec.name} must be placed on water!`, rec };
+      if (
+        st === 'bridge' &&
+        (this.overlayGrid[ty]?.[tx] === 'bridge' || this.bridgeSet.has(`${tx},${ty}`))
+      ) {
+        return { ok: false, reason: 'Wooden bridge already placed here!', rec };
+      }
     } else if (!isLand(terrain)) {
       return { ok: false, reason: `${rec.name} must be placed on land!`, rec };
+    }
+
+    if (st.startsWith('crop_') && this.overlayGrid[ty]?.[tx] !== 'dirt') {
+      return { ok: false, reason: 'Requires tilled soil (use Hoe first)!', rec };
     }
 
     const existingBld = this.buildings.find((b) => b.active && b.tx === tx && b.ty === ty);
@@ -1729,9 +1869,6 @@ export class OverworldScene extends Phaser.Scene {
       st !== 'furniture_lamp' &&
       st !== 'furniture_rug' &&
       !st.startsWith('crop_');
-      st !== 'crop_berries' &&
-      st !== 'crop_carrot' &&
-      st !== 'crop_sunflower';
     if (
       isSolidBuild &&
       Math.hypot(tx * TILE_PX + 8 - this.player.x, ty * TILE_PX + 8 - this.player.y) < 12
@@ -1776,7 +1913,9 @@ export class OverworldScene extends Phaser.Scene {
       SFX.playBuildPlace();
       this.overlayGrid[ty][tx] = 'bridge';
       this.bridgeSet.add(`${tx},${ty}`);
-      gameState.overlays.push({ tx, ty, type: 'bridge' });
+      if (!gameState.overlays.some((o) => o.tx === tx && o.ty === ty && o.type === 'bridge')) {
+        gameState.overlays.push({ tx, ty, type: 'bridge' });
+      }
       this.refreshAutoTiles(tx - 1, ty - 1, tx + 1, ty + 1);
     } else if (st === 'road_stone') {
       SFX.playBuildPlace();
@@ -1854,6 +1993,17 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    if (def.plantStructureType) {
+      if (fromHold) return;
+      const targetSoil = this.findTargetSoilForSeed(wx, wy);
+      if (targetSoil) {
+        this.tryPlantHeldSeed(itemId, targetSoil.tx, targetSoil.ty);
+      } else {
+        this.hud.showToast('Target tilled soil (use Hoe first) to plant!');
+      }
+      return;
+    }
+
     if (def.healHp || def.healEnergy) {
       if ((gameState.inventory[itemId] ?? 0) <= 0) return;
       if (!this.player.startAction('melee', 260, dx, dy, 180)) return;
@@ -1875,6 +2025,13 @@ export class OverworldScene extends Phaser.Scene {
         wx,
         wy,
       );
+      return;
+    }
+
+    if (itemId === 'salvage_hammer') {
+      if (fromHold) return;
+      if (!this.player.startAction('mining', def.cooldownMs ?? 300, dx / dLen, dy / dLen, 175)) return;
+      this.trySalvageAt(wx, wy);
       return;
     }
 
@@ -1952,6 +2109,8 @@ export class OverworldScene extends Phaser.Scene {
         if (!this.consumeToolEnergy(1.5)) return;
         this.overlayGrid[targetTy][targetTx] = 'dirt';
         gameState.overlays.push({ tx: targetTx, ty: targetTy, type: 'dirt' });
+        const now = this.time.now;
+        this.soilStateMap.set(`${targetTx},${targetTy}`, { lastWateredMs: now, lastUsedMs: now });
         this.refreshAutoTiles(targetTx - 1, targetTy - 1, targetTx + 1, targetTy + 1);
         spawnBurstParticles(this, targetTx * TILE_PX + 8, targetTy * TILE_PX + 8, 0x9c6544, 5);
         SFX.playChop();
@@ -1965,12 +2124,29 @@ export class OverworldScene extends Phaser.Scene {
       const wyHit = this.player.y + ny * 16;
       spawnBurstParticles(this, wxHit, wyHit, 0x6ce5ff, 6);
       SFX.playPickup();
+      const now = this.time.now;
       let wateredAny = false;
       for (const b of this.buildings) {
         if (b.active && b.isCrop() && Math.hypot(b.x - wxHit, b.y - wyHit) <= 26) {
+          this.refreshSoilWatered(b.tx, b.ty, now);
           if (b.waterCrop()) {
             wateredAny = true;
             spawnFloatingText(this, b.x, b.y - 12, 'Watered!', '#7ce8ff');
+          }
+        }
+      }
+      // Also hydrate tilled soil tiles within watering reach
+      const cTx = Math.floor(wxHit / TILE_PX);
+      const cTy = Math.floor(wyHit / TILE_PX);
+      for (let ty = cTy - 2; ty <= cTy + 2; ty++) {
+        for (let tx = cTx - 2; tx <= cTx + 2; tx++) {
+          if (this.overlayGrid[ty]?.[tx] === 'dirt') {
+            const tileCx = tx * TILE_PX + 8;
+            const tileCy = ty * TILE_PX + 8;
+            if (Math.hypot(tileCx - wxHit, tileCy - wyHit) <= 28) {
+              this.refreshSoilWatered(tx, ty, now);
+              wateredAny = true;
+            }
           }
         }
       }
@@ -2133,17 +2309,11 @@ export class OverworldScene extends Phaser.Scene {
     SFX.playSwing();
 
     // Check Ripe Crops
-    for (const b of this.buildings) {
+    for (const b of [...this.buildings]) {
       if (!b.active || !b.isCropRipe()) continue;
       if (Math.hypot(b.x - this.player.x, b.y - this.player.y) <= range + 8) {
         if (!this.consumeToolEnergy(1.5)) break;
-        const res = b.harvestCrop();
-        if (res) {
-          SFX.playHarvestCrop();
-          spawnArcParticles(this, b.x, b.y - 4, 0x7ef29d, 8);
-          this.spawnLoot(b.x, b.y, res.itemId, res.count);
-          this.awardXp(8);
-        }
+        this.handleCropHarvest(b);
       }
     }
 
@@ -2281,6 +2451,440 @@ export class OverworldScene extends Phaser.Scene {
     return false;
   }
 
+  private refreshSoilWatered(tx: number, ty: number, nowMs: number): void {
+    const key = `${tx},${ty}`;
+    const cur = this.soilStateMap.get(key);
+    if (cur) {
+      cur.lastWateredMs = nowMs;
+    } else if (this.overlayGrid[ty]?.[tx] === 'dirt') {
+      this.soilStateMap.set(key, { lastWateredMs: nowMs, lastUsedMs: nowMs });
+    }
+  }
+
+  private removeBuilding(b: BuildingEntity): void {
+    b.active = false;
+    this.buildings = this.buildings.filter((ent) => ent !== b);
+    const key = (b.ty << 10) | b.tx;
+    const bucket = this.buildingsByTile.get(key);
+    if (bucket) {
+      const next = bucket.filter((ent) => ent !== b);
+      if (next.length === 0) this.buildingsByTile.delete(key);
+      else this.buildingsByTile.set(key, next);
+    }
+    this.houseDoors = this.houseDoors.filter((ent) => ent !== b);
+    this.cachedMinimapBuildings = null;
+    gameState.buildings = gameState.buildings.filter((s) => s.id !== b.id);
+    b.destroy();
+  }
+
+  private spawnPlantDeathPuff(x: number, y: number): void {
+    spawnBurstParticles(this, x, y - 4, 0x9c6544, 7);
+    spawnBurstParticles(this, x, y - 6, 0x7ef29d, 6);
+    const leafKeys = ['extras/Leaf_particle1', 'extras/Leaf_particle2', 'extras/Leaf_particle3'];
+    for (let i = 0; i < 6; i++) {
+      const key = leafKeys[i % leafKeys.length];
+      if (!this.textures.exists(key)) continue;
+      const ang = (Math.PI * 2 * i) / 6 + (Math.random() - 0.5) * 0.4;
+      const dist = Phaser.Math.Between(10, 18);
+      const leaf = this.add.image(x, y - 4, key).setDepth(y + 12).setScale(0.95);
+      this.tweens.add({
+        targets: leaf,
+        x: x + Math.cos(ang) * dist,
+        y: y - 6 + Math.sin(ang) * dist * 0.7 - 6,
+        angle: Phaser.Math.Between(-160, 160),
+        alpha: 0,
+        scale: 0.35,
+        duration: 460,
+        ease: 'Quad.Out',
+        onComplete: () => leaf.destroy(),
+      });
+    }
+  }
+
+  private handleCropHarvest(b: BuildingEntity): boolean {
+    const res = b.harvestCrop();
+    if (!res) return false;
+    const nowMs = this.time.now;
+    if (nowMs - this.lastHarvestMs <= 5000) {
+      this.harvestComboCount += 1;
+    } else {
+      this.harvestComboCount = 1;
+    }
+    this.lastHarvestMs = nowMs;
+
+    const isCombo = this.harvestComboCount >= 3;
+    const bonusCount = isCombo ? res.count + 1 : res.count;
+    const xpGain = isCombo ? 12 : 8;
+
+    SFX.playHarvestCrop();
+    spawnArcParticles(this, b.x, b.y - 4, 0x7ef29d, 8);
+    this.spawnLoot(b.x, b.y, res.itemId, bonusCount);
+    this.awardXp(xpGain);
+    if (isCombo) {
+      spawnFloatingText(this, b.x, b.y - 24, `HARVEST COMBO x${this.harvestComboCount}! (+1)`, '#ffe066');
+    }
+    if (res.depleted) {
+      this.spawnPlantDeathPuff(b.x, b.y);
+      spawnFloatingText(this, b.x, b.y - 16, 'Final Harvest!', '#ffe066');
+      this.removeBuilding(b);
+    }
+    return true;
+  }
+
+  private findSalvageTarget(
+    aimX?: number,
+    aimY?: number,
+  ):
+    | { kind: 'building'; b: BuildingEntity; x: number; y: number; name: string }
+    | { kind: 'overlay'; tx: number; ty: number; type: 'bridge' | 'road'; x: number; y: number; name: string }
+    | null {
+    const f = this.player.facing;
+    let fx = f === 'left' ? -1 : f === 'right' ? 1 : 0;
+    let fy = f === 'up' ? -1 : f === 'down' ? 1 : 0;
+    if (aimX !== undefined && aimY !== undefined) {
+      const dx = aimX - this.player.x;
+      const dy = aimY - this.player.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 4) {
+        fx = dx / len;
+        fy = dy / len;
+      }
+    }
+    const maxRange = 36;
+
+    // 1. Prefer player-placed non-floor buildings (stations, walls, doors, furniture, crops)
+    let bestBld: BuildingEntity | null = null;
+    let bestScore = Infinity;
+    for (const b of this.buildings) {
+      if (!b.active || b.readOnly) continue;
+      const d = Math.hypot(b.x - this.player.x, b.y - this.player.y);
+      if (d > maxRange) continue;
+      const dot = d > 1 ? ((b.x - this.player.x) * fx + (b.y - this.player.y) * fy) / d : 1;
+      const floorPenalty = b.structureType === 'house_floor' ? 20 : 0;
+      const score = d - dot * 12 + floorPenalty;
+      if (score < bestScore) {
+        bestScore = score;
+        bestBld = b;
+      }
+    }
+    if (bestBld) {
+      const rec = RECIPES.find((r) => r.structureType === bestBld!.structureType);
+      return {
+        kind: 'building',
+        b: bestBld,
+        x: bestBld.x,
+        y: bestBld.y,
+        name: rec?.name ?? bestBld.structureType.replace(/_/g, ' '),
+      };
+    }
+
+    // 2. Check player-placed bridge / stone road overlays
+    const frontTx = Math.floor((this.player.x + fx * 16) / TILE_PX);
+    const frontTy = Math.floor((this.player.y + fy * 16) / TILE_PX);
+    const ptx = Math.floor(this.player.x / TILE_PX);
+    const pty = Math.floor(this.player.y / TILE_PX);
+    const candidates: Array<[number, number]> = [[frontTx, frontTy]];
+    for (let ty = pty - 2; ty <= pty + 2; ty++) {
+      for (let tx = ptx - 2; tx <= ptx + 2; tx++) {
+        candidates.push([tx, ty]);
+      }
+    }
+    for (const [tx, ty] of candidates) {
+      const ov = this.overlayGrid[ty]?.[tx];
+      if (ov !== 'bridge' && ov !== 'road') continue;
+      const cx = tx * TILE_PX + 8;
+      const cy = ty * TILE_PX + 8;
+      if (Math.hypot(cx - this.player.x, cy - this.player.y) > maxRange) continue;
+      return {
+        kind: 'overlay',
+        tx,
+        ty,
+        type: ov,
+        x: cx,
+        y: cy,
+        name: ov === 'bridge' ? 'Wooden Bridge' : 'Stone Road',
+      };
+    }
+    return null;
+  }
+
+  private trySalvageAt(aimX?: number, aimY?: number): boolean {
+    const target = this.findSalvageTarget(aimX, aimY);
+    if (!target) {
+      this.hud.showToast('No crafted building, bridge, or road in range to salvage!');
+      return false;
+    }
+    if (!this.consumeToolEnergy(1.5)) return false;
+
+    if (target.kind === 'building') {
+      const b = target.b;
+      const st = b.structureType;
+      // Refund any queued crafting jobs 100% so players never lose queued ingots/items
+      while (b.craftQueue.length > 0) {
+        b.cancelCraft(0);
+      }
+      const rec = RECIPES.find((r) => r.structureType === st);
+      if (rec) {
+        for (const ing of rec.ingredients) {
+          const used = gameState.getStructureCostCount(ing.itemId, ing.count, rec.station === 'build');
+          const refundQty = computeSalvageRefundCount(used);
+          this.spawnLoot(b.x, b.y, ing.itemId, refundQty);
+        }
+      } else {
+        this.spawnLoot(b.x, b.y, 'wood', 1);
+      }
+      SFX.playChop();
+      spawnBurstParticles(this, b.x, b.y - 4, 0xffaa44, 8);
+      spawnFloatingText(this, b.x, b.y - 14, `Salvaged ${target.name}! (50%)`, '#ffcf70');
+      this.removeBuilding(b);
+      if (this.isHousePart(st)) this.rebuildHouseRoofs();
+      return true;
+    }
+
+    const { tx, ty, type, x, y, name } = target;
+    this.overlayGrid[ty][tx] = 'none';
+    if (type === 'bridge') {
+      this.bridgeSet.delete(`${tx},${ty}`);
+      const entry = this.bridgeSprites.get(`${tx},${ty}`);
+      if (entry) {
+        entry.sprite.destroy();
+        this.bridgeSprites.delete(`${tx},${ty}`);
+      }
+    }
+    gameState.overlays = gameState.overlays.filter(
+      (o) => !(o.tx === tx && o.ty === ty && o.type === type),
+    );
+    this.refreshAutoTiles(tx - 1, ty - 1, tx + 1, ty + 1);
+    const recId = type === 'bridge' ? 'build_bridge' : 'build_road_stone';
+    const rec = RECIPES.find((r) => r.id === recId);
+    if (rec) {
+      for (const ing of rec.ingredients) {
+        const used = gameState.getStructureCostCount(ing.itemId, ing.count, true);
+        this.spawnLoot(x, y, ing.itemId, computeSalvageRefundCount(used));
+      }
+    }
+    SFX.playChop();
+    spawnBurstParticles(this, x, y, 0xffaa44, 7);
+    spawnFloatingText(this, x, y - 14, `Salvaged ${name}! (50%)`, '#ffcf70');
+    return true;
+  }
+
+  private stokeStation(stationId: string): boolean {
+    if (this.stokeCooldownMs > 0) return false;
+    const b = this.buildings.find((ent) => ent.active && ent.id === stationId);
+    if (!b || b.craftQueue.length === 0) return false;
+    this.stokeCooldownMs = 800;
+    const job = b.craftQueue[0];
+    const boostMs = Math.max(500, Math.round(job.totalMs * 0.25));
+    job.remainingMs = Math.max(50, job.remainingMs - boostMs);
+    SFX.playMine();
+    spawnBurstParticles(this, b.x, b.y - 6, 0xffe066, 6);
+    spawnFloatingText(this, b.x, b.y - 16, '⚡ Stoked (+25%)', '#ffe066');
+    return true;
+  }
+
+  private isPlayerInsideHouseGroup(px: number, py: number): number {
+    const ptx = Math.floor(px / TILE_PX);
+    const pty = Math.floor(py / TILE_PX);
+    const key = `${ptx},${pty}`;
+    if (!this.houseInteriorTileSet.has(key)) return 0;
+
+    // Require 4px interior inset from any solid exterior house_wall tile so standing outside never peeks under roofs
+    const localX = px - ptx * TILE_PX;
+    const localY = py - pty * TILE_PX;
+    const pad = 4;
+    if (localX < pad && !this.houseInteriorTileSet.has(`${ptx - 1},${pty}`)) return 0;
+    if (localX > TILE_PX - pad && !this.houseInteriorTileSet.has(`${ptx + 1},${pty}`)) return 0;
+    if (localY < pad && !this.houseInteriorTileSet.has(`${ptx},${pty - 1}`)) return 0;
+    if (localY > TILE_PX - pad && !this.houseInteriorTileSet.has(`${ptx},${pty + 1}`)) return 0;
+
+    return this.houseGroupByTile.get(key) ?? 0;
+  }
+
+  private findTargetSoilForSeed(aimX?: number, aimY?: number): { tx: number; ty: number; x: number; y: number } | null {
+    const f = this.player.facing;
+    let fx = f === 'left' ? -1 : f === 'right' ? 1 : 0;
+    let fy = f === 'up' ? -1 : f === 'down' ? 1 : 0;
+    if (aimX !== undefined && aimY !== undefined) {
+      const dx = aimX - this.player.x;
+      const dy = aimY - this.player.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 4) {
+        fx = dx / len;
+        fy = dy / len;
+      }
+    }
+    const frontTx = Math.floor((this.player.x + fx * 16) / TILE_PX);
+    const frontTy = Math.floor((this.player.y + fy * 16) / TILE_PX);
+    const isPlantableDirt = (tx: number, ty: number) =>
+      tx >= 0 &&
+      ty >= 0 &&
+      tx < WORLD_TILES &&
+      ty < WORLD_TILES &&
+      this.overlayGrid[ty]?.[tx] === 'dirt' &&
+      !this.buildings.some((b) => b.active && b.tx === tx && b.ty === ty) &&
+      !this.hasNodeAt(tx, ty);
+
+    if (isPlantableDirt(frontTx, frontTy)) {
+      return { tx: frontTx, ty: frontTy, x: frontTx * TILE_PX + 8, y: frontTy * TILE_PX + 8 };
+    }
+
+    const ptx = Math.floor(this.player.x / TILE_PX);
+    const pty = Math.floor(this.player.y / TILE_PX);
+    let best: { tx: number; ty: number; x: number; y: number } | null = null;
+    let bestScore = Infinity;
+    for (let ty = pty - 2; ty <= pty + 2; ty++) {
+      for (let tx = ptx - 2; tx <= ptx + 2; tx++) {
+        if (!isPlantableDirt(tx, ty)) continue;
+        const cx = tx * TILE_PX + 8;
+        const cy = ty * TILE_PX + 8;
+        const dist = Math.hypot(cx - this.player.x, cy - this.player.y);
+        if (dist > 34) continue;
+        const dirDot = dist > 1 ? ((cx - this.player.x) * fx + (cy - this.player.y) * fy) / dist : 1;
+        const score = dist - dirDot * 10;
+        if (score < bestScore) {
+          bestScore = score;
+          best = { tx, ty, x: cx, y: cy };
+        }
+      }
+    }
+    return best;
+  }
+
+  private playSeedPlantAnimation(itemId: string, bld: BuildingEntity, tx: number, ty: number): void {
+    const cx = tx * TILE_PX + 8;
+    const cy = ty * TILE_PX + 8;
+    const def = ITEMS[itemId];
+    const iconKey = def?.iconKey ?? 'ui_icons/berries';
+    bld.setScale(0.15, 0.15);
+
+    const startX = this.player.x;
+    const startY = this.player.y - 8;
+    if (this.textures.exists(iconKey)) {
+      const seedSpr = this.add.image(startX, startY, iconKey).setDepth(cy + 20).setScale(0.7);
+      const state = { t: 0 };
+      this.tweens.add({
+        targets: state,
+        t: 1,
+        duration: 210,
+        ease: 'Quad.Out',
+        onUpdate: () => {
+          if (!seedSpr.active) return;
+          const t = state.t;
+          const arc = Math.sin(t * Math.PI) * 14;
+          seedSpr.setPosition(Phaser.Math.Linear(startX, cx, t), Phaser.Math.Linear(startY, cy, t) - arc);
+          seedSpr.setAngle(t * 360);
+          seedSpr.setScale(0.7 - t * 0.2);
+        },
+        onComplete: () => {
+          if (seedSpr.active) seedSpr.destroy();
+          SFX.playPlantSeed();
+          spawnBurstParticles(this, cx, cy, 0x9c6544, 6);
+          spawnBurstParticles(this, cx, cy - 2, 0x8ef5a7, 5);
+          spawnShockwaveRing(this, cx, cy, 0x8ef5a7, 14, 240);
+          spawnFloatingText(this, cx, cy - 14, 'Planted!', '#8ef5a7');
+          if (bld.active) {
+            this.tweens.add({
+              targets: bld,
+              scaleX: 1,
+              scaleY: 1,
+              duration: 260,
+              ease: 'Back.easeOut',
+            });
+          }
+        },
+      });
+    } else {
+      SFX.playPlantSeed();
+      spawnBurstParticles(this, cx, cy, 0x8ef5a7, 7);
+      bld.setScale(1, 1);
+    }
+  }
+
+  private tryPlantHeldSeed(itemId: string, tx: number, ty: number): boolean {
+    const def = ITEMS[itemId];
+    const st = def?.plantStructureType as BuildingEntity['structureType'] | undefined;
+    if (!st || !st.startsWith('crop_')) return false;
+    if ((gameState.inventory[itemId] ?? 0) <= 0) return false;
+    if (this.overlayGrid[ty]?.[tx] !== 'dirt') {
+      this.hud.showToast('Requires tilled soil (use Hoe first)!');
+      return false;
+    }
+    if (this.buildings.some((b) => b.active && b.tx === tx && b.ty === ty) || this.hasNodeAt(tx, ty)) {
+      this.hud.showToast('Tile is already occupied!');
+      return false;
+    }
+
+    const cx = tx * TILE_PX + 8;
+    const cy = ty * TILE_PX + 8;
+    const dx = cx - this.player.x;
+    const dy = cy - this.player.y;
+    const dLen = Math.hypot(dx, dy) || 1;
+    this.player.startAction('hoeing', 220, dx / dLen, dy / dLen, 160);
+
+    if (!gameState.removeItem(itemId, 1)) return false;
+    const id = `bld_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const bld = new BuildingEntity(this, id, st, tx, ty);
+    this.registerBuilding(bld);
+    gameState.buildings.push({ id, type: st, tx, ty, cropStage: 0, stageWatered: false, wateredCount: 0, harvestsLeft: bld.getHarvestsLeft() });
+    const now = this.time.now;
+    const soilEntry = this.soilStateMap.get(`${tx},${ty}`);
+    if (soilEntry) soilEntry.lastUsedMs = now;
+    else this.soilStateMap.set(`${tx},${ty}`, { lastWateredMs: now, lastUsedMs: now });
+    gameState.recordQuestProgress('build', st, 1);
+    this.playSeedPlantAnimation(itemId, bld, tx, ty);
+    return true;
+  }
+
+  private updateSoilDecay(nowMs: number): void {
+    const isRaining = this.weather.weather === 'rain';
+    const expired: Array<{ tx: number; ty: number }> = [];
+
+    for (const [key, state] of this.soilStateMap.entries()) {
+      const [txStr, tyStr] = key.split(',');
+      const tx = Number(txStr);
+      const ty = Number(tyStr);
+      if (this.overlayGrid[ty]?.[tx] !== 'dirt') {
+        this.soilStateMap.delete(key);
+        continue;
+      }
+      if (isRaining) {
+        state.lastWateredMs = nowMs;
+      }
+      const crop = this.buildings.find((b) => b.active && b.tx === tx && b.ty === ty && b.isCrop());
+      if (crop) {
+        state.lastUsedMs = nowMs;
+        if (crop.isStageWatered()) {
+          state.lastWateredMs = nowMs;
+        }
+      }
+      const unusedTooLong =
+        !crop &&
+        nowMs - state.lastUsedMs >= OverworldScene.SOIL_UNUSED_DECAY_MS &&
+        nowMs - state.lastWateredMs >= OverworldScene.SOIL_UNUSED_DECAY_MS;
+      const unwateredTooLong =
+        nowMs - state.lastWateredMs >= OverworldScene.SOIL_UNWATERED_DECAY_MS &&
+        (!crop || !crop.isStageWatered());
+      if (unusedTooLong || unwateredTooLong) {
+        if (crop) {
+          this.spawnPlantDeathPuff(crop.x, crop.y);
+          this.removeBuilding(crop);
+        }
+        expired.push({ tx, ty });
+      }
+    }
+
+    for (const { tx, ty } of expired) {
+      this.overlayGrid[ty][tx] = 'none';
+      this.soilStateMap.delete(`${tx},${ty}`);
+      gameState.overlays = gameState.overlays.filter(
+        (o) => !(o.tx === tx && o.ty === ty && o.type === 'dirt'),
+      );
+      this.refreshAutoTiles(tx - 1, ty - 1, tx + 1, ty + 1);
+      spawnBurstParticles(this, tx * TILE_PX + 8, ty * TILE_PX + 8, 0x9c6544, 4);
+    }
+  }
+
   private findBestInteractableBuilding(skipStations = false): BuildingEntity | null {
     let best: BuildingEntity | null = null;
     let bestScore = Infinity;
@@ -2307,8 +2911,10 @@ export class OverworldScene extends Phaser.Scene {
         b.isCropRipe()
       ) {
         priority = 1;
+      } else if (b.isCrop()) {
+        priority = 2;
       } else if (b.structureType === 'house_door' || b.structureType === 'fence_gate') {
-        priority = 2; // Doors/gates lowest building priority (house_door auto-opens on proximity)
+        priority = 3; // Doors/gates lowest building priority (house_door auto-opens on proximity)
       }
       if (priority < 0) continue;
 
@@ -2324,25 +2930,81 @@ export class OverworldScene extends Phaser.Scene {
 
   private findInteractableTarget(
     skipStations = false,
-  ): { kind: 'portal' | 'animal' | 'ranch' | 'building' | 'npc'; actionLabel: string; x: number; y: number; depth: number } | null {
+  ): {
+    kind: 'portal' | 'animal' | 'ranch' | 'building' | 'npc' | 'soil';
+    actionLabel: string;
+    x: number;
+    y: number;
+    depth: number;
+    statusText?: string;
+    statusColor?: string;
+    ringColor?: number;
+  } | null {
     for (const dp of this.dungeonPortals) {
       if (Math.hypot(dp.x - this.player.x, dp.y - this.player.y) <= 28) {
         return { kind: 'portal', actionLabel: 'ENTER', x: dp.x, y: dp.y + dp.sprite.displayHeight * 0.25, depth: dp.sprite.depth };
       }
     }
+    const heldItemId = gameState.hotbar[gameState.selectedHotbarIndex] ?? '';
+    const heldDef = heldItemId ? ITEMS[heldItemId] : undefined;
+    if (heldItemId === 'salvage_hammer') {
+      let aimX: number | undefined;
+      let aimY: number | undefined;
+      const ptr = this.input.activePointer;
+      if (!this.hud.isTouchEnabled() && ptr) {
+        const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+        aimX = wp.x;
+        aimY = wp.y;
+      }
+      const salv = this.findSalvageTarget(aimX, aimY);
+      if (salv) {
+        return {
+          kind: 'building',
+          actionLabel: 'SALVAGE',
+          x: salv.x,
+          y: salv.y,
+          depth: salv.kind === 'building' ? salv.b.depth : 4,
+          statusText: `🔨 Salvage ${salv.name} (50%)`,
+          statusColor: '#ffaa44',
+          ringColor: 0xffaa44,
+        };
+      }
+    }
     const bestBld = this.findBestInteractableBuilding(skipStations);
-    if (bestBld) {
+    if (bestBld && (!bestBld.isCrop() || bestBld.isCropRipe() || !heldDef?.plantStructureType)) {
+      if (bestBld.isCrop()) {
+        const status = bestBld.getCropStatus();
+        const isRipe = status.state === 'ripe';
+        const needsWater = status.state === 'needs_water';
+        const hasCan = gameState.getItemCount('watering_can') > 0;
+        const actionLabel = isRipe ? 'HARVEST' : needsWater && (heldItemId === 'watering_can' || hasCan) ? 'WATER' : '';
+        const statusText = isRipe
+          ? `✦ READY [E] Harvest (${status.harvestsLeft} left)`
+          : needsWater
+            ? `💧 NEEDS WATER (${status.stage}/${status.maxStage})`
+            : `🌱 GROWING ${status.progressPct}% (${status.stage}/${status.maxStage})`;
+        const statusColor = isRipe ? '#7ef29d' : needsWater ? '#7ce8ff' : '#ffe066';
+        const ringColor = isRipe ? 0x44ee88 : needsWater ? 0x66ccff : 0xffe066;
+        return {
+          kind: 'building',
+          actionLabel,
+          x: bestBld.x,
+          y: bestBld.getCollisionCenter().y,
+          depth: bestBld.depth,
+          statusText,
+          statusColor,
+          ringColor,
+        };
+      }
       const actionLabel = bestBld.interactStation
         ? bestBld.interactStation === 'chest'
           ? 'OPEN'
           : 'CRAFT'
         : bestBld.structureType === 'furniture_bed'
           ? 'REST'
-          : bestBld.isCropRipe()
-            ? 'HARVEST'
-            : bestBld.structureType === 'water_well'
-              ? 'DRINK'
-              : 'USE';
+          : bestBld.structureType === 'water_well'
+            ? 'DRINK'
+            : 'USE';
       return {
         kind: 'building',
         actionLabel,
@@ -2351,7 +3013,32 @@ export class OverworldScene extends Phaser.Scene {
         depth: bestBld.depth,
       };
     }
-    const heldItemId = gameState.hotbar[gameState.selectedHotbarIndex] ?? '';
+
+    if (heldDef?.plantStructureType) {
+      let aimX: number | undefined;
+      let aimY: number | undefined;
+      const ptr = this.input.activePointer;
+      if (!this.hud.isTouchEnabled() && ptr) {
+        const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+        aimX = wp.x;
+        aimY = wp.y;
+      }
+      const targetSoil = this.findTargetSoilForSeed(aimX, aimY);
+      if (targetSoil) {
+        const cropLabel = heldDef.name.replace(/\s*Seeds$/i, '');
+        return {
+          kind: 'soil',
+          actionLabel: 'PLANT',
+          x: targetSoil.x,
+          y: targetSoil.y,
+          depth: 4,
+          statusText: `🌱 [E] Plant ${cropLabel}`,
+          statusColor: '#8ef5a7',
+          ringColor: 0x6ee88a,
+        };
+      }
+    }
+
     const holdingSword = heldItemId.startsWith('sword');
     if (!holdingSword) {
       for (const rc of this.ranchEntities) {
@@ -2380,9 +3067,35 @@ export class OverworldScene extends Phaser.Scene {
     return null;
   }
 
+  private updateCropStatusLabel(x?: number, y?: number, text?: string, color = '#8ef5a7'): void {
+    if (!text || x === undefined || y === undefined) {
+      this.cropStatusLabel?.setVisible(false);
+      return;
+    }
+    if (!this.cropStatusLabel) {
+      this.cropStatusLabel = this.add
+        .text(x, y - 18, text, {
+          fontSize: '7px',
+          fontStyle: 'bold',
+          color,
+          stroke: '#10141c',
+          strokeThickness: 2.5,
+          resolution: 4,
+        })
+        .setOrigin(0.5)
+        .setDepth(9000);
+    }
+    this.cropStatusLabel
+      .setPosition(x, y - 18)
+      .setText(text)
+      .setColor(color)
+      .setVisible(true);
+  }
+
   private updateTargetIndicator(): void {
     if (!this.targetIndicator || this.hud.isBlockingInput()) {
       this.targetIndicator?.setVisible(false);
+      this.updateCropStatusLabel();
       this.hud.setTouchActionHint(null);
       return;
     }
@@ -2411,6 +3124,7 @@ export class OverworldScene extends Phaser.Scene {
     // Enemies always take priority over interactables
     if (aimed?.kind === 'enemy') {
       this.hud.setTouchActionHint(null);
+      this.updateCropStatusLabel();
       this.targetIndicator
         .setPosition(aimed.x, aimed.y)
         .setDepth(aimed.depth - 0.5)
@@ -2423,21 +3137,24 @@ export class OverworldScene extends Phaser.Scene {
     const interactable = this.findInteractableTarget(this.hasNearbyCombatEnemy());
     // Non-NPC interactables take priority over nodes/animals, while NPCs are lowest priority
     if (interactable && (interactable.kind !== 'npc' || !aimed)) {
-      this.hud.setTouchActionHint(interactable.actionLabel);
+      this.hud.setTouchActionHint(interactable.actionLabel || null);
+      this.updateCropStatusLabel(interactable.x, interactable.y, interactable.statusText, interactable.statusColor);
       if (interactable.kind === 'portal') {
         this.targetIndicator.setVisible(false);
         return;
       }
+      const ringCol = interactable.ringColor ?? 0x44ee88;
       this.targetIndicator
         .setPosition(interactable.x, interactable.y)
         .setDepth(interactable.depth - 0.5)
-        .setStrokeStyle(1.4, 0x44ee88, 0.95)
-        .setFillStyle(0x44ee88, 0.18)
+        .setStrokeStyle(1.4, ringCol, 0.95)
+        .setFillStyle(ringCol, 0.18)
         .setVisible(true);
       return;
     }
 
     this.hud.setTouchActionHint(null);
+    this.updateCropStatusLabel();
     if (!aimed) {
       this.targetIndicator.setVisible(false);
       return;
@@ -2823,16 +3540,38 @@ export class OverworldScene extends Phaser.Scene {
         gameState.energy = gameState.getMaxEnergy();
         gameState.emitVitals();
         SFX.playLevelUp();
-        spawnFloatingText(this, this.player.x, this.player.y - 16, 'Rested! Full HP & EN', '#8ef5a7');
+        const { nightFactor } = this.lighting.getAmbientColor();
+        if (nightFactor >= 0.45) {
+          this.lighting.timeOfDay = 0.08;
+          this.lighting.dayNumber += 1;
+          this.weather.setDay(this.lighting.dayNumber);
+          for (const crop of this.buildings) {
+            if (crop.active && crop.isCrop() && crop.isStageWatered()) {
+              crop.updateBuilding(20000, this.buildingTickCallbacks ?? {
+                onMiningRodPulse: () => {},
+                onFishTrapCatch: () => {},
+                onCraftComplete: () => {},
+                isFertileSoil: (tx, ty) => this.overlayGrid[ty]?.[tx] === 'dirt',
+                rainWatered: this.weather.weather === 'rain',
+              });
+            }
+          }
+          spawnFloatingText(this, this.player.x, this.player.y - 16, `☀ Dawn (Day ${this.lighting.dayNumber})!`, '#ffe066');
+          this.hud.showToast(`Rested Until Dawn! Day ${this.lighting.dayNumber} • Full HP & EN`);
+        } else {
+          spawnFloatingText(this, this.player.x, this.player.y - 16, 'Rested! Full HP & EN', '#8ef5a7');
+        }
         return true;
       }
       if (b.structureType === 'water_well') {
         gameState.energy = Math.min(gameState.getMaxEnergy(), gameState.energy + 30);
         gameState.emitVitals();
         let watered = 0;
+        const now = this.time.now;
         for (const crop of this.buildings) {
-          if (crop.active && crop.isCrop() && Math.hypot(crop.x - b.x, crop.y - b.y) <= 80 && crop.waterCrop()) {
-            watered += 1;
+          if (crop.active && crop.isCrop() && Math.hypot(crop.x - b.x, crop.y - b.y) <= 80) {
+            this.refreshSoilWatered(crop.tx, crop.ty, now);
+            if (crop.waterCrop()) watered += 1;
           }
         }
         SFX.playPickup();
@@ -2840,14 +3579,28 @@ export class OverworldScene extends Phaser.Scene {
         return true;
       }
       if (b.isCropRipe()) {
-        const res = b.harvestCrop();
-        if (res) {
-          SFX.playHarvestCrop();
-          spawnArcParticles(this, b.x, b.y - 4, 0x7ef29d, 8);
-          this.spawnLoot(b.x, b.y, res.itemId, res.count);
-          this.awardXp(8);
+        return this.handleCropHarvest(b);
+      }
+      if (b.isCrop()) {
+        if (heldId === 'watering_can' || (!fromPrimaryAction && gameState.getItemCount('watering_can') > 0)) {
+          this.refreshSoilWatered(b.tx, b.ty, this.time.now);
+          if (b.waterCrop()) {
+            this.consumeToolEnergy(1.5);
+            SFX.playPickup();
+            spawnBurstParticles(this, b.x, b.y, 0x6ce5ff, 5);
+            spawnFloatingText(this, b.x, b.y - 12, 'Watered!', '#7ce8ff');
+            return true;
+          }
         }
-        return true;
+        if (!fromPrimaryAction) {
+          const st = b.getCropStatus();
+          this.hud.showToast(
+            st.state === 'needs_water'
+              ? 'Crop needs water! Craft a Watering Can (or wait for rain).'
+              : `Crop growing: ${st.progressPct}% (Stage ${st.stage}/${st.maxStage})`,
+          );
+          return true;
+        }
       }
       if (b.interactStation) {
         if (b.interactStation === 'chest') {
@@ -2864,6 +3617,15 @@ export class OverworldScene extends Phaser.Scene {
         } else {
           this.hud.toggleModal('craft', b.interactStation, b.id);
         }
+        return true;
+      }
+    }
+
+    // 4b. Check Held Seed Planting on Tilled Soil
+    const heldDef = heldId ? ITEMS[heldId] : undefined;
+    if (heldDef?.plantStructureType) {
+      const targetSoil = this.findTargetSoilForSeed();
+      if (targetSoil && this.tryPlantHeldSeed(heldId, targetSoil.tx, targetSoil.ty)) {
         return true;
       }
     }
@@ -2970,6 +3732,15 @@ export class OverworldScene extends Phaser.Scene {
     this.regenTimerMs += dt;
     if (this.lowEnergyToastMs > 0) this.lowEnergyToastMs = Math.max(0, this.lowEnergyToastMs - dt);
     if (this.petActionCooldownMs > 0) this.petActionCooldownMs = Math.max(0, this.petActionCooldownMs - dt);
+    if (this.stokeCooldownMs > 0) this.stokeCooldownMs = Math.max(0, this.stokeCooldownMs - dt);
+
+    // Synchronized traveling wave bobbing across all wooden bridges
+    const waveNowMs = this.time.now;
+    for (const b of this.bridgeSprites.values()) {
+      if (b.sprite.active) {
+        b.sprite.y = computeBridgeBobY(b.tx, b.ty, waveNowMs, b.baseY);
+      }
+    }
 
     // Periodic 60s autosave
     this.autosaveTimerMs -= dt;
@@ -3173,7 +3944,7 @@ export class OverworldScene extends Phaser.Scene {
         this.cameraRig.setLookAhead(fx, fy, 7);
       }
 
-      // Interactive foliage rustle when walking through berry bushes
+      // Interactive foliage rustle when walking through berry bushes or planted crops
       if (dir.lengthSq() > 0.01) {
         const nowMs = this.time.now;
         for (const n of this.nodes) {
@@ -3181,6 +3952,18 @@ export class OverworldScene extends Phaser.Scene {
             n.rustle(nowMs);
           }
         }
+        for (const b of this.buildings) {
+          if (b.active && b.isCrop() && Math.hypot(b.x - this.player.x, b.y - this.player.y) <= 15) {
+            b.rustle(nowMs);
+          }
+        }
+      }
+
+      // Check tilled soil decay once per second (5m unused / 10m unwatered; rain & watering reset)
+      this.soilDecayTimerMs += dt;
+      if (this.soilDecayTimerMs >= 1000) {
+        this.soilDecayTimerMs = 0;
+        this.updateSoilDecay(this.time.now);
       }
 
       // Shoreline splash & sound when walking right along the water's edge
@@ -3484,8 +4267,9 @@ export class OverworldScene extends Phaser.Scene {
       this.hud.updateCraftQueueInPlace();
     }
 
-    // Enemies (half-island leash & reduced aggro range in Sandstorms)
+    // Enemies (half-island leash & reduced aggro range in Sandstorms; pacified during modals/dialogue/level-up)
     const aggroMult = this.weather.weather === 'sandstorm' ? 0.8 : 1;
+    const isViewBlocked = this.hud.isBlockingInput() || this.fishingMinigame.isActive();
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       if (!e.active) {
@@ -3519,7 +4303,7 @@ export class OverworldScene extends Phaser.Scene {
           },
           onBossSummon: () => {},
         },
-        { aggroMult },
+        { aggroMult, pacified: isViewBlocked && !e.def.isBoss },
       );
     }
 
@@ -3606,21 +4390,26 @@ export class OverworldScene extends Phaser.Scene {
     // Per-building Roof Fade: run before updateLighting() and cull invisible roofs from WebGL
     this.houseGroupRoofAlpha.clear();
     if (this.houseRoofSprites.size > 0) {
-      const ptx = Math.floor(this.player.x / TILE_PX);
-      const pty = Math.floor(this.player.y / TILE_PX);
-      this.activeHouseGroupId = this.houseGroupByTile.get(`${ptx},${pty}`) ?? 0;
+      this.activeHouseGroupId = this.isPlayerInsideHouseGroup(this.player.x, this.player.y);
       const step = Math.min(1, dt / 160);
       for (const [k, spr] of this.houseRoofSprites) {
         const gid = this.houseRoofGroup.get(k) ?? 0;
         const targetAlpha = this.activeHouseGroupId > 0 && gid === this.activeHouseGroupId ? 0 : 1.0;
+        const underlay = this.houseRoofUnderlaySprites.get(k);
         if (Math.abs(spr.alpha - targetAlpha) < 0.01) {
           spr.setAlpha(targetAlpha);
           spr.setVisible(targetAlpha > 0.01);
+          if (underlay) {
+            underlay.setAlpha(targetAlpha);
+            underlay.setVisible(targetAlpha > 0.01);
+          }
           this.houseGroupRoofAlpha.set(gid, targetAlpha);
         } else {
           if (!spr.visible && targetAlpha > 0.01) spr.setVisible(true);
+          if (underlay && !underlay.visible && targetAlpha > 0.01) underlay.setVisible(true);
           const nextAlpha = Phaser.Math.Linear(spr.alpha, targetAlpha, step);
           spr.setAlpha(nextAlpha);
+          if (underlay) underlay.setAlpha(nextAlpha);
           this.houseGroupRoofAlpha.set(gid, nextAlpha);
         }
       }
@@ -3634,9 +4423,11 @@ export class OverworldScene extends Phaser.Scene {
       const dist = Math.hypot(b.x - this.player.x, b.y - this.player.y);
       if (!b.isOpen && dist <= 22) {
         b.toggleDoor();
+        this.houseInteriorTileSet.add(`${b.tx},${b.ty}`);
         SFX.playChop();
       } else if (b.isOpen && dist > 34) {
         b.toggleDoor();
+        this.houseInteriorTileSet.delete(`${b.tx},${b.ty}`);
       }
     }
 
@@ -3896,7 +4687,8 @@ export class OverworldScene extends Phaser.Scene {
           }
         }
       } else {
-        if (Math.hypot(this.player.x - p.sprite.x, this.player.y - p.sprite.y) <= 10) {
+        const isViewBlocked = this.hud.isBlockingInput() || this.fishingMinigame.isActive();
+        if (!isViewBlocked && Math.hypot(this.player.x - p.sprite.x, this.player.y - p.sprite.y) <= 10) {
           const spd = Math.hypot(p.vx, p.vy) || 1;
           if (this.player.takeDamage(p.damage, p.vx / spd, p.vy / spd, this.isWalkable)) {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${p.damage}`, '#ff5e6c');

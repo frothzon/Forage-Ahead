@@ -247,7 +247,7 @@ export class Enemy extends Phaser.GameObjects.Container {
       onFireProjectile: (x: number, y: number, vx: number, vy: number, dmg: number, texKey: string) => void;
       onBossSummon: (x: number, y: number, monsterId: string) => void;
     },
-    opts?: { aggroMult?: number; maxAggroPx?: number },
+    opts?: { aggroMult?: number; maxAggroPx?: number; pacified?: boolean },
   ): void {
     if (this.isDead) return;
     if (this.hitstopMs > 0) {
@@ -258,6 +258,7 @@ export class Enemy extends Phaser.GameObjects.Container {
       return;
     }
     const dt = dtMs / 1000;
+    const isPacified = Boolean(opts?.pacified && !this.def.isBoss);
 
     if (this.attackCooldownMs > 0) this.attackCooldownMs -= dtMs;
     if (this.specialCooldownMs > 0) this.specialCooldownMs -= dtMs;
@@ -276,6 +277,14 @@ export class Enemy extends Phaser.GameObjects.Container {
     const dx = playerX - this.x;
     const dy = playerY - this.y;
     const dist = Math.hypot(dx, dy);
+
+    if (isPacified && this.telegraphMs > 0) {
+      this.telegraphMs = 0;
+      this.pendingAttackType = null;
+      this.sprite.setScale(this.baseScale);
+      if (this.slowMs > 0) this.sprite.setTint(0x74e5ff);
+      else this.sprite.clearTint();
+    }
 
     // Handle active wind-up telegraph -> strike completion
     if (this.telegraphMs > 0) {
@@ -306,7 +315,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     }
 
     const cap = this.def.isBoss ? this.def.aggroRange : (opts?.maxAggroPx ?? HALF_ISLAND_AGGRO_PX);
-    const effectiveAggro = Math.min(this.def.aggroRange, cap) * (opts?.aggroMult ?? 1);
+    const effectiveAggro = isPacified ? -1 : Math.min(this.def.aggroRange, cap) * (opts?.aggroMult ?? 1);
 
     if (dist <= effectiveAggro) {
       if (!this.hasAggroEmoted) {

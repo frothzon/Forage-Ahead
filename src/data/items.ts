@@ -52,6 +52,7 @@ export interface ItemDef {
   requiredLevel?: number;
   trinketEffect?: 'regen_out_combat' | 'pickup_magnet' | 'crit_spark';
   gadgetEffect?: 'blink' | 'ward' | 'frost_nova';
+  plantStructureType?: string;
 }
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -475,6 +476,21 @@ export const ITEMS: Record<string, ItemDef> = {
     stats: { gather: 5, attack: 4 },
     range: 40,
     cooldownMs: 340,
+  },
+  salvage_hammer: {
+    id: 'salvage_hammer',
+    name: 'Salvage Hammer',
+    category: 'tool',
+    rarity: 'uncommon',
+    description: 'Dismantles crafted buildings, walls, floors, bridges & roads for 50% of their resources.',
+    color: '#ffaa44',
+    iconKey: 'ui_icons/pickaxe',
+    sellValue: 12,
+    equipSlot: 'tool',
+    gearLevel: 2,
+    stats: { gather: 6, attack: 5 },
+    range: 34,
+    cooldownMs: 300,
   },
 
   // Weapons (Equip in Main Hand & Hotbar)
@@ -1140,6 +1156,55 @@ export const ITEMS: Record<string, ItemDef> = {
         sellValue: c.sellValue,
         healHp: c.healHp,
         healEnergy: c.healEnergy,
+      },
+    ]),
+  ),
+  seed_berries: {
+    id: 'seed_berries',
+    name: 'Berry Seeds',
+    category: 'consumable',
+    rarity: 'common',
+    description: 'Select on toolbar & target tilled soil to plant a Berry Bush.',
+    color: '#ff7eb6',
+    iconKey: 'ui_icons/berries',
+    sellValue: 2,
+    plantStructureType: 'crop_berries',
+  },
+  seed_carrot: {
+    id: 'seed_carrot',
+    name: 'Carrot Seeds',
+    category: 'consumable',
+    rarity: 'common',
+    description: 'Select on toolbar & target tilled soil to plant a Carrot Plot (1 harvest).',
+    color: '#ffa94d',
+    iconKey: 'ui_icons/carrot',
+    sellValue: 3,
+    plantStructureType: 'crop_carrot',
+  },
+  seed_sunflower: {
+    id: 'seed_sunflower',
+    name: 'Sunflower Seeds',
+    category: 'consumable',
+    rarity: 'uncommon',
+    description: 'Select on toolbar & target tilled soil to plant a Sunflower.',
+    color: '#ffe066',
+    iconKey: 'ui_icons/sunflower',
+    sellValue: 5,
+    plantStructureType: 'crop_sunflower',
+  },
+  ...Object.fromEntries(
+    SPROUT_CROPS.map((c) => [
+      `seed_${c.id}`,
+      {
+        id: `seed_${c.id}`,
+        name: `${c.name} Seeds`,
+        category: 'consumable' as const,
+        rarity: (c.id === 'starfruit' ? 'rare' : c.sellValue >= 16 ? 'uncommon' : 'common') as ItemRarity,
+        description: `Select on toolbar & target tilled soil to plant ${c.name}${c.isRootCrop ? ' (1 harvest)' : ''}.`,
+        color: '#8ef5a7',
+        iconKey: c.iconKey,
+        sellValue: Math.max(2, Math.floor(c.sellValue * 0.25)),
+        plantStructureType: c.structureType,
       },
     ]),
   ),

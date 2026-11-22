@@ -8,6 +8,7 @@ import {
   type InventoryFeedEvent,
 } from '../core/GameState';
 import { Haptics } from '../core/Haptics';
+import { formatCompactNumber } from '../core/FormatNumber';
 import { fmtKeySuffix, isMobileTouchDevice } from '../core/Platform';
 
 export type QueuedStationType =
@@ -31,7 +32,15 @@ import { dialogueBox } from './DialogueBox';
 import { revealSequence } from './RevealSequence';
 import { SPROUT_UI_CSS } from './SproutUiTheme';
 import { ITEMS, RARITY_COLOR } from '../data/items';
-import { ISLANDS, STORY_CHAPTERS, WORLD_GRID_SIZE, getIslandAt, getIslandRecommendedLevel } from '../data/islands';
+import {
+  ISLANDS,
+  ISLAND_CELL_TILES,
+  STORY_CHAPTERS,
+  TILE_PX,
+  WORLD_GRID_SIZE,
+  getIslandAt,
+  getIslandRecommendedLevel,
+} from '../data/islands';
 import { MONSTERS } from '../data/monsters';
 import { IMPLEMENTED_FEATURES, OUTSTANDING_ITEMS } from '../data/projectProgress';
 import { QUESTS, getQuestById } from '../data/quests';
@@ -157,6 +166,7 @@ export class HudController {
     getNearbyStations?: () => Set<CraftingStation>;
     onEnqueueCraft?: (stationId: string, recipeId: string) => boolean;
     onCancelCraft?: (stationId: string, queueIdx: number) => boolean;
+    onStokeStation?: (stationId: string) => boolean;
     getWorldDebugStats?: () => WorldDebugStats;
     onDebugAction?: (action: string, payload?: string) => void;
   };
@@ -177,6 +187,7 @@ export class HudController {
     getNearbyStations?: () => Set<CraftingStation>;
     onEnqueueCraft?: (stationId: string, recipeId: string) => boolean;
     onCancelCraft?: (stationId: string, queueIdx: number) => boolean;
+    onStokeStation?: (stationId: string) => boolean;
     getWorldDebugStats?: () => WorldDebugStats;
     onDebugAction?: (action: string, payload?: string) => void;
   }) {
@@ -1372,6 +1383,7 @@ export class HudController {
         width: 56px;
         height: 56px;
         border: none;
+        border-radius: 50%;
         background: url('assets/sprout_ui/buttons/round_md_blue_normal.png') no-repeat center / 100% 100%;
         image-rendering: pixelated;
         color: #fff6e5;
@@ -1382,6 +1394,7 @@ export class HudController {
         align-items: center;
         justify-content: center;
         touch-action: none;
+        transition: filter 0.14s ease, transform 0.12s ease;
       }
       .touch-act-btn:active {
         background-image: url('assets/sprout_ui/buttons/round_md_blue_pressed.png');
@@ -1515,8 +1528,10 @@ export class HudController {
     const lblEl = this.chromeLayer.querySelector<HTMLElement>('#hud-touch-act-label');
     if (lblEl) lblEl.textContent = label ?? 'ACT';
     if (btn) {
-      btn.style.boxShadow = label
-        ? '0 0 0 2px #ffe066, 0 0 12px rgba(255, 224, 102, 0.85)'
+      btn.classList.toggle('touch-act-btn--active', Boolean(label));
+      btn.style.boxShadow = '';
+      btn.style.filter = label
+        ? 'drop-shadow(1.5px 0 0 #ffe066) drop-shadow(-1.5px 0 0 #ffe066) drop-shadow(0 1.5px 0 #ffe066) drop-shadow(0 -1.5px 0 #ffe066) drop-shadow(0 0 10px rgba(255, 224, 102, 0.9))'
         : '';
       btn.style.transform = label ? 'scale(1.06)' : '';
     }
@@ -1639,7 +1654,7 @@ export class HudController {
     if (xpFill) xpFill.style.width = `${xpPct}%`;
     if (xpText) xpText.textContent = `${gameState.xp}/${nextXp}`;
     if (lvlEl) lvlEl.textContent = `Lv.${gameState.level} ${gameState.heroClass}`;
-    if (coinsEl) coinsEl.textContent = `${gameState.coins}g`;
+    if (coinsEl) coinsEl.textContent = `${formatCompactNumber(gameState.coins)}g`;
     const vignette = this.chromeLayer.querySelector<HTMLElement>('#hud-low-hp-vignette');
     if (vignette) {
       vignette.style.display = hpPct > 0 && hpPct <= 25 ? 'block' : 'none';
@@ -2050,7 +2065,7 @@ export class HudController {
               : ''
           }
           ${cdMs > 0 ? `<div class="cd-wipe" style="background:conic-gradient(rgba(16,12,8,0.62) ${cdPct * 3.6}deg, transparent 0deg);"></div><span style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#ffd242; text-shadow:0 1px 3px #000; pointer-events:none; z-index:3;">${(cdMs / 1000).toFixed(1)}s</span>` : ''}
-          ${showCount ? `<span style="position:absolute; top:1px; right:2px; font-size:12px; line-height:1.05; padding:0 3px; border-radius:3px; background:rgba(22,13,8,0.88); border:1px solid ${isDepleted ? 'rgba(200,110,110,0.45)' : 'rgba(255,224,160,0.35)'}; color:${isDepleted ? '#c8b8ad' : '#fff6e5'}; font-weight:800; text-shadow:0 1px 1px #000; pointer-events:none; z-index:3;">${count}</span>` : ''}
+          ${showCount ? `<span style="position:absolute; top:1px; right:2px; font-size:12px; line-height:1.05; padding:0 3px; border-radius:3px; background:rgba(22,13,8,0.88); border:1px solid ${isDepleted ? 'rgba(200,110,110,0.45)' : 'rgba(255,224,160,0.35)'}; color:${isDepleted ? '#c8b8ad' : '#fff6e5'}; font-weight:800; text-shadow:0 1px 1px #000; pointer-events:none; z-index:3;">${formatCompactNumber(count)}</span>` : ''}
         </div>
       `;
     }
@@ -2233,7 +2248,7 @@ export class HudController {
                 <span style="color:#ffe066;">LV.${gameState.level} ${gameState.heroClass.toUpperCase()}</span>
                 <span>♥ ${Math.ceil(gameState.hp)}/${maxHp}</span>
                 <span>⚡ ${Math.ceil(gameState.energy)}/${maxEn}</span>
-                <span style="color:#ffd95a; display:inline-flex; align-items:center; gap:3px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" />${gameState.coins}g</span>
+                <span style="color:#ffd95a; display:inline-flex; align-items:center; gap:3px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" />${formatCompactNumber(gameState.coins)}g</span>
                 ${gameState.skillPoints > 0 ? `<span style="color:#8ef5a7;">+${gameState.skillPoints} SP</span>` : ''}
               </span>
               <button class="hud-btn tan" data-modal-action="save" style="padding:1px 7px; font-size:11px;"><img src="assets/hud_icons/save.png" class="px-icon" style="width:12px; height:12px;" />Save</button>
@@ -2296,7 +2311,7 @@ export class HudController {
              title="${def ? `${def.name} — Drag to move, equip, or assign to Hotbar 1-9` : 'Empty Slot'}">
           ${isSelected ? `<img src="assets/sprout_ui/selectors/selector_c_tl.png" class="slot-corner tl" /><img src="assets/sprout_ui/selectors/selector_c_tr.png" class="slot-corner tr" /><img src="assets/sprout_ui/selectors/selector_c_bl.png" class="slot-corner bl" /><img src="assets/sprout_ui/selectors/selector_c_br.png" class="slot-corner br" />` : ''}
           ${def?.iconKey ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:26px; height:26px; pointer-events:none;" />` : ''}
-          ${slot && slot.count > 1 ? `<span style="position:absolute; bottom:2px; right:4px; font-size:10px; font-weight:800; color:#fff6e5; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109; pointer-events:none;">${slot.count}</span>` : ''}
+          ${slot && slot.count > 1 ? `<span style="position:absolute; bottom:2px; right:4px; font-size:10px; font-weight:800; color:#fff6e5; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109; pointer-events:none;">${formatCompactNumber(slot.count)}</span>` : ''}
           ${def?.equipSlot ? `<span style="position:absolute; top:2px; left:4px; font-size:8px; font-weight:800; color:#216b2b; pointer-events:none;">E</span>` : ''}
         </div>
       `;
@@ -2503,12 +2518,12 @@ export class HudController {
               <button class="hud-btn" data-inspect-act="move">Move Slot</button>
               ${
                 def.sellValue > 0 && slotCount > 0
-                  ? `<button class="hud-btn gold" data-inspect-act="sell1">Sell 1 (+${sellEach}g)</button>`
+                  ? `<button class="hud-btn gold" data-inspect-act="sell1">Sell 1 (+${formatCompactNumber(sellEach)}g)</button>`
                   : ''
               }
               ${
                 def.sellValue > 0 && slotCount > 1
-                  ? `<button class="hud-btn gold" data-inspect-act="sellall">Sell ${slotCount} (+${sellEach * slotCount}g)</button>`
+                  ? `<button class="hud-btn gold" data-inspect-act="sellall">Sell ${formatCompactNumber(slotCount)} (+${formatCompactNumber(sellEach * slotCount)}g)</button>`
                   : ''
               }
             `
@@ -2652,7 +2667,10 @@ export class HudController {
               <div style="font-size:11px; font-weight:800; color:#ffe596;">
                 Queue (${selectedStation.craftQueue.length}/${selectedStation.maxQueueSize})
               </div>
-              ${stationPicker}
+              <div style="display:flex; gap:4px; align-items:center;">
+                ${selectedStation.craftQueue.length > 0 ? `<button class="hud-btn gold" data-stoke-station="${selectedStation.id}" style="padding:1px 6px; font-size:10px;" title="Stoke/Hammer station for a +25% craft speed burst!">⚡ Stoke</button>` : ''}
+                ${stationPicker}
+              </div>
             </div>
             <div style="font-size:9px; color:#f2d9b1;">Finished items drop in front of station</div>
             <div style="display:flex; flex-direction:column; gap:6px;">
@@ -2694,12 +2712,12 @@ export class HudController {
                     const iconImg = itemDef?.iconKey
                       ? `<img src="assets/${itemDef.iconKey}.png" class="px-icon" style="width:12px; height:12px;" />`
                       : '';
-                    return `<span style="display:inline-flex; align-items:center; gap:2px; color:${ok ? '#216b2b' : '#9e2a35'};">${iconImg}${itemDef?.name ?? ing.itemId}: ${have}/${req}</span>`;
+                    return `<span style="display:inline-flex; align-items:center; gap:2px; color:${ok ? '#216b2b' : '#9e2a35'};">${iconImg}${itemDef?.name ?? ing.itemId}: ${formatCompactNumber(have)}/${formatCompactNumber(req)}</span>`;
                   });
                 if (r.coinCost) {
                   const haveCoins = gameState.coins;
                   const ok = haveCoins >= r.coinCost;
-                  ingsList.push(`<span style="display:inline-flex; align-items:center; gap:2px; color:${ok ? '#8f5616' : '#9e2a35'};"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" />${haveCoins.toLocaleString()}/${r.coinCost.toLocaleString()}g</span>`);
+                  ingsList.push(`<span style="display:inline-flex; align-items:center; gap:2px; color:${ok ? '#8f5616' : '#9e2a35'};"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" />${formatCompactNumber(haveCoins)}/${formatCompactNumber(r.coinCost)}g</span>`);
                 }
                 const ings = ingsList.join(' • ');
                 const skillReqLabel = lockedBySkill
@@ -2793,11 +2811,19 @@ export class HudController {
       winter: '#5fa8c4',
       infernal: '#8c313b',
     };
+    const worldStats = this.callbacks.getWorldDebugStats?.();
+    const ptx = worldStats?.playerTx ?? Math.floor((gameState.playerPos?.x ?? 0) / TILE_PX);
+    const pty = worldStats?.playerTy ?? Math.floor((gameState.playerPos?.y ?? 0) / TILE_PX);
+    const curGx = Math.max(0, Math.min(WORLD_GRID_SIZE - 1, Math.floor(ptx / ISLAND_CELL_TILES)));
+    const curGy = Math.max(0, Math.min(WORLD_GRID_SIZE - 1, Math.floor(pty / ISLAND_CELL_TILES)));
+    const curSpec = getIslandAt(curGx, curGy);
+
     let gridHtml = `<div style="display:grid; grid-template-columns:repeat(${WORLD_GRID_SIZE}, 1fr); grid-template-rows:repeat(${WORLD_GRID_SIZE}, 1fr); gap:6px; height:100%; min-height:0;">`;
     for (let gy = 0; gy < WORLD_GRID_SIZE; gy++) {
       for (let gx = 0; gx < WORLD_GRID_SIZE; gx++) {
         const spec = getIslandAt(gx, gy);
         if (!spec) continue;
+        const isCurrentRegion = gx === curGx && gy === curGy;
         const owned = gameState.ownedIslands.has(`${gx},${gy}`);
         const adj = gameState.isIslandAdjacentToOwned(gx, gy);
         const cost = gameState.getIslandCost(gx, gy);
@@ -2805,24 +2831,33 @@ export class HudController {
         const storyLock = gameState.getIslandStoryLockReason(gx, gy);
         const canBuy = adj && !storyLock && gameState.coins >= cost;
         const lvColor = recLv - gameState.getPowerLevel() >= 3 ? '#ff8a93' : '#d2e2f2';
+        const clearedDung = spec.dungeonId && gameState.clearedDungeons.has(spec.dungeonId);
+        const dungTag = spec.dungeonId ? (clearedDung ? ' • ✓ Dungeon' : ' • 💀 Dungeon') : '';
+        const npcTag = spec.npc ? ` • 🏠 ${spec.npc.name.split(' ').pop()}` : '';
+        const highlightStyle = isCurrentRegion
+          ? 'box-shadow:0 0 0 2px #ffe066, 0 0 12px rgba(255,224,102,0.85); border:1.5px solid #ffe066; position:relative;'
+          : '';
         gridHtml += `
-          <div class="hud-panel-inset" style="padding:5px 7px; background:${owned ? biomeColors[spec.biome] : 'rgba(30,20,14,0.85)'}; display:flex; flex-direction:column; justify-content:space-between; min-height:0;" title="${storyLock ?? ''}">
+          <div class="hud-panel-inset" style="padding:5px 7px; background:${owned ? biomeColors[spec.biome] : 'rgba(30,20,14,0.85)'}; display:flex; flex-direction:column; justify-content:space-between; min-height:0; ${highlightStyle}" title="${storyLock ?? ''}">
             <div>
               <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
-                <span style="font-size:11px; font-weight:800; color:#fff6e5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${spec.name}</span>
+                <span style="font-size:11px; font-weight:800; color:#fff6e5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${isCurrentRegion ? '📍 ' : ''}${spec.name}</span>
                 <span style="font-size:9px; color:${owned ? '#e6ffea' : lvColor}; font-weight:700;">Lv.${recLv}</span>
               </div>
-              <div style="font-size:9px; color:#f2d9b1; text-transform:capitalize;">${spec.biome}${spec.dungeonId ? ' • Dungeon' : ''}${spec.npc ? ' • NPC' : ''}</div>
+              <div style="font-size:9px; color:#f2d9b1; text-transform:capitalize; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${spec.biome}${dungTag}${npcTag}</div>
             </div>
-            ${
-              owned
-                ? `<span style="font-size:9px; font-weight:800; color:#a3f7b5;">✓ OWNED</span>`
-                : storyLock
-                  ? `<span style="font-size:9px; color:#ff9ba3;">🔒 Ch.${spec.biome === 'autumn' || spec.biome === 'graveyard' ? 2 : spec.biome === 'winter' ? 3 : 4} (${cost}g)</span>`
-                  : adj
-                    ? `<button class="hud-btn ${canBuy ? 'gold' : ''}" ${canBuy ? '' : 'disabled'} data-buy-island="${gx},${gy}" style="padding:1px 6px; font-size:10px;">Buy ${cost}g</button>`
-                    : `<span style="font-size:9px; color:#b8a088;">Locked (${cost}g)</span>`
-            }
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
+              ${
+                owned
+                  ? `<span style="font-size:9px; font-weight:800; color:#a3f7b5;">✓ OWNED</span>`
+                  : storyLock
+                    ? `<span style="font-size:9px; color:#ff9ba3;">🔒 Ch.${spec.biome === 'autumn' || spec.biome === 'graveyard' ? 2 : spec.biome === 'winter' ? 3 : 4} (${formatCompactNumber(cost)}g)</span>`
+                    : adj
+                      ? `<button class="hud-btn ${canBuy ? 'gold' : ''}" ${canBuy ? '' : 'disabled'} data-buy-island="${gx},${gy}" style="padding:1px 6px; font-size:10px;">Buy ${formatCompactNumber(cost)}g</button>`
+                      : `<span style="font-size:9px; color:#b8a088;">Locked (${formatCompactNumber(cost)}g)</span>`
+              }
+              ${isCurrentRegion ? `<span style="font-size:8px; font-weight:800; color:#1b1109; background:#ffe066; padding:0 4px; border-radius:3px;">YOU</span>` : ''}
+            </div>
           </div>
         `;
       }
@@ -2833,11 +2868,15 @@ export class HudController {
         ${gridHtml}
         <div class="hud-panel-inset" style="padding:10px; display:flex; flex-direction:column; gap:8px; font-size:11px;">
           <div style="font-size:13px; font-weight:800; color:#ffe596;">Archipelago Map</div>
+          <div style="padding:5px 7px; background:rgba(255,224,102,0.14); border:1px solid #ffe066; border-radius:4px; font-size:10px; color:#fff6e5;">
+            <div><strong style="color:#ffe066;">📍 You Are Here:</strong></div>
+            <div style="font-weight:800; margin-top:1px;">${curSpec?.name ?? 'Unknown'} (${curGx + 1}, ${curGy + 1})</div>
+          </div>
           <div style="display:flex; align-items:center; gap:6px;">
             <span>Owned: <strong>${gameState.ownedIslands.size}/${ISLANDS.length}</strong></span>
             <span>•</span>
             <img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:13px; height:13px;" />
-            <strong style="color:#ffd95a;">${gameState.coins}g</strong>
+            <strong style="color:#ffd95a;">${formatCompactNumber(gameState.coins)}g</strong>
           </div>
           <div style="border-top:1px solid rgba(255,255,255,0.15); padding-top:6px; font-size:10px; color:#f2d9b1; line-height:1.4;">
             <div><strong style="color:#ffe066;">Expansion:</strong> Buy islands adjacent to your territory.</div>
@@ -3470,6 +3509,15 @@ export class HudController {
         const idx = Number(el.dataset.cancelQueue);
         if (this.activeStationId && this.callbacks.onCancelCraft?.(this.activeStationId, idx)) {
           this.renderModal();
+        }
+      };
+    });
+
+    this.modalLayer.querySelectorAll<HTMLElement>('[data-stoke-station]').forEach((el) => {
+      el.onclick = () => {
+        const stId = el.dataset.stokeStation!;
+        if (this.callbacks.onStokeStation?.(stId)) {
+          this.updateCraftQueueInPlace();
         }
       };
     });

@@ -3,7 +3,8 @@ import { gameState, type CraftQueueJob } from '../core/GameState';
 import { SFX } from '../core/SoundFX';
 import { ITEMS } from '../data/items';
 import { RECIPES, type StructureType } from '../data/recipes';
-import { SPROUT_CROP_BY_STRUCTURE, type SproutCropDef } from '../data/sproutCrops';
+import { getMaxHarvestsForCrop, SPROUT_CROP_BY_STRUCTURE, type SproutCropDef } from '../data/sproutCrops';
+export { getMaxHarvestsForCrop };
 import { computeWallCollisionBox } from './OutdoorBuildingStamps';
 import { applyWindShader } from './WindShader';
 
@@ -110,7 +111,12 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
 
   private actionTimerMs = 0;
   private bobClockMs = 0;
-  private cropStage = 0; // 0..2 growing, 2 = ripe
+  private cropStage = 0; // 0..maxStage growing, maxStage = ripe
+  private stageWatered = false;
+  private wateredCount = 0;
+  private harvestsLeft = 1;
+  private stageProgressMs = 0;
+  private rustleCooldownMs = 0;
   private mainSprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
   private auraCircle?: Phaser.GameObjects.Arc;
   private progressText?: Phaser.GameObjects.Text;
@@ -132,6 +138,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     initialQueue: CraftQueueJob[] = [],
     initialCropStage = 0,
     readOnly = false,
+    cropSaveState?: { stageWatered?: boolean; wateredCount?: number; harvestsLeft?: number },
   ) {
     const px = tx * 16 + 8;
     const py = ty * 16 + 8;
@@ -143,6 +150,9 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     this.readOnly = readOnly;
     this.craftQueue = initialQueue;
     this.cropStage = initialCropStage;
+    this.stageWatered = cropSaveState?.stageWatered ?? false;
+    this.wateredCount = cropSaveState?.wateredCount ?? 0;
+    this.harvestsLeft = cropSaveState?.harvestsLeft ?? getMaxHarvestsForCrop(type);
     this.solid =
       !type.startsWith('crop_') &&
       type !== 'fish_trap' &&
@@ -502,6 +512,55 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     return this.cropStage;
   }
 
+  public isStageWatered(): boolean {
+    return this.stageWatered;
+  }
+
+  public getWateredCount(): number {
+    return this.wateredCount;
+  }
+
+  public getHarvestsLeft(): number {
+    return this.harvestsLeft;
+  }
+
+  public getCropStatus(): {
+    state: 'ripe' | 'needs_water' | 'growing';
+    stage: number;
+    maxStage: number;
+    progressPct: number;
+    harvestsLeft: number;
+  } {
+    const maxStage = this.getMaxCropStage();
+    if (this.isCropRipe()) {
+      return {
+        state: 'ripe',
+        stage: this.cropStage,
+        maxStage,
+        progressPct: 100,
+        harvestsLeft: this.harvestsLeft,
+      };
+    }
+    if (!this.stageWatered) {
+      return {
+        state: 'needs_water',
+        stage: this.cropStage,
+        maxStage,
+        progressPct: 0,
+        harvestsLeft: this.harvestsLeft,
+      };
+    }
+    const growStepMs = gameState.hasSkill('foraging_farming') ? 22000 : 32000;
+    const progressPct = Math.min(99, Math.max(0, Math.round((this.stageProgressMs / growStepMs) * 100)));
+    return {
+      state: 'growing',
+      stage: this.cropStage,
+      maxStage,
+      progressPct,
+      harvestsLeft: this.harvestsLeft,
+    };
+  }
+
   public isCrop(): boolean {
     return (
       this.structureType === 'crop_berries' ||
@@ -523,14 +582,69 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
   }
 
   public isCropRipe(): boolean {
-    return this.isCrop() && this.cropStage >= this.getMaxCropStage();
+    return this.isCrop() && this.cropStage >= this.getMaxCropStage() && this.wateredCount >= 1;
   }
 
-  public waterCrop(): boolean {
+  public waterCrop(fromRain = false): boolean {
     if (!this.isCrop() || this.cropStage >= this.getMaxCropStage()) return false;
-    this.cropStage += 1;
-    this.syncCropFrame();
+    if (this.stageWatered) return false;
+    this.stageWatered = true;
+    this.wateredCount += 1;
+    if (!fromRain && this.mainSprite?.active) {
+      const baseSx = this.mainSprite.scaleX;
+      const baseSy = this.mainSprite.scaleY;
+      this.scene.tweens.add({
+        targets: this.mainSprite,
+        scaleX: { from: baseSx * 1.12, to: baseSx },
+        scaleY: { from: baseSy * 0.9, to: baseSy },
+        duration: 140,
+        ease: 'Back.easeOut',
+      });
+    }
     return true;
+  }
+
+  public rustle(nowMs: number): void {
+    if (!this.active || !this.isCrop() || nowMs < this.rustleCooldownMs) return;
+    this.rustleCooldownMs = nowMs + 550;
+    const baseSx = this.mainSprite.scaleX || 1;
+    const baseSy = this.mainSprite.scaleY || 1;
+    this.scene.tweens.add({
+      targets: this.mainSprite,
+      scaleX: { from: baseSx * 1.14, to: baseSx },
+      scaleY: { from: baseSy * 0.88, to: baseSy },
+      angle: { from: -6, to: 6 },
+      duration: 170,
+      yoyo: true,
+      repeat: 1,
+      ease: 'Sine.InOut',
+      onComplete: () => {
+        if (this.mainSprite.active) {
+          this.mainSprite.setAngle(0);
+          this.mainSprite.setScale(baseSx, baseSy);
+        }
+      },
+    });
+    const leafCount = Math.random() < 0.5 ? 2 : 1;
+    const leafKeys = ['extras/Leaf_particle1', 'extras/Leaf_particle2', 'extras/Leaf_particle3'];
+    for (let i = 0; i < leafCount; i++) {
+      const key = leafKeys[Math.floor(Math.random() * leafKeys.length)];
+      const lx = this.x + Phaser.Math.Between(-5, 5);
+      const ly = this.y - 5 + Phaser.Math.Between(-3, 3);
+      if (this.scene.textures.exists(key)) {
+        const leaf = this.scene.add.image(lx, ly, key).setDepth(this.depth + 6).setScale(0.8);
+        this.scene.tweens.add({
+          targets: leaf,
+          x: lx + Phaser.Math.Between(-8, 8),
+          y: ly + Phaser.Math.Between(5, 11),
+          angle: Phaser.Math.Between(-90, 90),
+          alpha: 0,
+          duration: 480,
+          ease: 'Sine.Out',
+          onComplete: () => leaf.destroy(),
+        });
+      }
+    }
   }
 
   public playPlacePop(): void {
@@ -566,20 +680,27 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     this.collisionBox = computeWallCollisionBox(frame);
   }
 
-  public harvestCrop(): { itemId: string; count: number } | null {
+  public harvestCrop(): { itemId: string; count: number; depleted: boolean; harvestsLeft: number } | null {
     if (!this.isCropRipe()) return null;
+    this.harvestsLeft = Math.max(0, this.harvestsLeft - 1);
+    const depleted = this.harvestsLeft <= 0;
     const baseSx = this.mainSprite.scaleX;
     const baseSy = this.mainSprite.scaleY;
-    this.mainSprite.setScale(baseSx * 0.78, baseSy * 1.28);
-    this.scene.tweens.add({
-      targets: this.mainSprite,
-      scaleX: baseSx,
-      scaleY: baseSy,
-      duration: 95,
-      ease: 'Back.easeOut',
-    });
-    this.cropStage = 1;
-    this.syncCropFrame();
+    if (!depleted) {
+      this.mainSprite.setScale(baseSx * 0.78, baseSy * 1.28);
+      this.scene.tweens.add({
+        targets: this.mainSprite,
+        scaleX: baseSx,
+        scaleY: baseSy,
+        duration: 95,
+        ease: 'Back.easeOut',
+      });
+      this.cropStage = 1;
+      this.stageWatered = false;
+      this.wateredCount = 0;
+      this.stageProgressMs = 0;
+      this.syncCropFrame();
+    }
     const baseCount = gameState.hasSkill('foraging_farming') ? 4 : 2;
     const sc = SPROUT_CROP_BY_STRUCTURE[this.structureType as SproutCropDef['structureType']];
     const itemId = sc
@@ -592,6 +713,8 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     return {
       itemId,
       count: baseCount,
+      depleted,
+      harvestsLeft: this.harvestsLeft,
     };
   }
 
@@ -683,17 +806,27 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       }
     } else if (this.isCrop()) {
       if (this.cropStage < this.getMaxCropStage()) {
-        let growStepMs = gameState.hasSkill('foraging_farming') ? 6000 : 12000;
-        if (callbacks.isFertileSoil?.(this.tx, this.ty)) {
-          growStepMs = Math.round(growStepMs * 0.65);
+        if (callbacks.rainWatered && !this.stageWatered) {
+          this.waterCrop(true);
         }
-        if (callbacks.rainWatered) {
-          growStepMs = Math.round(growStepMs * 0.55);
-        }
-        if (this.actionTimerMs >= growStepMs) {
-          this.actionTimerMs = 0;
-          this.cropStage += 1;
-          this.syncCropFrame();
+        if (this.stageWatered) {
+          let growStepMs = gameState.hasSkill('foraging_farming') ? 22000 : 32000;
+          if (callbacks.isFertileSoil?.(this.tx, this.ty)) {
+            growStepMs = Math.round(growStepMs * 0.85);
+          }
+          if (callbacks.rainWatered) {
+            growStepMs = Math.round(growStepMs * 0.85);
+          }
+          this.stageProgressMs += dtMs;
+          if (this.stageProgressMs >= growStepMs) {
+            this.stageProgressMs = 0;
+            this.cropStage += 1;
+            this.stageWatered = false;
+            this.syncCropFrame();
+            if (callbacks.rainWatered && this.cropStage < this.getMaxCropStage()) {
+              this.waterCrop(true);
+            }
+          }
         }
       }
     }

@@ -22,6 +22,8 @@ export interface SproutCropDef {
   sellValue: number;
   healHp: number;
   healEnergy: number;
+  maxHarvests: number;
+  isRootCrop?: boolean;
   description: string;
 }
 
@@ -36,6 +38,7 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 8,
     healHp: 12,
     healEnergy: 22,
+    maxHarvests: 3,
     description: 'Golden cob grown on the homestead. +12 HP, +22 EN.',
   },
   {
@@ -48,6 +51,8 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 9,
     healHp: 14,
     healEnergy: 24,
+    maxHarvests: 1,
+    isRootCrop: true,
     description: 'Sweet heirloom root vegetable. +14 HP, +24 EN.',
   },
   {
@@ -60,6 +65,7 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 14,
     healHp: 22,
     healEnergy: 28,
+    maxHarvests: 2,
     description: 'Plump white florets prized by cooks. +22 HP, +28 EN.',
   },
   {
@@ -72,6 +78,7 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 10,
     healHp: 16,
     healEnergy: 20,
+    maxHarvests: 3,
     description: 'Juicy red tomato. Great raw or in stews. +16 HP, +20 EN.',
   },
   {
@@ -84,6 +91,7 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 13,
     healHp: 18,
     healEnergy: 26,
+    maxHarvests: 3,
     description: 'Glossy purple harvest. +18 HP, +26 EN.',
   },
   {
@@ -96,6 +104,7 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 16,
     healHp: 8,
     healEnergy: 35,
+    maxHarvests: 2,
     description: 'Soothing blue blossom that restores +35 Energy.',
   },
   {
@@ -108,6 +117,7 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 11,
     healHp: 20,
     healEnergy: 18,
+    maxHarvests: 2,
     description: 'Leafy green head. +20 HP, +18 EN.',
   },
   {
@@ -120,6 +130,7 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 7,
     healHp: 6,
     healEnergy: 16,
+    maxHarvests: 2,
     description: 'Staple grain used for baking bread at a Bonfire.',
   },
   {
@@ -132,6 +143,7 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 22,
     healHp: 28,
     healEnergy: 32,
+    maxHarvests: 2,
     description: 'Heavy autumn gourd. Sells well or cooks into Pumpkin Soup.',
   },
   {
@@ -144,6 +156,8 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 10,
     healHp: 14,
     healEnergy: 22,
+    maxHarvests: 1,
+    isRootCrop: true,
     description: 'Peppery crisp root. +14 HP, +22 EN.',
   },
   {
@@ -156,6 +170,7 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 20,
     healHp: 26,
     healEnergy: 26,
+    maxHarvests: 2,
     description: 'Fragrant homestead flower. +26 HP, +26 EN.',
   },
   {
@@ -168,6 +183,8 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 12,
     healHp: 18,
     healEnergy: 24,
+    maxHarvests: 1,
+    isRootCrop: true,
     description: 'Sweet purple root. +18 HP, +24 EN.',
   },
   {
@@ -180,6 +197,7 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 34,
     healHp: 45,
     healEnergy: 50,
+    maxHarvests: 3,
     description: 'Rare celestial crop! +45 HP, +50 EN or 34g sell.',
   },
   {
@@ -192,6 +210,7 @@ export const SPROUT_CROPS: SproutCropDef[] = [
     sellValue: 9,
     healHp: 15,
     healEnergy: 20,
+    maxHarvests: 3,
     description: 'Refreshing green vine crop. +15 HP, +20 EN.',
   },
 ];
@@ -199,3 +218,12 @@ export const SPROUT_CROPS: SproutCropDef[] = [
 export const SPROUT_CROP_BY_STRUCTURE = Object.fromEntries(
   SPROUT_CROPS.map((c) => [c.structureType, c]),
 ) as Record<SproutCropDef['structureType'], SproutCropDef>;
+
+export function getMaxHarvestsForCrop(type: string): number {
+  const sc = SPROUT_CROP_BY_STRUCTURE[type as SproutCropDef['structureType']];
+  if (sc) return sc.maxHarvests;
+  if (type === 'crop_carrot') return 1;
+  if (type === 'crop_sunflower') return 2;
+  if (type === 'crop_berries') return 3;
+  return 1;
+}
