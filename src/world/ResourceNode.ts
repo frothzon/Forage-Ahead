@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { BiomeKind } from '../data/islands';
 import { applyWindShader } from './WindShader';
+import { playSpawnGrowAndJello } from '../vfx/SpawnJuice';
 
 export type NodeKind =
   | 'tree'
@@ -44,6 +45,7 @@ export class ResourceNode extends Phaser.GameObjects.Container {
   private hpBarFill?: Phaser.GameObjects.Rectangle;
   private hpBarHighlight?: Phaser.GameObjects.Rectangle;
   private bobTween?: Phaser.Tweens.Tween;
+  private fishSplashTimer?: Phaser.Time.TimerEvent;
 
   constructor(
     scene: Phaser.Scene,
@@ -87,7 +89,7 @@ export class ResourceNode extends Phaser.GameObjects.Container {
       applyWindShader(this.sprite, 2.8, phase);
     }
 
-    if (kind === 'dig_spot' || kind === 'fish_spot') {
+    if (kind === 'dig_spot') {
       this.bobTween = scene.tweens.add({
         targets: this.sprite,
         alpha: { from: 0.65, to: 1 },
@@ -97,10 +99,125 @@ export class ResourceNode extends Phaser.GameObjects.Container {
         yoyo: true,
         repeat: -1,
       });
+    } else if (kind === 'fish_spot') {
+      this.initFishSpotVisuals(scene);
     }
 
-    this.setDepth(kind === 'dig_spot' || kind === 'fish_spot' ? 4 : py + this.collisionOffsetY);
+    const depth =
+      kind === 'fish_spot'
+        ? 1.8
+        : kind === 'dig_spot'
+          ? 4
+          : py + this.collisionOffsetY;
+    this.setDepth(depth);
     scene.add.existing(this);
+    playSpawnGrowAndJello(scene, this, 1, 1);
+  }
+
+  private initFishSpotVisuals(scene: Phaser.Scene): void {
+    // Replace the mossy leaf sprite with ambient water ripples & bubbles
+    this.sprite.setVisible(false);
+    const ambientOffsets = [
+      { dx: Phaser.Math.Between(-4, -1), dy: Phaser.Math.Between(-3, 2), r: 1.8 },
+      { dx: Phaser.Math.Between(1, 4), dy: Phaser.Math.Between(-2, 3), r: 1.4 },
+    ];
+    for (let i = 0; i < ambientOffsets.length; i++) {
+      const b = ambientOffsets[i];
+      const dot = scene.add.circle(b.dx, b.dy, b.r, 0xd8f6ff, 0.55);
+      dot.setStrokeStyle(0.75, 0x8af0ff, 0.7);
+      this.add(dot);
+      scene.tweens.add({
+        targets: dot,
+        alpha: { from: 0.35, to: 0.85 },
+        scaleX: { from: 0.85, to: 1.2 },
+        scaleY: { from: 0.85, to: 1.2 },
+        duration: 700 + i * 240,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.InOut',
+      });
+    }
+    this.scheduleNextFishSplash();
+  }
+
+  private scheduleNextFishSplash(): void {
+    if (!this.scene || !this.active || this.kind !== 'fish_spot') return;
+    const delay = Phaser.Math.Between(1000, 3000);
+    this.fishSplashTimer = this.scene.time.delayedCall(delay, () => {
+      if (!this.scene || !this.active) return;
+      this.spawnFishSplashAndBubbles();
+      this.scheduleNextFishSplash();
+    });
+  }
+
+  private spawnFishSplashAndBubbles(): void {
+    const scene = this.scene;
+    if (!scene || !this.active) return;
+
+    const splashX = this.x + Phaser.Math.Between(-4, 4);
+    const splashY = this.y + Phaser.Math.Between(-4, 4);
+    const splashRing = scene.add.circle(splashX, splashY, 2.2, 0xd8f8ff, 0.15);
+    splashRing.setStrokeStyle(1.1, 0xbef5ff, 0.9);
+    splashRing.setDepth(1.85);
+    scene.tweens.add({
+      targets: splashRing,
+      scaleX: 2.9,
+      scaleY: 2.2,
+      alpha: 0,
+      duration: 520,
+      ease: 'Cubic.Out',
+      onComplete: () => splashRing.destroy(),
+    });
+
+    for (let d = 0; d < 2; d++) {
+      const drop = scene.add.circle(
+        splashX + Phaser.Math.Between(-2, 2),
+        splashY + Phaser.Math.Between(-2, 2),
+        1.1,
+        0xe6fbff,
+        0.9,
+      );
+      drop.setDepth(1.85);
+      const dirX = (d === 0 ? -1 : 1) * Phaser.Math.Between(2, 5);
+      scene.tweens.add({
+        targets: drop,
+        x: drop.x + dirX,
+        y: drop.y - Phaser.Math.Between(4, 7),
+        alpha: 0,
+        duration: 360,
+        ease: 'Quad.Out',
+        onComplete: () => drop.destroy(),
+      });
+    }
+
+    const bubbleCount = Phaser.Math.Between(1, 3);
+    for (let i = 0; i < bubbleCount; i++) {
+      const bx = this.x + Phaser.Math.Between(-6, 6);
+      const by = this.y + Phaser.Math.Between(-5, 5);
+      const radius = Phaser.Math.FloatBetween(1.3, 2.3);
+      const bubble = scene.add.circle(bx, by, radius, 0xdff8ff, 0.7);
+      bubble.setStrokeStyle(0.75, 0x8af0ff, 0.95);
+      bubble.setDepth(1.85);
+      scene.tweens.add({
+        targets: bubble,
+        y: by - Phaser.Math.Between(4, 7),
+        x: bx + Phaser.Math.Between(-2, 2),
+        scaleX: 1.25,
+        scaleY: 1.25,
+        alpha: 0,
+        delay: i * 95,
+        duration: Phaser.Math.Between(460, 680),
+        ease: 'Sine.Out',
+        onComplete: () => bubble.destroy(),
+      });
+    }
+  }
+
+  protected preDestroy(): void {
+    this.fishSplashTimer?.remove(false);
+    this.fishSplashTimer = undefined;
+    this.bobTween?.stop();
+    super.preDestroy();
   }
 
   public getCollisionCenter(): { x: number; y: number } {

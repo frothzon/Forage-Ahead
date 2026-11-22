@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   OUTDOOR_NPC_BUILDINGS,
+  computeHouseRoofEaveFrame,
   computeHouseRoofFrame,
   computeHouseWallFrame,
   computeWallCollisionBox,
   groupConnectedHouseTiles,
+  hasAll4CardinalHouseNeighbors,
 } from '../src/world/OutdoorBuildingStamps';
 
 describe('OutdoorBuildingStamps', () => {
@@ -20,7 +22,7 @@ describe('OutdoorBuildingStamps', () => {
       const walls = stamp.placements.filter((p) => p.type === 'house_wall');
 
       expect(floors.length).toBeGreaterThanOrEqual(8);
-      expect(doors.length).toBe(1);
+      expect(doors.length).toBeGreaterThanOrEqual(2);
       expect(walls.length).toBeGreaterThanOrEqual(8);
       // Floor must never be placed on outside perimeter walls
       const minX = Math.min(...walls.map((w) => w.lx));
@@ -106,18 +108,21 @@ describe('OutdoorBuildingStamps', () => {
       expect(wallFrame).toBeGreaterThanOrEqual(0);
       expect(wallFrame).toBeLessThan(15);
     }
-    // Roof split: top=8, middle=15, bottom=22; left edge=-1 (7,14,21); right edge=+1 (9,16,23)
-    expect(computeHouseRoofFrame(0, 0, 4)).toBe(8);
-    expect(computeHouseRoofFrame(1, 0, 4)).toBe(8);
-    expect(computeHouseRoofFrame(2, 0, 4)).toBe(15);
-    expect(computeHouseRoofFrame(3, 0, 4)).toBe(22);
-    expect(computeHouseRoofFrame(4, 0, 4)).toBe(22);
-    expect(computeHouseRoofFrame(0, 0, 4, false, true)).toBe(7);
-    expect(computeHouseRoofFrame(2, 0, 4, false, true)).toBe(14);
-    expect(computeHouseRoofFrame(4, 0, 4, false, true)).toBe(21);
-    expect(computeHouseRoofFrame(0, 0, 4, true, false)).toBe(9);
-    expect(computeHouseRoofFrame(2, 0, 4, true, false)).toBe(16);
-    expect(computeHouseRoofFrame(4, 0, 4, true, false)).toBe(23);
+    // Roof split on 0..8: ridgeTy = floor((0+8)/2) - 1 = 3; top=8, ridge=15, lower=22; eaves=28/29/30
+    expect(computeHouseRoofFrame(0, 0, 8)).toBe(8);
+    expect(computeHouseRoofFrame(2, 0, 8)).toBe(8);
+    expect(computeHouseRoofFrame(3, 0, 8)).toBe(15);
+    expect(computeHouseRoofFrame(4, 0, 8)).toBe(22);
+    expect(computeHouseRoofFrame(7, 0, 8)).toBe(22);
+    expect(computeHouseRoofFrame(0, 0, 8, false, true)).toBe(7);
+    expect(computeHouseRoofFrame(3, 0, 8, false, true)).toBe(14);
+    expect(computeHouseRoofFrame(4, 0, 8, false, true)).toBe(21);
+    expect(computeHouseRoofFrame(0, 0, 8, true, false)).toBe(9);
+    expect(computeHouseRoofFrame(3, 0, 8, true, false)).toBe(16);
+    expect(computeHouseRoofFrame(4, 0, 8, true, false)).toBe(23);
+    expect(computeHouseRoofEaveFrame(false, true)).toBe(28);
+    expect(computeHouseRoofEaveFrame(true, true)).toBe(29);
+    expect(computeHouseRoofEaveFrame(true, false)).toBe(30);
   });
 
   it('groups connected house tiles into distinct building IDs for per-building roof fading', () => {
@@ -163,5 +168,25 @@ describe('OutdoorBuildingStamps', () => {
     expect(ne.offsetX + ne.halfW).toBe(eWall.offsetX + eWall.halfW);
     expect(nw.halfH).toBe(nWall.halfH);
     expect(ne.halfH).toBe(nWall.halfH);
+  });
+
+  it('classifies strictly interior house tiles via 4 cardinal neighbors while excluding all exterior walls', () => {
+    const tiles = new Set<string>();
+    for (let y = 0; y <= 4; y++) {
+      for (let x = 0; x <= 4; x++) {
+        tiles.add(`${x},${y}`);
+      }
+    }
+    // Exterior perimeter walls & corners must all return false
+    expect(hasAll4CardinalHouseNeighbors(tiles, 0, 0)).toBe(false);
+    expect(hasAll4CardinalHouseNeighbors(tiles, 2, 0)).toBe(false);
+    expect(hasAll4CardinalHouseNeighbors(tiles, 0, 2)).toBe(false);
+    expect(hasAll4CardinalHouseNeighbors(tiles, 4, 2)).toBe(false);
+    expect(hasAll4CardinalHouseNeighbors(tiles, 2, 4)).toBe(false);
+
+    // Interior floors & interior dividers must return true
+    expect(hasAll4CardinalHouseNeighbors(tiles, 1, 1)).toBe(true);
+    expect(hasAll4CardinalHouseNeighbors(tiles, 2, 2)).toBe(true);
+    expect(hasAll4CardinalHouseNeighbors(tiles, 3, 3)).toBe(true);
   });
 });

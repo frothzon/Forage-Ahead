@@ -8,9 +8,11 @@ import { startSceneAndWaitCreate, transitionManager } from '../core/TransitionMa
 import { type HouseThemeId } from '../world/HouseLayoutBuilder';
 import {
   OUTDOOR_NPC_BUILDINGS,
+  computeHouseRoofEaveFrame,
   computeHouseRoofFrame,
   computeHouseWallFrame,
   groupConnectedHouseTiles,
+  hasAll4CardinalHouseNeighbors,
 } from '../world/OutdoorBuildingStamps';
 import { ITEMS } from '../data/items';
 import {
@@ -19,6 +21,7 @@ import {
   TILE_PX,
   WORLD_TILES,
   getIslandAt,
+  isDungeonPortalEnterable,
   type BiomeKind,
   type DungeonId,
   type IslandSpec,
@@ -79,6 +82,7 @@ import { ResourceNode, type NodeKind } from '../world/ResourceNode';
 import { ensureCleanTilesets } from '../world/TilesetCleaner';
 import { WeatherSystem, type WeatherKind } from '../world/WeatherSystem';
 import { periodicPerlinFbm2D } from '../world/weatherRules';
+import { playSpawnGrowAndJello } from '../vfx/SpawnJuice';
 
 interface ActiveBomb {
   sprite: Phaser.GameObjects.Image;
@@ -107,7 +111,10 @@ interface IslandPurchaseMarker {
 interface NpcEntity {
   spec: NonNullable<IslandSpec['npc']>;
   sprite: Phaser.GameObjects.Sprite;
+  promptBox: Phaser.GameObjects.Container;
+  promptBg: Phaser.GameObjects.Graphics;
   prompt: Phaser.GameObjects.Text;
+  redrawPrompt: () => void;
   x: number;
   y: number;
 }
@@ -123,10 +130,14 @@ interface RanchEntity {
 
 interface DungeonPortalEntity {
   dungeonId: DungeonId;
+  gx: number;
+  gy: number;
   x: number;
   y: number;
   sprite: Phaser.GameObjects.Image;
+  promptBox: Phaser.GameObjects.Container;
   prompt: Phaser.GameObjects.Text;
+  redrawPrompt: () => void;
 }
 
 export function computeBridgeBobY(tx: number, ty: number, timeMs: number, baseY: number): number {
@@ -189,7 +200,14 @@ export class OverworldScene extends Phaser.Scene {
   private buildingTickCallbacks?: Parameters<BuildingEntity['updateBuilding']>[1];
   private soilStateMap = new Map<string, { lastWateredMs: number; lastUsedMs: number }>();
   private soilDecayTimerMs = 0;
-  private cropStatusLabel?: Phaser.GameObjects.Text;
+  private cropStatusLabelBox?: {
+    container: Phaser.GameObjects.Container;
+    bg: Phaser.GameObjects.Graphics;
+    label: Phaser.GameObjects.Text;
+    redraw: () => void;
+    lastText: string;
+    lastColor: string;
+  };
   private enemies: Enemy[] = [];
   private drops: LootDrop[] = [];
   private projectiles: ActiveProjectile[] = [];
@@ -212,12 +230,22 @@ export class OverworldScene extends Phaser.Scene {
   private dungeonPortals: DungeonPortalEntity[] = [];
   private bridgeSprites = new Map<string, { sprite: Phaser.GameObjects.Image; tx: number; ty: number; baseY: number }>();
   private houseRoofSprites = new Map<string, Phaser.GameObjects.Image>();
+  private houseRoofConcaveBaseSprites = new Map<string, Phaser.GameObjects.Image>();
+  private houseRoofEaveSprites = new Map<string, Phaser.GameObjects.Image>();
   private houseRoofUnderlaySprites = new Map<string, Phaser.GameObjects.Image>();
   private houseUnderWallFloors = new Map<string, Phaser.GameObjects.Image>();
+  private houseDoorSigns: Array<{
+    doorX: number;
+    doorY: number;
+    baseY: number;
+    container: Phaser.GameObjects.Container;
+  }> = [];
   private houseTileSet = new Set<string>();
   private houseInteriorTileSet = new Set<string>();
   private houseGroupByTile = new Map<string, number>();
   private houseRoofGroup = new Map<string, number>();
+  private houseRoofConcaveBaseGroup = new Map<string, number>();
+  private houseRoofEaveGroup = new Map<string, number>();
   private houseGroupRoofAlpha = new Map<number, number>();
   private activeHouseGroupId = 0;
   private lastHarvestMs = 0;
@@ -329,6 +357,7 @@ export class OverworldScene extends Phaser.Scene {
       .setStrokeStyle(1.3, 0xffe066, 0.9)
       .setDepth(1)
       .setVisible(false);
+    this.cropStatusLabelBox = undefined;
 
     this.tweens.add({
       targets: this.targetIndicator,
@@ -646,6 +675,7 @@ export class OverworldScene extends Phaser.Scene {
           stageWatered: b.stageWatered,
           wateredCount: b.wateredCount,
           harvestsLeft: b.harvestsLeft,
+          withered: b.withered,
         }),
       );
     }
@@ -690,57 +720,68 @@ export class OverworldScene extends Phaser.Scene {
     this.houseTileSet.clear();
     this.houseInteriorTileSet.clear();
     const wallOrDoorSet = new Set<string>();
-    const openDoorSet = new Set<string>();
     for (const b of this.buildings) {
       if (!b.active) continue;
       if (this.isHousePart(b.structureType)) {
         const key = `${b.tx},${b.ty}`;
         this.houseTileSet.add(key);
-        if (b.structureType === 'house_floor' || b.structureType.startsWith('furniture_')) {
-          this.houseInteriorTileSet.add(key);
-        }
-        if (b.structureType === 'house_door' && b.isOpen) {
-          openDoorSet.add(key);
-        }
       }
       if (b.structureType === 'house_wall' || b.structureType === 'house_door') {
         wallOrDoorSet.add(`${b.tx},${b.ty}`);
       }
     }
-    // Exclude exterior wall/closed-door tiles from interior trigger set
-    for (const wk of wallOrDoorSet) {
-      if (!openDoorSet.has(wk)) {
-        this.houseInteriorTileSet.delete(wk);
-      } else {
-        this.houseInteriorTileSet.add(wk);
+    // Strictly classify interior tiles: all 4 cardinal neighbors must belong to houseTileSet.
+    // This excludes 100% of exterior perimeter walls & exterior doors while keeping interior divider walls & interior doors.
+    for (const key of this.houseTileSet) {
+      const [tx, ty] = key.split(',').map(Number);
+      if (hasAll4CardinalHouseNeighbors(this.houseTileSet, tx, ty)) {
+        this.houseInteriorTileSet.add(key);
       }
     }
 
     // Extra floor layer under north/south walls & doors so world ground never pokes through inside houses
-    const underFloorKeys = new Set<string>();
+    // Strictly avoid left/right exterior walls & corners so floor tiles never stick out on the sides.
+    const isPureFloor = (tx: number, ty: number) =>
+      this.houseInteriorTileSet.has(`${tx},${ty}`) && !wallOrDoorSet.has(`${tx},${ty}`);
+
+    const underFloorCrop = new Map<string, { y: number; h: number }>();
     for (const wk of wallOrDoorSet) {
       const [tx, ty] = wk.split(',').map(Number);
-      if (this.houseTileSet.has(`${tx},${ty + 1}`) || this.houseTileSet.has(`${tx},${ty - 1}`)) {
-        underFloorKeys.add(wk);
+      const floorBelow = isPureFloor(tx, ty + 1);
+      const floorAbove = isPureFloor(tx, ty - 1);
+      if (floorBelow && floorAbove) {
+        underFloorCrop.set(wk, { y: 0, h: 16 });
+      } else if (floorBelow) {
+        underFloorCrop.set(wk, { y: 8, h: 8 }); // Bottom half under North wall
+      } else if (floorAbove) {
+        underFloorCrop.set(wk, { y: 0, h: 8 }); // Top half under South wall / Door
       }
     }
     for (const [k, spr] of this.houseUnderWallFloors) {
-      if (!underFloorKeys.has(k)) {
+      if (!underFloorCrop.has(k)) {
         spr.destroy();
         this.houseUnderWallFloors.delete(k);
       }
     }
-    for (const k of underFloorKeys) {
-      if (this.houseUnderWallFloors.has(k)) continue;
+    for (const [k, crop] of underFloorCrop) {
       const [tx, ty] = k.split(',').map(Number);
-      const spr = this.add
-        .image(tx * TILE_PX + 8, ty * TILE_PX + 8, 'sprout/house_walls', 6)
-        .setDepth(2.9)
-        .setDisplaySize(16, 20);
-      this.houseUnderWallFloors.set(k, spr);
+      let spr = this.houseUnderWallFloors.get(k);
+      if (!spr) {
+        spr = this.add
+          .image(tx * TILE_PX + 8, ty * TILE_PX + 8, 'sprout/house_walls', 6)
+          .setDepth(2.9);
+        this.houseUnderWallFloors.set(k, spr);
+      }
+      spr.setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8).setCrop(0, crop.y, 16, crop.h);
     }
 
-    // Autotile all house_wall sprites (NPC-built and player-built alike)
+    // Autotile all house_wall sprites (NPC-built and player-built alike) and place windows (frame 13) on blank south wall spans
+    const doorKeySet = new Set(
+      this.buildings
+        .filter((b) => b.active && b.structureType === 'house_door')
+        .map((b) => `${b.tx},${b.ty}`),
+    );
+    const southWallsByRow = new Map<number, BuildingEntity[]>();
     for (const b of this.buildings) {
       if (!b.active || b.structureType !== 'house_wall') continue;
       const hasN = wallOrDoorSet.has(`${b.tx},${b.ty - 1}`);
@@ -749,13 +790,48 @@ export class OverworldScene extends Phaser.Scene {
       const hasE = wallOrDoorSet.has(`${b.tx + 1},${b.ty}`);
       const hasFloorW = this.houseTileSet.has(`${b.tx - 1},${b.ty}`);
       const hasFloorE = this.houseTileSet.has(`${b.tx + 1},${b.ty}`);
-      b.setWallFrame(computeHouseWallFrame(hasN, hasS, hasW, hasE, hasFloorW, hasFloorE));
+      const frame = computeHouseWallFrame(hasN, hasS, hasW, hasE, hasFloorW, hasFloorE);
+      b.setWallFrame(frame);
+      if (frame === 11) {
+        const list = southWallsByRow.get(b.ty) ?? [];
+        list.push(b);
+        southWallsByRow.set(b.ty, list);
+      }
+    }
+    for (const [ty, rowWalls] of southWallsByRow) {
+      rowWalls.sort((a, b) => a.tx - b.tx);
+      let runStart = 0;
+      while (runStart < rowWalls.length) {
+        let runEnd = runStart;
+        while (runEnd + 1 < rowWalls.length && rowWalls[runEnd + 1].tx === rowWalls[runEnd].tx + 1) {
+          runEnd += 1;
+        }
+        const run = rowWalls.slice(runStart, runEnd + 1).filter(
+          (w) => !doorKeySet.has(`${w.tx - 1},${ty}`) && !doorKeySet.has(`${w.tx + 1},${ty}`),
+        );
+        if (run.length >= 2) {
+          for (let i = run.length === 2 ? 0 : 1; i < run.length; i += 2) {
+            run[i].setWallFrame(13);
+          }
+        }
+        runStart = runEnd + 1;
+      }
     }
 
     this.houseGroupByTile = groupConnectedHouseTiles(this.houseTileSet);
 
-    const roofKeys = [...this.houseTileSet];
+    // Exclude every south-facing perimeter tile (same as GitHub 9d8f01e) so every wing of an L-shaped house shows its front/south wall cleanly
+    const roofKeys = [...this.houseTileSet].filter((k) => {
+      const [tx, ty] = k.split(',').map(Number);
+      return this.houseTileSet.has(`${tx},${ty + 1}`);
+    });
     const roofKeySet = new Set(roofKeys);
+    const eaveKeys = new Set(
+      roofKeys.filter((k) => {
+        const [tx, ty] = k.split(',').map(Number);
+        return !roofKeySet.has(`${tx},${ty + 1}`);
+      }),
+    );
 
     for (const [k, spr] of this.houseRoofSprites) {
       if (!roofKeySet.has(k)) {
@@ -764,8 +840,23 @@ export class OverworldScene extends Phaser.Scene {
         this.houseRoofGroup.delete(k);
       }
     }
-    for (const [k, spr] of this.houseRoofUnderlaySprites) {
+    for (const [k, spr] of this.houseRoofConcaveBaseSprites) {
       if (!roofKeySet.has(k)) {
+        spr.destroy();
+        this.houseRoofConcaveBaseSprites.delete(k);
+        this.houseRoofConcaveBaseGroup.delete(k);
+      }
+    }
+    for (const [k, spr] of this.houseRoofEaveSprites) {
+      if (!eaveKeys.has(k)) {
+        spr.destroy();
+        this.houseRoofEaveSprites.delete(k);
+        this.houseRoofEaveGroup.delete(k);
+      }
+    }
+    for (const [k, spr] of this.houseRoofUnderlaySprites) {
+      const [utx, uty] = k.split(',').map(Number);
+      if (!roofKeySet.has(k) || !isPureFloor(utx, uty)) {
         spr.destroy();
         this.houseRoofUnderlaySprites.delete(k);
       }
@@ -790,24 +881,56 @@ export class OverworldScene extends Phaser.Scene {
       const hasS = roofKeySet.has(`${tx},${ty + 1}`);
       let concave: 'se' | 'sw' | 'ne' | 'nw' | undefined;
       if (hasN && hasS && hasW && hasE) {
-        if (!this.houseTileSet.has(`${tx + 1},${ty + 1}`)) concave = 'se';
-        else if (!this.houseTileSet.has(`${tx - 1},${ty + 1}`)) concave = 'sw';
-        else if (!this.houseTileSet.has(`${tx + 1},${ty - 1}`)) concave = 'ne';
-        else if (!this.houseTileSet.has(`${tx - 1},${ty - 1}`)) concave = 'nw';
+        if (!roofKeySet.has(`${tx + 1},${ty + 1}`)) concave = 'se';
+        else if (!roofKeySet.has(`${tx - 1},${ty + 1}`)) concave = 'sw';
+        else if (!roofKeySet.has(`${tx + 1},${ty - 1}`)) concave = 'ne';
+        else if (!roofKeySet.has(`${tx - 1},${ty - 1}`)) concave = 'nw';
       }
       const frame = computeHouseRoofFrame(ty, bounds.minTy, bounds.maxTy, hasW, hasE, concave);
+      const ridgeTy = Math.max(bounds.minTy, Math.floor((bounds.minTy + bounds.maxTy) / 2) - 1);
+      const slopeTint = ty < ridgeTy ? 0xffffff : ty === ridgeTy ? 0xf2e4d4 : 0xdcc8b2;
       this.houseRoofGroup.set(k, gid);
-      let underlay = this.houseRoofUnderlaySprites.get(k);
-      if (!underlay) {
-        underlay = this.add
-          .image(tx * TILE_PX + 8, ty * TILE_PX + 8, 'sprout/house_walls', 6)
-          .setTint(0x100906)
-          .setDisplaySize(16, 18)
-          .setDepth(8499);
-        this.houseRoofUnderlaySprites.set(k, underlay);
+      if (isPureFloor(tx, ty)) {
+        let underlay = this.houseRoofUnderlaySprites.get(k);
+        if (!underlay) {
+          underlay = this.add
+            .image(tx * TILE_PX + 8, ty * TILE_PX + 8, 'sprout/house_walls', 6)
+            .setTint(0x100906)
+            .setDepth(8499);
+          this.houseRoofUnderlaySprites.set(k, underlay);
+        } else {
+          underlay.setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8);
+        }
       } else {
-        underlay.setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8);
+        const oldUnderlay = this.houseRoofUnderlaySprites.get(k);
+        if (oldUnderlay) {
+          oldUnderlay.destroy();
+          this.houseRoofUnderlaySprites.delete(k);
+        }
       }
+
+      if (concave) {
+        const baseFrame = computeHouseRoofFrame(ty, bounds.minTy, bounds.maxTy, true, true);
+        this.houseRoofConcaveBaseGroup.set(k, gid);
+        let baseSpr = this.houseRoofConcaveBaseSprites.get(k);
+        if (!baseSpr) {
+          baseSpr = this.add
+            .image(tx * TILE_PX + 8, ty * TILE_PX + 8, 'sprout/house_roof', baseFrame)
+            .setDepth(8499.5);
+          this.houseRoofConcaveBaseSprites.set(k, baseSpr);
+        } else {
+          baseSpr.setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8).setFrame(baseFrame);
+        }
+        baseSpr.setTint(slopeTint);
+      } else {
+        const oldBase = this.houseRoofConcaveBaseSprites.get(k);
+        if (oldBase) {
+          oldBase.destroy();
+          this.houseRoofConcaveBaseSprites.delete(k);
+          this.houseRoofConcaveBaseGroup.delete(k);
+        }
+      }
+
       let spr = this.houseRoofSprites.get(k);
       if (!spr) {
         spr = this.add
@@ -815,16 +938,73 @@ export class OverworldScene extends Phaser.Scene {
           .setDepth(8500);
         this.houseRoofSprites.set(k, spr);
       } else {
-        spr.setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8);
         spr.setFrame(frame);
       }
+      spr.setOrigin(0.5, 0.5).setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8).setDisplaySize(16, 16).setTint(slopeTint);
+
+      // Add per-wing scalloped bottom eave cap directly over the top rim of each wing's south wall
+      if (!hasS) {
+        const eaveFrame = computeHouseRoofEaveFrame(hasW, hasE);
+        this.houseRoofEaveGroup.set(k, gid);
+        let eaveSpr = this.houseRoofEaveSprites.get(k);
+        if (!eaveSpr) {
+          eaveSpr = this.add
+            .image(tx * TILE_PX + 8, (ty + 1) * TILE_PX + 2, 'sprout/house_roof', eaveFrame)
+            .setDepth(8500);
+          this.houseRoofEaveSprites.set(k, eaveSpr);
+        } else {
+          eaveSpr.setPosition(tx * TILE_PX + 8, (ty + 1) * TILE_PX + 2).setFrame(eaveFrame);
+        }
+        eaveSpr.setTint(0xdcc8b2);
+      }
     }
+  }
+
+  private createWorldLabelBox(
+    x: number,
+    y: number,
+    text: string,
+    textColor: string,
+    borderColor = 0xd9a85b,
+    fontSize = '7px',
+  ): {
+    container: Phaser.GameObjects.Container;
+    bg: Phaser.GameObjects.Graphics;
+    label: Phaser.GameObjects.Text;
+    redraw: () => void;
+  } {
+    const bg = this.add.graphics();
+    const label = this.add
+      .text(0, 0, text, {
+        fontSize,
+        fontStyle: 'bold',
+        color: textColor,
+        stroke: '#1b1109',
+        strokeThickness: 2,
+        resolution: 4,
+      })
+      .setOrigin(0.5);
+    const container = this.add.container(x, y, [bg, label]).setDepth(8700);
+    const redraw = () => {
+      bg.clear();
+      const padX = 5;
+      const padY = 2.5;
+      const w = Math.max(12, Math.ceil(label.width + padX * 2));
+      const h = Math.max(11, Math.ceil(label.height + padY * 2));
+      bg.fillStyle(0x1b1109, 0.9);
+      bg.fillRoundedRect(-w / 2, -h / 2, w, h, 3.5);
+      bg.lineStyle(1.1, borderColor, 0.95);
+      bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 3.5);
+    };
+    redraw();
+    return { container, bg, label, redraw };
   }
 
   private spawnRanchSprite(rc: RanchCreatureSave): void {
     const sp = getSpeciesById(rc.speciesId);
     if (!sp) return;
     const spr = this.add.sprite(rc.x, rc.y, sp.spriteKey, 0).setDepth(rc.y);
+    playSpawnGrowAndJello(this, spr, 1, 1);
     const label = this.add
       .text(rc.x, rc.y - 14, '', {
         fontSize: '7px',
@@ -925,6 +1105,49 @@ export class OverworldScene extends Phaser.Scene {
     return { x: wx, y: wy };
   }
 
+  private isDungeonEnterable(dungeonId: DungeonId, gx: number, gy: number): boolean {
+    const storyLocked = Boolean(gameState.getIslandStoryLockReason(gx, gy));
+    return isDungeonPortalEnterable(
+      dungeonId,
+      gx,
+      gy,
+      gameState.ownedIslands,
+      gameState.clearedDungeons,
+      storyLocked,
+    );
+  }
+
+  private refreshDungeonPortals(): void {
+    for (const dp of this.dungeonPortals) {
+      const wasVisible = dp.sprite.visible;
+      const enterable = this.isDungeonEnterable(dp.dungeonId, dp.gx, dp.gy);
+      dp.sprite.setVisible(enterable);
+      dp.promptBox.setVisible(enterable);
+      if (!enterable) continue;
+
+      if (dp.dungeonId === 'void_spire') {
+        const checkpointFloor = Math.max(1, Math.floor(gameState.voidSpireHighestFloor / 5) * 5 + 1);
+        dp.prompt.setText(fmtKeyPrompt('E', `Void Spire (Fl.${checkpointFloor})`));
+        dp.prompt.setColor('#d896ff');
+      } else {
+        const spec = getIslandAt(dp.gx, dp.gy);
+        const cleared = gameState.clearedDungeons.has(dp.dungeonId);
+        const label = spec
+          ? cleared
+            ? `${spec.name} (Cleared)`
+            : fmtKeyPrompt('E', `Enter ${spec.name.replace(' Isle', '')}`)
+          : fmtKeyPrompt('E', 'Enter Dungeon');
+        dp.prompt.setText(label);
+        dp.prompt.setColor(cleared ? '#90ee90' : '#ffcf70');
+      }
+      dp.redrawPrompt();
+      if (!wasVisible) {
+        playSpawnGrowAndJello(this, dp.sprite, 1, 1);
+        playSpawnGrowAndJello(this, dp.promptBox, 1, 1);
+      }
+    }
+  }
+
   private populateIslandContent(gx: number, gy: number, spawnNodes = true): void {
     const spec = getIslandAt(gx, gy);
     if (!spec) return;
@@ -943,28 +1166,31 @@ export class OverworldScene extends Phaser.Scene {
         .image(dTile.tx * TILE_PX + 8, dTile.ty * TILE_PX + 8, 'tileset/Cave entrance_2', 1)
         .setDepth(dTile.ty * TILE_PX + 8);
       const cleared = gameState.clearedDungeons.has(spec.dungeonId);
-      const prompt = this.add
-        .text(
-          spr.x,
-          spr.y - 16,
-          cleared ? `${spec.name} (Cleared)` : fmtKeyPrompt('E', `Enter ${spec.name.replace(' Isle', '')}`),
-          {
-            fontSize: '7px',
-            fontStyle: 'bold',
-            color: cleared ? '#90ee90' : '#ffcf70',
-            stroke: '#000',
-            strokeThickness: 2,
-            resolution: 4,
-          },
-        )
-        .setOrigin(0.5)
-        .setDepth(8000);
+      const enterable = this.isDungeonEnterable(spec.dungeonId, gx, gy);
+      const box = this.createWorldLabelBox(
+        spr.x,
+        spr.y - 18,
+        cleared ? `${spec.name} (Cleared)` : fmtKeyPrompt('E', `Enter ${spec.name.replace(' Isle', '')}`),
+        cleared ? '#90ee90' : '#ffcf70',
+        0xd9a85b,
+        '7px',
+      );
+      spr.setVisible(enterable);
+      box.container.setVisible(enterable);
+      if (enterable) {
+        playSpawnGrowAndJello(this, spr, 1, 1);
+        playSpawnGrowAndJello(this, box.container, 1, 1);
+      }
       this.dungeonPortals.push({
         dungeonId: spec.dungeonId,
+        gx,
+        gy,
         x: spr.x,
         y: spr.y,
         sprite: spr,
-        prompt,
+        promptBox: box.container,
+        prompt: box.label,
+        redrawPrompt: box.redraw,
       });
     }
 
@@ -975,32 +1201,32 @@ export class OverworldScene extends Phaser.Scene {
         .image(vTile.tx * TILE_PX + 8, vTile.ty * TILE_PX + 8, 'tileset/Cave entrance_2', 1)
         .setTint(0xc77dff)
         .setDepth(vTile.ty * TILE_PX + 8);
-      const unlocked = gameState.clearedDungeons.has('infernal_sanctum');
+      const unlocked = this.isDungeonEnterable('void_spire', gx, gy);
       const checkpointFloor = Math.max(1, Math.floor(gameState.voidSpireHighestFloor / 5) * 5 + 1);
-      const prompt = this.add
-        .text(
-          spr.x,
-          spr.y - 16,
-          unlocked
-            ? fmtKeyPrompt('E', `Void Spire (Fl.${checkpointFloor})`)
-            : 'Void Spire (Clear Infernal Sanctum)',
-          {
-            fontSize: '7px',
-            fontStyle: 'bold',
-            color: unlocked ? '#d896ff' : '#9988aa',
-            stroke: '#000',
-            strokeThickness: 2,
-            resolution: 4,
-          },
-        )
-        .setOrigin(0.5)
-        .setDepth(8000);
+      const box = this.createWorldLabelBox(
+        spr.x,
+        spr.y - 18,
+        fmtKeyPrompt('E', `Void Spire (Fl.${checkpointFloor})`),
+        '#d896ff',
+        0xb377ff,
+        '7px',
+      );
+      spr.setVisible(unlocked);
+      box.container.setVisible(unlocked);
+      if (unlocked) {
+        playSpawnGrowAndJello(this, spr, 1, 1);
+        playSpawnGrowAndJello(this, box.container, 1, 1);
+      }
       this.dungeonPortals.push({
         dungeonId: 'void_spire',
+        gx,
+        gy,
         x: spr.x,
         y: spr.y,
         sprite: spr,
-        prompt,
+        promptBox: box.container,
+        prompt: box.label,
+        redrawPrompt: box.redraw,
       });
     }
 
@@ -1015,26 +1241,32 @@ export class OverworldScene extends Phaser.Scene {
         .setDepth(ny);
       const animKey = `npc_${spec.npc.spriteKey.split('/').pop()!.replace('_idle', '')}_idle_down`;
       if (this.anims.exists(animKey)) spr.play(animKey);
-      const prompt = this.add
-        .text(spr.x, spr.y - 14, this.getNpcPromptText(spec.npc.id, spec.npc.name, false), {
-          fontSize: '8px',
-          fontStyle: 'bold',
-          color: '#ffe066',
-          stroke: '#000',
-          strokeThickness: 2,
-          resolution: 4,
-        })
-        .setOrigin(0.5)
-        .setDepth(8000);
+      const promptBox = this.createWorldLabelBox(
+        spr.x,
+        spr.y - 16,
+        this.getNpcPromptText(spec.npc.id, spec.npc.name, false),
+        '#ffe066',
+        0xd9a85b,
+        '8px',
+      );
       this.tweens.add({
-        targets: prompt,
-        y: spr.y - 17,
+        targets: promptBox.container,
+        y: spr.y - 19,
         duration: 720,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.InOut',
       });
-      this.npcs.push({ spec: spec.npc, sprite: spr, prompt, x: nx, y: ny });
+      this.npcs.push({
+        spec: spec.npc,
+        sprite: spr,
+        promptBox: promptBox.container,
+        promptBg: promptBox.bg,
+        prompt: promptBox.label,
+        redrawPrompt: promptBox.redraw,
+        x: nx,
+        y: ny,
+      });
 
       // 2b. Outdoor Tile-Built NPC Building (same tileset & BuildingEntity system as player-built structures)
       const theme = spec.npc.id as HouseThemeId;
@@ -1066,17 +1298,14 @@ export class OverworldScene extends Phaser.Scene {
           }
           const doorX = (plot.ox + stamp.doorLx) * TILE_PX + 8;
           const doorY = (plot.oy + stamp.doorLy) * TILE_PX + 8;
-          this.add
-            .text(doorX, doorY - 22, stamp.name, {
-              fontSize: '7px',
-              fontStyle: 'bold',
-              color: '#ffe6a8',
-              stroke: '#1b1109',
-              strokeThickness: 2,
-              resolution: 4,
-            })
-            .setOrigin(0.5)
-            .setDepth(8600);
+          const signBox = this.createWorldLabelBox(doorX, doorY - 20, stamp.name, '#ffe6a8', 0xd9a85b, '7px');
+          signBox.container.setAlpha(0).setVisible(false);
+          this.houseDoorSigns.push({
+            doorX,
+            doorY,
+            baseY: doorY - 20,
+            container: signBox.container,
+          });
           this.rebuildHouseRoofs();
         }
       }
@@ -1104,6 +1333,7 @@ export class OverworldScene extends Phaser.Scene {
       const shadow = this.add.ellipse(ax, ay - 1, 10, 4, 0x000000, 0.35).setDepth(ay - 1);
       const anim = this.add.sprite(ax, ay - 4, keyMap[pick], 0).setDepth(ay);
       if (this.anims.exists(`animal_${pick}_idle_down`)) anim.play(`animal_${pick}_idle_down`);
+      playSpawnGrowAndJello(this, anim, 1, 1);
       this.animals.push({
         kind: pick,
         sprite: anim,
@@ -1418,6 +1648,7 @@ export class OverworldScene extends Phaser.Scene {
           bSave.stageWatered = ent.isStageWatered();
           bSave.wateredCount = ent.getWateredCount();
           bSave.harvestsLeft = ent.getHarvestsLeft();
+          bSave.withered = ent.isCropWithered();
         }
       }
     }
@@ -1589,6 +1820,7 @@ export class OverworldScene extends Phaser.Scene {
           gameState.clearedDungeons.add('frost_cavern');
           gameState.clearedDungeons.add('infernal_sanctum');
           gameState.debugUnlockAllRelics();
+          this.refreshDungeonPortals();
           SFX.playLevelUp();
           this.hud.showToast('Debug: All 4 Dungeons Cleared + Relic Rods Unlocked!');
         } else if (action === 'reset_run') {
@@ -1971,6 +2203,18 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // Seed planting takes top priority over all other interactions (pets, NPCs, etc.)
+    if (def.plantStructureType) {
+      if (fromHold) return;
+      const targetSoil = this.findTargetSoilForSeed(wx, wy);
+      if (targetSoil) {
+        this.tryPlantHeldSeed(itemId, targetSoil.tx, targetSoil.ty);
+      } else {
+        this.hud.showToast('Target tilled soil (use Hoe first) to plant!');
+      }
+      return;
+    }
+
     const dx = wx - this.player.x;
     const dy = wy - this.player.y;
     const dLen = Math.hypot(dx, dy) || 1;
@@ -1990,17 +2234,6 @@ export class OverworldScene extends Phaser.Scene {
     // Stop using tools if out of energy -> play exhausted animation & 2s cooldown
     if (def.category === 'tool' && gameState.energy < 1.5) {
       this.triggerPlayerExhausted();
-      return;
-    }
-
-    if (def.plantStructureType) {
-      if (fromHold) return;
-      const targetSoil = this.findTargetSoilForSeed(wx, wy);
-      if (targetSoil) {
-        this.tryPlantHeldSeed(itemId, targetSoil.tx, targetSoil.ty);
-      } else {
-        this.hud.showToast('Target tilled soil (use Hoe first) to plant!');
-      }
       return;
     }
 
@@ -2308,9 +2541,14 @@ export class OverworldScene extends Phaser.Scene {
     drawSlashArc(this, this.player.x, this.player.y - 4, angle, range, getWeaponSlashColor(itemId));
     SFX.playSwing();
 
-    // Check Ripe Crops
+    // Check Ripe or Withered Crops
     for (const b of [...this.buildings]) {
-      if (!b.active || !b.isCropRipe()) continue;
+      if (!b.active) continue;
+      if (b.isCropWithered() && Math.hypot(b.x - this.player.x, b.y - this.player.y) <= range + 8) {
+        this.cullWitheredCrop(b);
+        continue;
+      }
+      if (!b.isCropRipe()) continue;
       if (Math.hypot(b.x - this.player.x, b.y - this.player.y) <= range + 8) {
         if (!this.consumeToolEnergy(1.5)) break;
         this.handleCropHarvest(b);
@@ -2501,6 +2739,20 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  private cullWitheredCrop(b: BuildingEntity): boolean {
+    if (!b.active || !b.isCropWithered()) return false;
+    const tx = b.tx;
+    const ty = b.ty;
+    SFX.playChop();
+    spawnBurstParticles(this, b.x, b.y - 4, 0x7a5c3e, 8);
+    spawnBurstParticles(this, b.x, b.y - 2, 0x9c6544, 5);
+    spawnFloatingText(this, b.x, b.y - 14, 'Culled Dried Plant', '#d6b88c');
+    this.removeBuilding(b);
+    const soilEntry = this.soilStateMap.get(`${tx},${ty}`);
+    if (soilEntry) soilEntry.lastUsedMs = this.time.now;
+    return true;
+  }
+
   private handleCropHarvest(b: BuildingEntity): boolean {
     const res = b.harvestCrop();
     if (!res) return false;
@@ -2687,18 +2939,20 @@ export class OverworldScene extends Phaser.Scene {
     const ptx = Math.floor(px / TILE_PX);
     const pty = Math.floor(py / TILE_PX);
     const key = `${ptx},${pty}`;
-    if (!this.houseInteriorTileSet.has(key)) return 0;
+    const gid = this.houseGroupByTile.get(key) ?? 0;
+    if (!gid) return 0;
 
-    // Require 4px interior inset from any solid exterior house_wall tile so standing outside never peeks under roofs
-    const localX = px - ptx * TILE_PX;
-    const localY = py - pty * TILE_PX;
-    const pad = 4;
-    if (localX < pad && !this.houseInteriorTileSet.has(`${ptx - 1},${pty}`)) return 0;
-    if (localX > TILE_PX - pad && !this.houseInteriorTileSet.has(`${ptx + 1},${pty}`)) return 0;
-    if (localY < pad && !this.houseInteriorTileSet.has(`${ptx},${pty - 1}`)) return 0;
-    if (localY > TILE_PX - pad && !this.houseInteriorTileSet.has(`${ptx},${pty + 1}`)) return 0;
+    // Exterior door tiles never count as strictly inside (leaving through the front door restores the roof)
+    const onExteriorDoor = this.houseDoors.some(
+      (d) => d.active && d.tx === ptx && d.ty === pty && !this.houseInteriorTileSet.has(key),
+    );
+    if (onExteriorDoor) return 0;
 
-    return this.houseGroupByTile.get(key) ?? 0;
+    // Hysteresis: once inside, stay inside anywhere in interior/inner-wall footprint; when outside, require strictly interior tile
+    if (this.activeHouseGroupId === gid) {
+      return gid;
+    }
+    return this.houseInteriorTileSet.has(key) ? gid : 0;
   }
 
   private findTargetSoilForSeed(aimX?: number, aimY?: number): { tx: number; ty: number; x: number; y: number } | null {
@@ -2810,7 +3064,12 @@ export class OverworldScene extends Phaser.Scene {
       this.hud.showToast('Requires tilled soil (use Hoe first)!');
       return false;
     }
-    if (this.buildings.some((b) => b.active && b.tx === tx && b.ty === ty) || this.hasNodeAt(tx, ty)) {
+    const existing = this.buildings.find((b) => b.active && b.tx === tx && b.ty === ty);
+    if (existing?.isCropWithered()) {
+      this.hud.showToast('Clear the withered plant first!');
+      return false;
+    }
+    if (existing || this.hasNodeAt(tx, ty)) {
       this.hud.showToast('Tile is already occupied!');
       return false;
     }
@@ -2940,13 +3199,57 @@ export class OverworldScene extends Phaser.Scene {
     statusColor?: string;
     ringColor?: number;
   } | null {
+    const heldItemId = gameState.hotbar[gameState.selectedHotbarIndex] ?? '';
+    const heldDef = heldItemId ? ITEMS[heldItemId] : undefined;
+
+    // Check hovered crop under cursor first (on desktop) so pointing at any nearby plant highlights its needs
+    let hoveredCrop: BuildingEntity | null = null;
+    if (!this.hud.isTouchEnabled() && this.input?.activePointer) {
+      const wp = this.cameras.main.getWorldPoint(this.input.activePointer.x, this.input.activePointer.y);
+      let bestHoverDist = 14;
+      for (const b of this.buildings) {
+        if (!b.active || !b.isCrop()) continue;
+        if (Math.hypot(b.x - this.player.x, b.y - this.player.y) > 52) continue;
+        const hd = Math.hypot(b.x - wp.x, b.y - wp.y);
+        if (hd < bestHoverDist) {
+          bestHoverDist = hd;
+          hoveredCrop = b;
+        }
+      }
+    }
+
+    // Prioritize seed planting above pets, wild animals, NPCs, portals, and other interactions
+    if (heldDef?.plantStructureType && !hoveredCrop) {
+      let aimX: number | undefined;
+      let aimY: number | undefined;
+      const ptr = this.input.activePointer;
+      if (!this.hud.isTouchEnabled() && ptr) {
+        const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+        aimX = wp.x;
+        aimY = wp.y;
+      }
+      const targetSoil = this.findTargetSoilForSeed(aimX, aimY);
+      if (targetSoil) {
+        const cropLabel = heldDef.name.replace(/\s*Seeds$/i, '');
+        return {
+          kind: 'soil',
+          actionLabel: 'PLANT',
+          x: targetSoil.x,
+          y: targetSoil.y,
+          depth: 4,
+          statusText: `🌱 [E] Plant ${cropLabel}`,
+          statusColor: '#8ef5a7',
+          ringColor: 0x6ee88a,
+        };
+      }
+    }
+
     for (const dp of this.dungeonPortals) {
+      if (!dp.sprite.visible || !this.isDungeonEnterable(dp.dungeonId, dp.gx, dp.gy)) continue;
       if (Math.hypot(dp.x - this.player.x, dp.y - this.player.y) <= 28) {
         return { kind: 'portal', actionLabel: 'ENTER', x: dp.x, y: dp.y + dp.sprite.displayHeight * 0.25, depth: dp.sprite.depth };
       }
     }
-    const heldItemId = gameState.hotbar[gameState.selectedHotbarIndex] ?? '';
-    const heldDef = heldItemId ? ITEMS[heldItemId] : undefined;
     if (heldItemId === 'salvage_hammer') {
       let aimX: number | undefined;
       let aimY: number | undefined;
@@ -2970,19 +3273,33 @@ export class OverworldScene extends Phaser.Scene {
         };
       }
     }
-    const bestBld = this.findBestInteractableBuilding(skipStations);
-    if (bestBld && (!bestBld.isCrop() || bestBld.isCropRipe() || !heldDef?.plantStructureType)) {
+
+    const bestBld = hoveredCrop ?? this.findBestInteractableBuilding(skipStations);
+    const hasSeedPlantTarget = Boolean(heldDef?.plantStructureType && this.findTargetSoilForSeed());
+    if (bestBld && (!bestBld.isCrop() || bestBld.isCropRipe() || !hasSeedPlantTarget || hoveredCrop === bestBld)) {
       if (bestBld.isCrop()) {
         const status = bestBld.getCropStatus();
+        if (status.state === 'withered') {
+          return {
+            kind: 'building',
+            actionLabel: 'CULL',
+            x: bestBld.x,
+            y: bestBld.getCollisionCenter().y,
+            depth: bestBld.depth,
+            statusText: 'WITHERED [Attack/E] Cull',
+            statusColor: '#d6a468',
+            ringColor: 0xc88a4b,
+          };
+        }
         const isRipe = status.state === 'ripe';
         const needsWater = status.state === 'needs_water';
         const hasCan = gameState.getItemCount('watering_can') > 0;
         const actionLabel = isRipe ? 'HARVEST' : needsWater && (heldItemId === 'watering_can' || hasCan) ? 'WATER' : '';
         const statusText = isRipe
-          ? `✦ READY [E] Harvest (${status.harvestsLeft} left)`
+          ? `READY [E] Harvest (${status.harvestsLeft} left)`
           : needsWater
-            ? `💧 NEEDS WATER (${status.stage}/${status.maxStage})`
-            : `🌱 GROWING ${status.progressPct}% (${status.stage}/${status.maxStage})`;
+            ? `NEEDS WATER (${status.stage}/${status.maxStage})`
+            : `GROWING ${status.progressPct}% (${status.stage}/${status.maxStage})`;
         const statusColor = isRipe ? '#7ef29d' : needsWater ? '#7ce8ff' : '#ffe066';
         const ringColor = isRipe ? 0x44ee88 : needsWater ? 0x66ccff : 0xffe066;
         return {
@@ -3069,27 +3386,28 @@ export class OverworldScene extends Phaser.Scene {
 
   private updateCropStatusLabel(x?: number, y?: number, text?: string, color = '#8ef5a7'): void {
     if (!text || x === undefined || y === undefined) {
-      this.cropStatusLabel?.setVisible(false);
+      if (this.cropStatusLabelBox?.container.active) {
+        this.cropStatusLabelBox.container.setVisible(false);
+      }
       return;
     }
-    if (!this.cropStatusLabel) {
-      this.cropStatusLabel = this.add
-        .text(x, y - 18, text, {
-          fontSize: '7px',
-          fontStyle: 'bold',
-          color,
-          stroke: '#10141c',
-          strokeThickness: 2.5,
-          resolution: 4,
-        })
-        .setOrigin(0.5)
-        .setDepth(9000);
+    if (!this.cropStatusLabelBox || !this.cropStatusLabelBox.container.active) {
+      const box = this.createWorldLabelBox(x, y - 18, text, color, 0xd9a85b, '7px');
+      box.container.setDepth(9000);
+      this.cropStatusLabelBox = {
+        ...box,
+        lastText: text,
+        lastColor: color,
+      };
     }
-    this.cropStatusLabel
-      .setPosition(x, y - 18)
-      .setText(text)
-      .setColor(color)
-      .setVisible(true);
+    const b = this.cropStatusLabelBox;
+    b.container.setPosition(x, y - 18).setVisible(true);
+    if (b.lastText !== text || b.lastColor !== color) {
+      b.lastText = text;
+      b.lastColor = color;
+      b.label.setText(text).setColor(color);
+      b.redraw();
+    }
   }
 
   private updateTargetIndicator(): void {
@@ -3415,8 +3733,28 @@ export class OverworldScene extends Phaser.Scene {
   };
 
   private handleInteractKey(fromPrimaryAction = false): boolean {
-    // 1. Check nearby Dungeon Portal
+    const heldId = gameState.hotbar[gameState.selectedHotbarIndex] ?? '';
+    const heldDef = heldId ? ITEMS[heldId] : undefined;
+
+    // 0. Prioritize Held Seed Planting on Tilled Soil above pets, animals, NPCs, and other interactions
+    if (heldDef?.plantStructureType) {
+      let aimX: number | undefined;
+      let aimY: number | undefined;
+      const ptr = this.input?.activePointer;
+      if (!this.hud.isTouchEnabled() && ptr) {
+        const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+        aimX = wp.x;
+        aimY = wp.y;
+      }
+      const targetSoil = this.findTargetSoilForSeed(aimX, aimY);
+      if (targetSoil && this.tryPlantHeldSeed(heldId, targetSoil.tx, targetSoil.ty)) {
+        return true;
+      }
+    }
+
+    // 1. Check nearby Dungeon Portal (only if visible and enterable)
     for (const dp of this.dungeonPortals) {
+      if (!dp.sprite.visible || !this.isDungeonEnterable(dp.dungeonId, dp.gx, dp.gy)) continue;
       if (Math.hypot(dp.x - this.player.x, dp.y - this.player.y) <= 28) {
         if (dp.dungeonId === 'void_spire' && !gameState.clearedDungeons.has('infernal_sanctum')) {
           this.hud.showToast('Clear the Infernal Sanctum (4th Dungeon) first to unlock the Void Spire!');
@@ -3452,7 +3790,6 @@ export class OverworldScene extends Phaser.Scene {
 
     // 2. Check nearby Ranch Creature (Pet & Collect Eggs) or Wild Animal (Pet for items) or Nest
     // Skip petting animals/pets when holding a sword so cows/chickens can be harvested cleanly
-    const heldId = gameState.hotbar[gameState.selectedHotbarIndex] ?? '';
     const holdingSword = heldId.startsWith('sword');
     if (!holdingSword) {
       for (const a of this.animals) {
@@ -3578,6 +3915,9 @@ export class OverworldScene extends Phaser.Scene {
         this.hud.showToast(`Water Well: +30 EN${watered > 0 ? ` • Watered ${watered} crops!` : ''}`);
         return true;
       }
+      if (b.isCropWithered()) {
+        return this.cullWitheredCrop(b);
+      }
       if (b.isCropRipe()) {
         return this.handleCropHarvest(b);
       }
@@ -3617,15 +3957,6 @@ export class OverworldScene extends Phaser.Scene {
         } else {
           this.hud.toggleModal('craft', b.interactStation, b.id);
         }
-        return true;
-      }
-    }
-
-    // 4b. Check Held Seed Planting on Tilled Soil
-    const heldDef = heldId ? ITEMS[heldId] : undefined;
-    if (heldDef?.plantStructureType) {
-      const targetSoil = this.findTargetSoilForSeed();
-      if (targetSoil && this.tryPlantHeldSeed(heldId, targetSoil.tx, targetSoil.ty)) {
         return true;
       }
     }
@@ -4413,6 +4744,28 @@ export class OverworldScene extends Phaser.Scene {
           this.houseGroupRoofAlpha.set(gid, nextAlpha);
         }
       }
+      for (const [k, baseSpr] of this.houseRoofConcaveBaseSprites) {
+        const gid = this.houseRoofConcaveBaseGroup.get(k) ?? 0;
+        const targetAlpha = this.activeHouseGroupId > 0 && gid === this.activeHouseGroupId ? 0 : 1.0;
+        if (Math.abs(baseSpr.alpha - targetAlpha) < 0.01) {
+          baseSpr.setAlpha(targetAlpha);
+          baseSpr.setVisible(targetAlpha > 0.01);
+        } else {
+          if (!baseSpr.visible && targetAlpha > 0.01) baseSpr.setVisible(true);
+          baseSpr.setAlpha(Phaser.Math.Linear(baseSpr.alpha, targetAlpha, step));
+        }
+      }
+      for (const [k, eaveSpr] of this.houseRoofEaveSprites) {
+        const gid = this.houseRoofEaveGroup.get(k) ?? 0;
+        const targetAlpha = this.activeHouseGroupId > 0 && gid === this.activeHouseGroupId ? 0 : 1.0;
+        if (Math.abs(eaveSpr.alpha - targetAlpha) < 0.01) {
+          eaveSpr.setAlpha(targetAlpha);
+          eaveSpr.setVisible(targetAlpha > 0.01);
+        } else {
+          if (!eaveSpr.visible && targetAlpha > 0.01) eaveSpr.setVisible(true);
+          eaveSpr.setAlpha(Phaser.Math.Linear(eaveSpr.alpha, targetAlpha, step));
+        }
+      }
     } else {
       this.activeHouseGroupId = 0;
     }
@@ -4423,11 +4776,25 @@ export class OverworldScene extends Phaser.Scene {
       const dist = Math.hypot(b.x - this.player.x, b.y - this.player.y);
       if (!b.isOpen && dist <= 22) {
         b.toggleDoor();
-        this.houseInteriorTileSet.add(`${b.tx},${b.ty}`);
         SFX.playChop();
       } else if (b.isOpen && dist > 34) {
         b.toggleDoor();
-        this.houseInteriorTileSet.delete(`${b.tx},${b.ty}`);
+      }
+    }
+
+    // Fade boxed house name signs in/out only when standing at the front door
+    if (this.houseDoorSigns.length > 0) {
+      const signStep = Math.min(1, dt / 140);
+      for (const sign of this.houseDoorSigns) {
+        const atDoor = Math.hypot(this.player.x - sign.doorX, this.player.y - sign.doorY) <= 28;
+        const target = atDoor ? 1 : 0;
+        const nextAlpha =
+          Math.abs(sign.container.alpha - target) < 0.02
+            ? target
+            : Phaser.Math.Linear(sign.container.alpha, target, signStep);
+        sign.container.setAlpha(nextAlpha);
+        sign.container.setVisible(nextAlpha > 0.01);
+        sign.container.setY(sign.baseY - nextAlpha * 3);
       }
     }
 
@@ -4503,6 +4870,7 @@ export class OverworldScene extends Phaser.Scene {
         const wasInRange = npc.prompt.getData('inRange') === true;
         npc.prompt.setData('inRange', inRange);
         npc.prompt.setText(nextTxt);
+        npc.redrawPrompt();
         if (inRange && !wasInRange) {
           const q = gameState.getNextQuestForNpc(npc.spec.id);
           const emote = q ? 'portraits/Emote_question' : 'portraits/Emote_talking';
@@ -4588,6 +4956,7 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     for (const dp of this.dungeonPortals) {
+      if (!dp.sprite.visible) continue;
       pointLights.push({ x: dp.x, y: dp.y, radius: 20, color: 0xa275ff, intensity: 0.9, dayVisible: true });
     }
 
@@ -4634,6 +5003,11 @@ export class OverworldScene extends Phaser.Scene {
     spawnBurstParticles(this, bx, by, 0xff8c42, 12);
 
     const radius = 44;
+    for (const b of [...this.buildings]) {
+      if (b.active && b.isCropWithered() && Math.hypot(b.x - bx, b.y - by) <= radius) {
+        this.cullWitheredCrop(b);
+      }
+    }
     for (let i = this.nodes.length - 1; i >= 0; i--) {
       const n = this.nodes[i];
       if (n.active && Math.hypot(n.x - bx, n.y - by) <= radius) {

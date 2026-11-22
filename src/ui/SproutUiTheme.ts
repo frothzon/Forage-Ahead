@@ -305,6 +305,51 @@ export const SPROUT_UI_CSS = `
     78% { opacity: 0.55; }
     100% { transform: translateX(180%) rotate(25deg); opacity: 0; }
   }
+  @keyframes craftPopJuice {
+    0% { transform: translate(-50%, 6px) scale(0.35); opacity: 0; }
+    18% { transform: translate(-50%, -14px) scale(1.22); opacity: 1; }
+    32% { transform: translate(-50%, -18px) scale(0.94); opacity: 1; }
+    46% { transform: translate(-50%, -22px) scale(1.04); opacity: 1; }
+    78% { transform: translate(-50%, -36px) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -56px) scale(0.88); opacity: 0; }
+  }
+  @keyframes craftSparkleOut {
+    0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--sx)), calc(-50% + var(--sy))) scale(1.1); opacity: 0; }
+  }
+  .craft-pop-fx {
+    position: fixed;
+    z-index: 12000;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px 5px 7px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #3c2617 0%, #24160d 100%);
+    border: 2px solid #f7c95c;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), 0 0 14px rgba(255, 214, 102, 0.55);
+    color: #fff6da;
+    font-weight: 900;
+    font-size: 13px;
+    white-space: nowrap;
+    animation: craftPopJuice 1150ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .craft-pop-fx .craft-pop-plus {
+    color: #ffe066;
+    font-size: 14px;
+    text-shadow: 0 1px 0 #1b1109, 0 0 8px rgba(255, 224, 102, 0.7);
+  }
+  .craft-pop-spark {
+    position: fixed;
+    z-index: 11999;
+    pointer-events: none;
+    color: #ffe066;
+    font-size: 11px;
+    font-weight: 900;
+    text-shadow: 0 0 6px #ffcf40;
+    animation: craftSparkleOut 620ms ease-out forwards;
+  }
   .bar-fill.hp { background-image: url('assets/sprout_ui/bars/bar_fill_red.png'); }
   .bar-fill.en { background-image: url('assets/sprout_ui/bars/bar_fill_green.png'); }
   .bar-fill.xp { background-image: url('assets/sprout_ui/bars/bar_fill_blue.png'); }

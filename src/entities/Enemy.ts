@@ -4,9 +4,22 @@ import { HALF_ISLAND_AGGRO_PX, MONSTERS, type MonsterDef } from '../data/monster
 import { vectorToDirection, type Direction } from './AnimationRegistry';
 import { applySafeKnockback } from './knockback';
 import { showWorldEmote } from '../vfx/WorldEmote';
+import { playSpawnGrowAndJello } from '../vfx/SpawnJuice';
+import {
+  FEAR_DURATION_MS,
+  STUCK_FEAR_TIMEOUT_MS,
+  STUCK_MIN_PROGRESS_PX,
+  createStuckFearState,
+  updateStuckFearTracker,
+  type StuckFearState,
+} from './EnemyFear';
 import manifest from '../data/assetManifest.json';
 
 export class Enemy extends Phaser.GameObjects.Container {
+  public static readonly STUCK_FEAR_TIMEOUT_MS = STUCK_FEAR_TIMEOUT_MS;
+  public static readonly STUCK_MIN_PROGRESS_PX = STUCK_MIN_PROGRESS_PX;
+  public static readonly FEAR_DURATION_MS = FEAR_DURATION_MS;
+
   public readonly def: MonsterDef;
   public readonly homeX: number;
   public readonly homeY: number;
@@ -40,9 +53,11 @@ export class Enemy extends Phaser.GameObjects.Container {
   // Obstacle detour steering memory
   private detourSign: 1 | -1 = 1;
   private detourTimerMs = 0;
+  private stuckFearState: StuckFearState;
 
   constructor(scene: Phaser.Scene, monsterId: string, x: number, y: number) {
     super(scene, x, y);
+    this.stuckFearState = createStuckFearState(x, y);
     const def = MONSTERS[monsterId] ?? MONSTERS.Slime;
     this.def = def;
     this.homeX = x;
@@ -120,6 +135,15 @@ export class Enemy extends Phaser.GameObjects.Container {
     scene.add.existing(this);
 
     this.playMonAnim('idle', true);
+    playSpawnGrowAndJello(scene, this, 1, 1);
+  }
+
+  public isFeared(): boolean {
+    return this.stuckFearState.fearTimerMs > 0;
+  }
+
+  public getStuckTimerMs(): number {
+    return this.stuckFearState.stuckTimerMs;
   }
 
   private syncLevelColor(): void {
@@ -317,6 +341,24 @@ export class Enemy extends Phaser.GameObjects.Container {
     const cap = this.def.isBoss ? this.def.aggroRange : (opts?.maxAggroPx ?? HALF_ISLAND_AGGRO_PX);
     const effectiveAggro = isPacified ? -1 : Math.min(this.def.aggroRange, cap) * (opts?.aggroMult ?? 1);
 
+    if (this.stuckFearState.fearTimerMs > 0) {
+      this.stuckFearState.fearTimerMs = Math.max(0, this.stuckFearState.fearTimerMs - dtMs);
+      if (this.stuckFearState.fearTimerMs <= 0) {
+        if (this.slowMs > 0) this.sprite.setTint(0x74e5ff);
+        else this.sprite.clearTint();
+      } else {
+        this.sprite.setTint(0xc4b5fd);
+        const awayX = dist > 0.01 ? -dx / dist : 0;
+        const awayY = dist > 0.01 ? -dy / dist : -1;
+        this.facing = vectorToDirection(awayX, awayY, this.facing);
+        const fleeSpeed = this.def.speed * 1.15 * speedMult * dt;
+        const moved = this.steerAroundObstacles(awayX * fleeSpeed, awayY * fleeSpeed, isWalkable);
+        this.playMonAnim(moved ? 'walk' : 'idle');
+        this.setDepth(this.y);
+        return;
+      }
+    }
+
     if (dist <= effectiveAggro) {
       if (!this.hasAggroEmoted) {
         this.hasAggroEmoted = true;
@@ -328,6 +370,22 @@ export class Enemy extends Phaser.GameObjects.Container {
       const nx = dist > 0.01 ? dx / dist : 0;
       const ny = dist > 0.01 ? dy / dist : 1;
       this.facing = vectorToDirection(nx, ny, this.facing);
+
+      const isRangedBehavior = this.def.ai === 'ranged' || (this.def.isBoss && dist > 65);
+      const outOfAttackRange = isRangedBehavior
+        ? dist > this.def.attackRange
+        : dist > this.def.attackRange + 4;
+      if (updateStuckFearTracker(this.stuckFearState, this.x, this.y, dtMs, outOfAttackRange)) {
+        this.telegraphMs = 0;
+        this.pendingAttackType = null;
+        this.sprite.setTint(0xc4b5fd);
+        showWorldEmote(this.scene, this.x, this.y - (this.def.isBoss ? 34 : 20), 'portraits/Emote_alert', {
+          durationMs: 850,
+          scale: 0.65,
+        });
+        this.setDepth(this.y);
+        return;
+      }
 
       // Boss Special Abilities (with 380ms ground danger telegraph: outer ring + expanding fill + 100ms white flash)
       if (this.def.isBoss && this.specialCooldownMs <= 0) {
@@ -410,6 +468,7 @@ export class Enemy extends Phaser.GameObjects.Container {
       }
     } else {
       this.hasAggroEmoted = false;
+      updateStuckFearTracker(this.stuckFearState, this.x, this.y, dtMs, false);
       // Idle / Wander near home
       this.wanderTimerMs -= dtMs;
       if (this.wanderTimerMs <= 0) {

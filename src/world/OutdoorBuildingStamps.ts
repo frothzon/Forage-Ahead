@@ -116,6 +116,10 @@ export function buildWfcOutdoorHouseStamp(theme: HouseThemeId): OutdoorBuildingS
     placements.push({ lx, ly, type: 'house_wall' });
   }
   placements.push({ lx: doorLx, ly: doorLy, type: 'house_door' });
+  for (const arch of doorwayArchSet) {
+    const [ax, ay] = arch.split(',').map(Number);
+    placements.push({ lx: ax, ly: ay, type: 'house_door' });
+  }
 
   // 5. Place themed furniture inside each WFC room's 4x3 interior without blocking any archway or door
   const occupied = new Set<string>([`${doorLx},${doorLy - 1}`]);
@@ -218,9 +222,9 @@ export function computeHouseWallFrame(
 /**
  * Roof tile selector for `sprout/house_roof` (7x5 = 35 frames):
  * Concave corners: 3 (SE), 4 (SW), 10 (NE), 11 (NW)
- * Left edge (!hasW): 7 (top), 14 (mid), 21 (bot)
- * Interior (hasW && hasE): 8 (top), 15 (mid), 22 (bot)
- * Right edge (!hasE): 9 (top), 16 (mid), 23 (bot)
+ * Left edge (!hasW): 7 (top), 14 (ridge), 21 (lower), 28 (bot edge)
+ * Interior (hasW && hasE): 8 (top), 15 (ridge), 22 (lower), 29 (bot edge)
+ * Right edge (!hasE): 9 (top), 16 (ridge), 23 (lower), 30 (bot edge)
  */
 export function computeHouseRoofFrame(
   ty: number,
@@ -234,10 +238,17 @@ export function computeHouseRoofFrame(
   if (concaveCorner === 'sw') return 4;
   if (concaveCorner === 'ne') return 10;
   if (concaveCorner === 'nw') return 11;
-  const midTy = Math.floor((minTy + maxTy) / 2);
+
   const colOffset = !hasW ? -1 : !hasE ? 1 : 0;
-  const base = ty === midTy ? 15 : ty < midTy ? 8 : 22;
+  const ridgeTy = Math.max(minTy, Math.floor((minTy + maxTy) / 2) - 1);
+  const base = ty === ridgeTy ? 15 : ty < ridgeTy ? 8 : 22;
   return base + colOffset;
+}
+
+/** Scalloped bottom eaves edge frame (`28` = left, `29` = middle, `30` = right) for south roof edges. */
+export function computeHouseRoofEaveFrame(hasW = true, hasE = true): number {
+  const colOffset = !hasW ? -1 : !hasE ? 1 : 0;
+  return 29 + colOffset;
 }
 
 export interface WallCollisionBox {
@@ -302,4 +313,21 @@ export function groupConnectedHouseTiles(tiles: ReadonlySet<string>): Map<string
   }
 
   return groupByTile;
+}
+
+/**
+ * Returns true when a house tile is strictly interior (all 4 cardinal neighbors belong to the house),
+ * excluding 100% of exterior perimeter walls and exterior front doors while keeping interior dividers & doors.
+ */
+export function hasAll4CardinalHouseNeighbors(
+  houseTiles: ReadonlySet<string>,
+  tx: number,
+  ty: number,
+): boolean {
+  return (
+    houseTiles.has(`${tx},${ty - 1}`) &&
+    houseTiles.has(`${tx},${ty + 1}`) &&
+    houseTiles.has(`${tx - 1},${ty}`) &&
+    houseTiles.has(`${tx + 1},${ty}`)
+  );
 }

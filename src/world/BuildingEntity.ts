@@ -7,6 +7,7 @@ import { getMaxHarvestsForCrop, SPROUT_CROP_BY_STRUCTURE, type SproutCropDef } f
 export { getMaxHarvestsForCrop };
 import { computeWallCollisionBox } from './OutdoorBuildingStamps';
 import { applyWindShader } from './WindShader';
+import { playSpawnGrowAndJello } from '../vfx/SpawnJuice';
 
 export interface StructurePreviewSpec {
   texture: string;
@@ -83,6 +84,9 @@ export function getStructurePreviewSpec(type: StructureType): StructurePreviewSp
 }
 
 export class BuildingEntity extends Phaser.GameObjects.Container {
+  public static readonly CROP_WITHER_STAGE_MULTIPLIER = 4;
+  public static readonly CROP_MIN_WITHER_MS = 5 * 60 * 1000;
+
   public readonly id: string;
   public readonly structureType: StructureType;
   public readonly tx: number;
@@ -116,6 +120,8 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
   private wateredCount = 0;
   private harvestsLeft = 1;
   private stageProgressMs = 0;
+  private unwateredNeglectMs = 0;
+  private cropWithered = false;
   private rustleCooldownMs = 0;
   private mainSprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
   private auraCircle?: Phaser.GameObjects.Arc;
@@ -138,7 +144,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     initialQueue: CraftQueueJob[] = [],
     initialCropStage = 0,
     readOnly = false,
-    cropSaveState?: { stageWatered?: boolean; wateredCount?: number; harvestsLeft?: number },
+    cropSaveState?: { stageWatered?: boolean; wateredCount?: number; harvestsLeft?: number; withered?: boolean },
   ) {
     const px = tx * 16 + 8;
     const py = ty * 16 + 8;
@@ -153,6 +159,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     this.stageWatered = cropSaveState?.stageWatered ?? false;
     this.wateredCount = cropSaveState?.wateredCount ?? 0;
     this.harvestsLeft = cropSaveState?.harvestsLeft ?? getMaxHarvestsForCrop(type);
+    this.cropWithered = cropSaveState?.withered ?? false;
     this.solid =
       !type.startsWith('crop_') &&
       type !== 'fish_trap' &&
@@ -347,6 +354,12 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
       }
     }
 
+    if (this.cropWithered && this.mainSprite?.active) {
+      this.mainSprite.setTint(0x7a5c3e);
+      this.mainSprite.setAngle(7);
+      this.mainSprite.setScale(this.mainSprite.scaleX || 1, (this.mainSprite.scaleY || 1) * 0.86);
+    }
+
     if (this.interactStation === 'furnace' || this.interactStation === 'anvil' || this.interactStation === 'bonfire') {
       this.craftGlow = scene.add.circle(0, -19, 8, 0xffe066, 0.45).setVisible(false);
       this.craftIcon = scene.add.image(0, -19, 'ui_icons/coin').setScale(0.8).setVisible(false);
@@ -403,6 +416,7 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     );
     scene.add.existing(this);
     this.syncCraftVisual();
+    playSpawnGrowAndJello(scene, this, 1, 1);
   }
 
   public getCollisionCenter(): { x: number; y: number } {
@@ -524,14 +538,39 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
     return this.harvestsLeft;
   }
 
+  public isCropWithered(): boolean {
+    return this.cropWithered;
+  }
+
+  public witherCrop(): void {
+    if (!this.isCrop() || this.cropWithered) return;
+    this.cropWithered = true;
+    this.stageWatered = false;
+    this.harvestsLeft = 0;
+    if (this.mainSprite?.active) {
+      this.mainSprite.setTint(0x7a5c3e);
+      this.mainSprite.setAngle(7);
+      this.mainSprite.setScale(this.mainSprite.scaleX || 1, (this.mainSprite.scaleY || 1) * 0.86);
+    }
+  }
+
   public getCropStatus(): {
-    state: 'ripe' | 'needs_water' | 'growing';
+    state: 'ripe' | 'needs_water' | 'growing' | 'withered';
     stage: number;
     maxStage: number;
     progressPct: number;
     harvestsLeft: number;
   } {
     const maxStage = this.getMaxCropStage();
+    if (this.cropWithered) {
+      return {
+        state: 'withered',
+        stage: this.cropStage,
+        maxStage,
+        progressPct: 0,
+        harvestsLeft: 0,
+      };
+    }
     if (this.isCropRipe()) {
       return {
         state: 'ripe',
@@ -582,14 +621,15 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
   }
 
   public isCropRipe(): boolean {
-    return this.isCrop() && this.cropStage >= this.getMaxCropStage() && this.wateredCount >= 1;
+    return this.isCrop() && !this.cropWithered && this.cropStage >= this.getMaxCropStage() && this.wateredCount >= 1;
   }
 
   public waterCrop(fromRain = false): boolean {
-    if (!this.isCrop() || this.cropStage >= this.getMaxCropStage()) return false;
+    if (!this.isCrop() || this.cropWithered || this.cropStage >= this.getMaxCropStage()) return false;
     if (this.stageWatered) return false;
     this.stageWatered = true;
     this.wateredCount += 1;
+    this.unwateredNeglectMs = 0;
     if (!fromRain && this.mainSprite?.active) {
       const baseSx = this.mainSprite.scaleX;
       const baseSy = this.mainSprite.scaleY;
@@ -648,28 +688,8 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
   }
 
   public playPlacePop(): void {
-    const baseY = this.mainSprite.y;
-    const baseSx = this.mainSprite.scaleX;
-    const baseSy = this.mainSprite.scaleY;
-    this.mainSprite.y = baseY - 10;
-    this.scene.tweens.add({
-      targets: this.mainSprite,
-      y: baseY,
-      duration: 85,
-      ease: 'Quad.In',
-      onComplete: () => {
-        if (!this.mainSprite.active) return;
-        SFX.playBuildPlace();
-        this.mainSprite.setScale(baseSx * 1.25, baseSy * 0.75);
-        this.scene.tweens.add({
-          targets: this.mainSprite,
-          scaleX: baseSx,
-          scaleY: baseSy,
-          duration: 110,
-          ease: 'Back.easeOut',
-        });
-      },
-    });
+    SFX.playBuildPlace();
+    playSpawnGrowAndJello(this.scene, this, 1, 1);
   }
 
   public setWallFrame(frame: number): void {
@@ -805,18 +825,19 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
         callbacks.onFishTrapCatch(this.x, this.y);
       }
     } else if (this.isCrop()) {
-      if (this.cropStage < this.getMaxCropStage()) {
+      if (!this.cropWithered && this.cropStage < this.getMaxCropStage()) {
         if (callbacks.rainWatered && !this.stageWatered) {
           this.waterCrop(true);
         }
+        let growStepMs = gameState.hasSkill('foraging_farming') ? 22000 : 32000;
+        if (callbacks.isFertileSoil?.(this.tx, this.ty)) {
+          growStepMs = Math.round(growStepMs * 0.85);
+        }
+        if (callbacks.rainWatered) {
+          growStepMs = Math.round(growStepMs * 0.85);
+        }
         if (this.stageWatered) {
-          let growStepMs = gameState.hasSkill('foraging_farming') ? 22000 : 32000;
-          if (callbacks.isFertileSoil?.(this.tx, this.ty)) {
-            growStepMs = Math.round(growStepMs * 0.85);
-          }
-          if (callbacks.rainWatered) {
-            growStepMs = Math.round(growStepMs * 0.85);
-          }
+          this.unwateredNeglectMs = 0;
           this.stageProgressMs += dtMs;
           if (this.stageProgressMs >= growStepMs) {
             this.stageProgressMs = 0;
@@ -826,6 +847,15 @@ export class BuildingEntity extends Phaser.GameObjects.Container {
             if (callbacks.rainWatered && this.cropStage < this.getMaxCropStage()) {
               this.waterCrop(true);
             }
+          }
+        } else {
+          this.unwateredNeglectMs += dtMs;
+          const witherThresholdMs = Math.max(
+            BuildingEntity.CROP_MIN_WITHER_MS,
+            growStepMs * BuildingEntity.CROP_WITHER_STAGE_MULTIPLIER,
+          );
+          if (this.unwateredNeglectMs >= witherThresholdMs) {
+            this.witherCrop();
           }
         }
       }

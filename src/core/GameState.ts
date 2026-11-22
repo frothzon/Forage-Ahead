@@ -58,6 +58,7 @@ export interface PlacedBuildingSave {
   stageWatered?: boolean;
   wateredCount?: number;
   harvestsLeft?: number;
+  withered?: boolean;
 }
 
 export interface SavedNodeData {
@@ -781,6 +782,13 @@ export class GameState {
       remaining -= take;
       if (slot.count <= 0) {
         this.bagSlots[i] = null;
+      }
+    }
+    if (this.getItemCount(itemId) <= 0) {
+      for (let i = 0; i < this.hotbar.length; i++) {
+        if (this.hotbar[i] === itemId) {
+          this.hotbar[i] = '';
+        }
       }
     }
     const def = ITEMS[itemId];

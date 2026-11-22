@@ -3,6 +3,7 @@ import { ITEMS, type ItemRarity } from '../data/items';
 import { gameState } from '../core/GameState';
 import { SFX } from '../core/SoundFX';
 import { spawnRollingHarvestText } from './CombatHelpers';
+import { playSpawnGrowAndJello } from '../vfx/SpawnJuice';
 
 const LOOT_AURA_FRAG = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -140,6 +141,7 @@ export class LootDrop extends Phaser.GameObjects.Container {
 
     this.setDepth(y);
     scene.add.existing(this);
+    playSpawnGrowAndJello(scene, this, 1, 1);
   }
 
   private ensureBadge(count: number): void {

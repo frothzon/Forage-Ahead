@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { formatCompactNumber } from '../src/core/FormatNumber';
+import { gameState } from '../src/core/GameState';
+import { isDungeonPortalEnterable } from '../src/data/islands';
 import { ITEMS } from '../src/data/items';
 import { RECIPES } from '../src/data/recipes';
+import {
+  FEAR_DURATION_MS,
+  STUCK_FEAR_TIMEOUT_MS,
+  createStuckFearState,
+  updateStuckFearTracker,
+} from '../src/entities/EnemyFear';
 import { OUTDOOR_NPC_BUILDINGS } from '../src/world/OutdoorBuildingStamps';
 
 describe('World fixes, large number formatting & salvage tool', () => {
@@ -44,5 +52,51 @@ describe('World fixes, large number formatting & salvage tool', () => {
     expect(northWalls.length).toBeGreaterThan(0);
     expect(southWalls.length).toBeGreaterThan(0);
     expect(floorAt.has(`${stamp.doorLx},${stamp.doorLy - 1}`)).toBe(true);
+  });
+
+  it('triggers enemy fear mode after 5s with <= 5px progress while chasing out of attack range', () => {
+    const state = createStuckFearState(100, 100);
+    // 2.5s stuck with only 3px progress -> not feared yet
+    expect(updateStuckFearTracker(state, 103, 100, 2500, true)).toBe(false);
+    expect(state.stuckTimerMs).toBe(2500);
+    expect(state.fearTimerMs).toBe(0);
+
+    // Making > 5px progress resets stuck timer
+    expect(updateStuckFearTracker(state, 109, 100, 500, true)).toBe(false);
+    expect(state.stuckTimerMs).toBe(0);
+
+    // Now stuck for full 5000ms within 5px -> enters fear mode
+    expect(updateStuckFearTracker(state, 110, 100, 2500, true)).toBe(false);
+    expect(updateStuckFearTracker(state, 111, 100, STUCK_FEAR_TIMEOUT_MS - 2500, true)).toBe(true);
+    expect(state.fearTimerMs).toBe(FEAR_DURATION_MS);
+
+    // Entering attack range resets stuck timer
+    expect(updateStuckFearTracker(state, 111, 100, 1000, false)).toBe(false);
+    expect(state.stuckTimerMs).toBe(0);
+  });
+
+  it('hides Void Spire until infernal_sanctum is cleared and hides unowned/story-locked portals', () => {
+    const owned = new Set(['2,2', '2,1']);
+    const cleared = new Set<'skull_crypt' | 'sunken_tomb' | 'frost_cavern' | 'infernal_sanctum' | 'void_spire'>();
+
+    expect(isDungeonPortalEnterable('void_spire', 2, 2, owned, cleared, false)).toBe(false);
+    expect(isDungeonPortalEnterable('skull_crypt', 2, 1, owned, cleared, false)).toBe(true);
+    expect(isDungeonPortalEnterable('skull_crypt', 2, 1, owned, cleared, true)).toBe(false);
+    expect(isDungeonPortalEnterable('sunken_tomb', 4, 2, owned, cleared, false)).toBe(false);
+
+    cleared.add('infernal_sanctum');
+    expect(isDungeonPortalEnterable('void_spire', 2, 2, owned, cleared, false)).toBe(true);
+  });
+
+  it('removes sold equipment from the hotbar when no copies remain', () => {
+    gameState.reset(gameState.heroClass);
+    gameState.addItem('sword_iron', 1);
+    gameState.assignHotbarSlot(5, 'sword_iron');
+    expect(gameState.hotbar[5]).toBe('sword_iron');
+
+    const earned = gameState.sellItem('sword_iron', 1);
+    expect(earned).toBeGreaterThan(0);
+    expect(gameState.getItemCount('sword_iron')).toBe(0);
+    expect(gameState.hotbar[5]).toBe('');
   });
 });

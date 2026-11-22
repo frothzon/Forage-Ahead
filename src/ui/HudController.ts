@@ -511,6 +511,62 @@ export class HudController {
     this.renderBanners();
   }
 
+  public showCraftPopPopup(
+    anchorRect: DOMRect | { left: number; top: number; width: number; height: number },
+    itemName: string,
+    iconKey?: string,
+    count = 1,
+    suffix?: string,
+  ): void {
+    const cx = anchorRect.width > 0 ? anchorRect.left + anchorRect.width / 2 : window.innerWidth / 2;
+    const cy = anchorRect.height > 0 ? anchorRect.top - 4 : window.innerHeight * 0.42;
+
+    const popup = document.createElement('div');
+    popup.className = 'craft-pop-fx';
+    popup.style.left = `${Math.round(cx)}px`;
+    popup.style.top = `${Math.round(cy)}px`;
+
+    if (iconKey) {
+      const img = document.createElement('img');
+      img.src = `assets/${iconKey}.png`;
+      img.className = 'px-icon';
+      img.style.width = '22px';
+      img.style.height = '22px';
+      popup.appendChild(img);
+    }
+
+    const plus = document.createElement('span');
+    plus.className = 'craft-pop-plus';
+    plus.textContent = `+${count}`;
+    popup.appendChild(plus);
+
+    const label = document.createElement('span');
+    label.textContent = suffix ? `${itemName} (${suffix})` : itemName;
+    popup.appendChild(label);
+
+    this.root.appendChild(popup);
+    window.setTimeout(() => popup.remove(), 1200);
+
+    const sparkOffsets = [
+      { sx: -28, sy: -26 },
+      { sx: 28, sy: -24 },
+      { sx: -36, sy: -4 },
+      { sx: 36, sy: -6 },
+      { sx: 0, sy: -34 },
+    ];
+    for (const sp of sparkOffsets) {
+      const spark = document.createElement('span');
+      spark.className = 'craft-pop-spark';
+      spark.textContent = '✦';
+      spark.style.left = `${Math.round(cx)}px`;
+      spark.style.top = `${Math.round(cy - 6)}px`;
+      spark.style.setProperty('--sx', `${sp.sx}px`);
+      spark.style.setProperty('--sy', `${sp.sy}px`);
+      this.root.appendChild(spark);
+      window.setTimeout(() => spark.remove(), 650);
+    }
+  }
+
   public setBossBar(boss: { name: string; hp: number; maxHp: number; portrait?: string } | null): void {
     this.bossInfo = boss;
     this.renderBanners();
@@ -3470,6 +3526,7 @@ export class HudController {
           } else if (act === 'sell1') {
             const earned = gameState.sellItem(slot.itemId, 1);
             if (earned > 0) SFX.playCoin();
+            if (!gameState.bagSlots[idx]) this.selectedInspect = null;
           } else if (act === 'sellall') {
             const earned = gameState.sellItem(slot.itemId, slot.count);
             if (earned > 0) SFX.playCoin();
@@ -3527,7 +3584,11 @@ export class HudController {
         const id = el.dataset.craft!;
         const rec = RECIPES.find((r) => r.id === id);
         if (!rec) return;
+        const btnRect = el.getBoundingClientRect();
+        const iconKey = rec.iconKey ?? (rec.outputItemId ? ITEMS[rec.outputItemId]?.iconKey : undefined);
+        const outCount = rec.outputCount ?? 1;
         if (rec.station === 'build') {
+          this.showCraftPopPopup(btnRect, rec.name, iconKey, 1);
           gameState.pendingBuildRecipeId = id;
           this.closeModal();
           this.callbacks.onSelectBuild(id);
@@ -3540,10 +3601,12 @@ export class HudController {
           }
           const st = this.getSelectedStation();
           if (st && this.callbacks.onEnqueueCraft?.(st.id, id)) {
+            this.showCraftPopPopup(btnRect, rec.name, iconKey, outCount, 'Queued');
             this.renderModal();
           }
         } else if (gameState.craftRecipe(id)) {
           SFX.playCraft();
+          this.showCraftPopPopup(btnRect, rec.name, iconKey, outCount);
           this.showToast(`Crafted ${rec.name}!`);
         }
       };

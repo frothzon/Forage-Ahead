@@ -292,3 +292,22 @@ export const STORY_CHAPTERS: StoryChapterMeta[] = [
     unlockHint: 'Defeat the Ancient Black Dragon on Floor 20 and own all 25 islands for GRAND VICTORY!',
   },
 ];
+
+/**
+ * Returns true if a dungeon portal on island (gx, gy) is currently enterable
+ * (owned, not story-locked, and for 'void_spire', 'infernal_sanctum' must be cleared).
+ */
+export function isDungeonPortalEnterable(
+  dungeonId: DungeonId,
+  gx: number,
+  gy: number,
+  ownedIslands: ReadonlySet<string>,
+  clearedDungeons: ReadonlySet<DungeonId>,
+  storyLocked = false,
+): boolean {
+  if (!ownedIslands.has(`${gx},${gy}`) || storyLocked) return false;
+  if (dungeonId === 'void_spire') {
+    return clearedDungeons.has('infernal_sanctum');
+  }
+  return true;
+}
