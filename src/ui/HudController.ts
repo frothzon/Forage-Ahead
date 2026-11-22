@@ -46,6 +46,7 @@ import { IMPLEMENTED_FEATURES, OUTSTANDING_ITEMS } from '../data/projectProgress
 import { QUESTS, getQuestById } from '../data/quests';
 import { RECIPES, type CraftingStation } from '../data/recipes';
 import { PILLAR_META, SKILLS, type SkillPillar } from '../data/skills';
+import { getFamiliarSpecForClass } from '../data/familiars';
 
 export type HudModal = 'none' | 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'progress';
 
@@ -2818,18 +2819,33 @@ export class HudController {
   }
 
   private renderSkillsTab(): string {
-    const pillars: SkillPillar[] = ['foraging', 'industry', 'economy', 'magic'];
+    const pillars: SkillPillar[] = ['foraging', 'industry', 'economy', 'magic', 'familiar'];
+    const famSpec = getFamiliarSpecForClass(gameState.heroClass);
+    const famTier = gameState.getFamiliarTier();
+    const famIsApex = famTier >= 12;
+    const famIconPath = famIsApex ? famSpec.apexIconPath : famSpec.baseIconPath;
+    const famName = famIsApex ? famSpec.apexName : famSpec.baseName;
+
     return `
       <div style="display:flex; flex-direction:column; gap:6px; height:100%; min-height:0;">
         <div style="font-size:12px; color:#3b2316; font-weight:800;">Available Skill Points: ${gameState.skillPoints}</div>
-        <div style="flex:1; min-height:0; display:grid; grid-template-columns:repeat(4, 1fr); gap:8px;">
+        <div style="flex:1; min-height:0; display:grid; grid-template-columns:repeat(5, 1fr); gap:6px;">
           ${pillars
             .map((p) => {
               const meta = PILLAR_META[p];
-              const pSkills = SKILLS.filter((s) => s.pillar === p);
+              const pSkills = SKILLS.filter(
+                (s) => s.pillar === p && (!s.heroClass || s.heroClass === gameState.heroClass),
+              );
+              const headerHtml =
+                p === 'familiar'
+                  ? `<div style="display:flex; align-items:center; justify-content:center; gap:5px; padding:3px 4px; background:${meta.color}; color:#fff6e5; border:2px solid #4a2e1b; border-radius:4px; font-size:11px; font-weight:800;">
+                      <img src="${famIconPath}" class="px-icon" style="width:16px; height:16px; image-rendering:pixelated;" />
+                      <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${famName} (T${famTier})</span>
+                    </div>`
+                  : `<div style="text-align:center; font-weight:800; padding:4px; background:${meta.color}; color:#fff6e5; border:2px solid #4a2e1b; border-radius:4px; font-size:12px;">${meta.label}</div>`;
               return `
-                <div style="display:grid; grid-template-rows:auto repeat(${pSkills.length}, 1fr); gap:6px; min-height:0;">
-                  <div style="text-align:center; font-weight:800; padding:4px; background:${meta.color}; color:#fff6e5; border:2px solid #4a2e1b; border-radius:4px; font-size:12px;">${meta.label}</div>
+                <div class="sl-scroll" style="display:grid; grid-template-rows:auto repeat(${pSkills.length}, 1fr); gap:5px; min-height:0; overflow-y:auto; padding-right:3px;">
+                  ${headerHtml}
                   ${pSkills
                     .map((s) => {
                       const unlocked = gameState.hasSkill(s.id);

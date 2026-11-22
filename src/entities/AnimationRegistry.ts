@@ -92,6 +92,50 @@ export function registerAllAnimations(scene: Phaser.Scene): void {
     }
   }
 
+  // 2b. Familiars (CuteRPG 3x4 blocks)
+  const familiarSpecs =
+    (manifest as {
+      familiars?: Record<
+        string,
+        {
+          key: string;
+          cols: number;
+          rows: number;
+          rowOrder: Record<Direction, number>;
+        }
+      >;
+    }).familiars ?? {};
+  const dirs: Direction[] = ['down', 'left', 'right', 'up'];
+  for (const [id, spec] of Object.entries(familiarSpecs)) {
+    if (!scene.textures.exists(spec.key)) continue;
+    const cols = spec.cols || 3;
+    for (const dir of dirs) {
+      const row = spec.rowOrder?.[dir] ?? DIR_ROW[dir];
+      const base = row * cols;
+      const idleKey = `fam_${id}_idle_${dir}`;
+      if (!scene.anims.exists(idleKey)) {
+        scene.anims.create({
+          key: idleKey,
+          frames: [{ key: spec.key, frame: base + 1 }],
+          frameRate: 1,
+          repeat: 0,
+        });
+      }
+      const walkKey = `fam_${id}_walk_${dir}`;
+      if (!scene.anims.exists(walkKey)) {
+        scene.anims.create({
+          key: walkKey,
+          frames: [base + 0, base + 1, base + 2, base + 1].map((frame) => ({
+            key: spec.key,
+            frame,
+          })),
+          frameRate: 7,
+          repeat: -1,
+        });
+      }
+    }
+  }
+
   // 3. NPCs
   for (const npc of ['Farmer', 'Blacksmith', 'Alchemist', 'Fisherman']) {
     const idleKey = `npcs/Medieval Townsfolk pack (bonus)/${npc}_idle`;

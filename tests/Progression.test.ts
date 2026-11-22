@@ -136,10 +136,10 @@ describe('GameState progression, crafting & Diablo inventory', () => {
 
     state.debugAddLevels(5);
     expect(state.level).toBe(6);
-    expect(state.skillPoints).toBe(5);
+    expect(state.skillPoints).toBe(6);
 
     state.debugUnlockAllSkills();
-    expect(state.unlockedSkills.size).toBe(36);
+    expect(state.unlockedSkills.size).toBe(84);
 
     state.debugUnlockAllRelics();
     expect(state.isGearOwned('fire_rod')).toBe(true);
@@ -294,7 +294,7 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     expect(Object.keys(MONSTERS).length).toBe(55);
     expect(MONSTERS['Ancient Black Dragon'].level).toBe(60);
     expect(MONSTERS['Oni'].level).toBe(30);
-    expect(SKILLS.length).toBe(36);
+    expect(SKILLS.length).toBe(84);
 
     const wyrmheartRecipe = RECIPES.find((r) => r.id === 'craft_sword_wyrmheart');
     expect(wyrmheartRecipe?.station).toBe('void_altar');

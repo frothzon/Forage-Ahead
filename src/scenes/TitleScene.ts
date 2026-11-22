@@ -10,6 +10,7 @@ import { startSceneAndWaitCreate, transitionManager } from '../core/TransitionMa
 import { dialogueBox } from '../ui/DialogueBox';
 import { revealSequence } from '../ui/RevealSequence';
 import { addSproutNineSlice, createSproutButton } from '../ui/PhaserNineSlice';
+import { getFamiliarSpecForClass } from '../data/familiars';
 
 interface ClassMeta {
   id: HeroClassId;
@@ -753,11 +754,28 @@ export class TitleScene extends Phaser.Scene {
         children.push(this.add.image(cx, cardY - cardH * 0.27, cls.portraitKey).setScale(compact ? 1.3 : 1.7));
       }
       const heroSpr = this.add
-        .sprite(cx, cardY + (compact ? 2 : 4), `heroes/${cls.id}/${cls.id}_idle`, 0)
+        .sprite(cx - (compact ? 10 : 12), cardY + (compact ? 2 : 4), `heroes/${cls.id}/${cls.id}_idle`, 0)
         .setScale(compact ? 1.8 : 2.3);
       const animKey = `hero_${cls.id}_idle_down`;
       if (this.anims.exists(animKey)) heroSpr.play(animKey);
       children.push(heroSpr);
+
+      const famSpec = getFamiliarSpecForClass(cls.id);
+      const famX = cx + (compact ? 22 : 28);
+      const famY = cardY + (compact ? 8 : 12);
+      if (famSpec.spriteKind === 'fox') {
+        const famSpr = this.add.sprite(famX, famY, 'heroes/Fox/Fox_idle', 0).setScale(compact ? 1.2 : 1.5);
+        if (this.anims.exists('hero_Fox_idle_down')) famSpr.play('hero_Fox_idle_down');
+        children.push(famSpr);
+      } else {
+        const famTex = `familiars/${famSpec.baseId}`;
+        if (this.textures.exists(famTex)) {
+          const famSpr = this.add.sprite(famX, famY, famTex, 1).setScale(compact ? 1.3 : 1.6);
+          const famAnim = `fam_${famSpec.baseId}_walk_down`;
+          if (this.anims.exists(famAnim)) famSpr.play(famAnim);
+          children.push(famSpr);
+        }
+      }
 
       children.push(
         this.add

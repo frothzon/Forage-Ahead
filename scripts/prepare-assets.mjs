@@ -129,6 +129,7 @@ function main() {
     images: {},
     heroes: {},
     monsters: {},
+    familiars: {},
   };
 
   // 1. Fantasy RPG asset pack (2).zip
@@ -304,6 +305,7 @@ function main() {
 
   generatePixelArtIcons(path.join(OUT_DIR, 'ui_icons'), manifest);
   extractSproutLands(manifest);
+  extractCuteRpgFamiliars(manifest);
   extractSproutLandsUi({
     root: ROOT,
     outDir: OUT_DIR,
@@ -694,6 +696,130 @@ function extractFranukaIcons(manifest) {
 
   writeEntries('ui_icons', uiIconMap, true);
   writeEntries('hud_icons', hudIconMap, false);
+}
+
+function cropRgba(decoded, sx, sy, w, h) {
+  const out = Buffer.alloc(w * h * 4);
+  const srcStride = decoded.width * 4;
+  const dstStride = w * 4;
+  for (let row = 0; row < h; row++) {
+    const srcStart = (sy + row) * srcStride + sx * 4;
+    decoded.rgba.copy(out, row * dstStride, srcStart, srcStart + dstStride);
+  }
+  return out;
+}
+
+const FAMILIAR_SLICES = [
+  // Gladiator
+  { id: 'gladiator_base', sheet: 'enemies07.png', blockCol: 2, blockRow: 0 },
+  { id: 'gladiator_apex', sheet: 'enemies07.png', blockCol: 3, blockRow: 0 },
+  // Sorcerer
+  { id: 'sorcerer_base', sheet: 'enemies03.png', blockCol: 1, blockRow: 0 },
+  { id: 'sorcerer_apex', sheet: 'enemies03.png', blockCol: 3, blockRow: 0 },
+  // Swashbuckler
+  { id: 'swashbuckler_base', sheet: 'enemies05.png', blockCol: 0, blockRow: 0 },
+  { id: 'swashbuckler_apex', sheet: 'enemies05.png', blockCol: 3, blockRow: 0 },
+];
+
+function extractCuteRpgFamiliars(manifest) {
+  const sheetBuffers = new Map();
+  const candidateZips = ['Cute RPG - Enemies.zip', 'CuteRPG - Enemies.zip', 'CuteRPG - Grotto.zip'];
+
+  for (const zipName of candidateZips) {
+    const zipPath = path.join(ROOT, zipName);
+    if (!fs.existsSync(zipPath)) continue;
+    const zip = new AdmZip(zipPath);
+    for (const entry of zip.getEntries()) {
+      if (entry.isDirectory) continue;
+      const base = path.basename(entry.entryName).toLowerCase();
+      if (!/^enemies0[1-7]\.png$/.test(base)) continue;
+      const is16 = entry.entryName.toLowerCase().includes('16x16');
+      const existing = sheetBuffers.get(base);
+      if (!existing || (is16 && !existing.is16)) {
+        sheetBuffers.set(base, { buf: entry.getData(), is16 });
+      }
+    }
+  }
+
+  const candidateDirs = [
+    path.join(ROOT, 'CuteRPG - Enemies'),
+    path.join(ROOT, 'Cute RPG - Enemies'),
+    path.join(ROOT, 'raw_assets', 'familiars'),
+  ];
+  for (const dir of candidateDirs) {
+    if (!fs.existsSync(dir)) continue;
+    for (let i = 1; i <= 7; i++) {
+      const base = `enemies0${i}.png`;
+      if (sheetBuffers.has(base)) continue;
+      const direct = path.join(dir, base);
+      const nested = path.join(dir, 'Enemies Sprite Sheets', base);
+      const hit = fs.existsSync(direct) ? direct : fs.existsSync(nested) ? nested : null;
+      if (hit) sheetBuffers.set(base, { buf: fs.readFileSync(hit), is16: false });
+    }
+  }
+
+  const famDir = path.join(OUT_DIR, 'familiars');
+  ensureDir(famDir);
+
+  for (const slice of FAMILIAR_SLICES) {
+    const found = sheetBuffers.get(slice.sheet.toLowerCase());
+    if (!found) {
+      console.warn(`Warning: Missing CuteRPG sheet "${slice.sheet}" for familiar "${slice.id}"`);
+      continue;
+    }
+    const decoded = decodePngRgba(found.buf);
+    const fw = Math.floor(decoded.width / 12);
+    const fh = Math.floor(decoded.height / 8);
+    const sx = slice.blockCol * 3 * fw;
+    const sy = slice.blockRow * 4 * fh;
+    const sheetW = 3 * fw;
+    const sheetH = 4 * fh;
+
+    const sheetRgba = cropRgba(decoded, sx, sy, sheetW, sheetH);
+    const sheetPng = encodePng(sheetW, sheetH, sheetRgba);
+    const sheetRel = `familiars/${slice.id}.png`;
+    fs.writeFileSync(path.join(OUT_DIR, sheetRel), sheetPng);
+
+    const iconRgba = cropRgba(decoded, sx + fw, sy, fw, fh);
+    const iconPng = encodePng(fw, fh, iconRgba);
+    const iconRel = `familiars/${slice.id}_icon.png`;
+    fs.writeFileSync(path.join(OUT_DIR, iconRel), iconPng);
+
+    const feetOffset = computeFrameFeetOffset(sheetPng, fw, fh);
+    const key = `familiars/${slice.id}`;
+    const iconKey = `familiars/${slice.id}_icon`;
+
+    manifest.images[key] = { path: `assets/${sheetRel}`, width: sheetW, height: sheetH };
+    manifest.images[iconKey] = { path: `assets/${iconRel}`, width: fw, height: fh };
+    manifest.familiars[slice.id] = {
+      key,
+      iconKey,
+      frameWidth: fw,
+      frameHeight: fh,
+      cols: 3,
+      rows: 4,
+      feetOffset,
+      rowOrder: { down: 0, left: 1, right: 2, up: 3 },
+    };
+  }
+
+  // Also slice a UI icon for Beastmaster's native Fox companion (frame col=0, row=0)
+  const foxIdleInfo = manifest.images['heroes/Fox/Fox_idle'];
+  if (foxIdleInfo) {
+    const foxBuf = fs.readFileSync(path.join(ROOT, 'public', foxIdleInfo.path));
+    const foxDec = decodePngRgba(foxBuf);
+    const fw = Math.min(48, foxDec.width);
+    const fh = Math.min(48, foxDec.height);
+    const foxIconRgba = cropRgba(foxDec, 0, 0, fw, fh);
+    const foxIconPng = encodePng(fw, fh, foxIconRgba);
+    const foxIconRel = 'familiars/beastmaster_base_icon.png';
+    fs.writeFileSync(path.join(OUT_DIR, foxIconRel), foxIconPng);
+    manifest.images['familiars/beastmaster_base_icon'] = {
+      path: `assets/${foxIconRel}`,
+      width: fw,
+      height: fh,
+    };
+  }
 }
 
 main();

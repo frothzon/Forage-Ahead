@@ -597,6 +597,9 @@ export class GameState {
     if (this.heroClass === 'Gladiator') base += 20;
     if (this.hasSkill('magic_vitality')) base += 40;
     if (this.hasSkill('magic_void_resilience')) base += 120;
+    if (this.hasSkill('fam_gl_t4')) base += 25;
+    if (this.hasSkill('fam_gl_t9')) base += 60;
+    if (this.hasSkill('fam_gl_t12')) base = Math.round(base * 1.2);
     return base;
   }
 
@@ -604,6 +607,9 @@ export class GameState {
     let base = 60 + (this.level - 1) * 6 + this.getEquippedStats().maxEnergy;
     if (this.hasSkill('foraging_magnet')) base += 40;
     if (this.hasSkill('foraging_apex_harvest')) base += 30;
+    if (this.hasSkill('fam_so_t2')) base += 15;
+    if (this.hasSkill('fam_so_t6')) base += 40;
+    if (this.hasSkill('fam_so_t12')) base += 80;
     return base;
   }
 
@@ -700,15 +706,20 @@ export class GameState {
     }
   }
 
+  private applyLevelUp(): void {
+    this.level += 1;
+    // +1 SP per level, plus +1 milestone SP every 6 levels up to Lv. 60 (59 + 10 = 69 SP total, matching full 5-pillar tree cost)
+    this.skillPoints += 1 + (this.level <= 60 && this.level % 6 === 0 ? 1 : 0);
+    this.hp = this.getMaxHp();
+    this.energy = this.getMaxEnergy();
+  }
+
   public addXp(amount: number): boolean {
     this.xp += amount;
     let leveled = false;
     while (this.xp >= this.getXpForNextLevel()) {
       this.xp -= this.getXpForNextLevel();
-      this.level += 1;
-      this.skillPoints += 1;
-      this.hp = this.getMaxHp();
-      this.energy = this.getMaxEnergy();
+      this.applyLevelUp();
       leveled = true;
     }
     if (leveled && this.skillPoints > 0) {
@@ -984,6 +995,7 @@ export class GameState {
     if (this.unlockedSkills.has(skillId)) return false;
     const def = SKILLS.find((s) => s.id === skillId);
     if (!def) return false;
+    if (def.heroClass && def.heroClass !== this.heroClass) return false;
     if (this.skillPoints < (def.spCost ?? 1)) return false;
     if (this.level < (def.minLevel ?? 1)) return false;
     if (def.requires && !this.unlockedSkills.has(def.requires)) return false;
@@ -1070,6 +1082,9 @@ export class GameState {
   public getArmorDefense(): number {
     let armor = this.getEquippedStats().armor;
     if (this.hasSkill('magic_void_resilience')) armor += 15;
+    if (this.hasSkill('fam_gl_t1')) armor += 2;
+    if (this.hasSkill('fam_gl_t4')) armor += 4;
+    if (this.hasSkill('fam_gl_t9')) armor += 12;
     return armor;
   }
 
@@ -1082,6 +1097,7 @@ export class GameState {
     if (this.heroClass === 'Beastmaster') base *= 1.15;
     if (this.hasSkill('foraging_gather')) base *= 1.25;
     if (this.hasSkill('foraging_apex_harvest')) base *= 1.4;
+    if (this.hasSkill('fam_bm_t12')) base *= 1.15;
     return Math.round(base);
   }
 
@@ -1104,6 +1120,10 @@ export class GameState {
     } else if (def?.category === 'relic') {
       if (this.heroClass === 'Sorcerer') dmg *= 1.2;
       if (this.hasSkill('magic_archmage')) dmg *= 1.35;
+      if (this.hasSkill('fam_so_t9') && this.energy >= this.getMaxEnergy() * 0.5) dmg *= 1.12;
+    }
+    if (def?.category === 'weapon' && def.id.startsWith('sword') && this.hasSkill('fam_gl_t10')) {
+      dmg *= 1.15;
     }
     if (this.hasSkill('magic_critical')) dmg *= 1.25;
     if (this.hasSkill('magic_astral_surge')) dmg *= 1.25;
@@ -1116,17 +1136,39 @@ export class GameState {
     const def = ITEMS[itemId];
     const base = def?.energyCost ?? 0;
     if (base <= 0) return 0;
+    let mult = 1;
     if (def?.category === 'relic' && this.hasSkill('magic_archmage')) {
-      return Math.max(1, Math.round(base * 0.75));
+      mult *= 0.75;
     }
-    return base;
+    if ((def?.category === 'relic' || def?.category === 'gadget') && this.hasSkill('fam_so_t3')) {
+      mult *= 0.9;
+    }
+    if (def?.category === 'relic' && this.hasSkill('fam_so_t9')) {
+      mult *= 0.8333; // ~25% total reduction with fam_so_t3 (0.9 * 0.8333 = 0.75)
+    }
+    return mult < 1 ? Math.max(1, Math.round(base * mult)) : base;
   }
 
-  public getCritChance(extraPct = 0): number {
+  public getRawCritPct(extraPct = 0): number {
     let chance = (this.heroClass === 'Swashbuckler' ? 12 : 5) + this.getEquippedStats().critPct + extraPct;
     if (this.hasSkill('magic_critical')) chance += 20;
     if (this.hasSkill('magic_astral_surge')) chance += 15;
-    return Math.min(0.85, chance / 100);
+    return chance;
+  }
+
+  public getCritChance(extraPct = 0): number {
+    const cap = this.hasSkill('fam_sw_t11') ? 0.95 : 0.85;
+    return Math.min(cap, this.getRawCritPct(extraPct) / 100);
+  }
+
+  public getCritDamageMultiplier(isTargetMarked = false): number {
+    let mult = 2.0;
+    if (isTargetMarked && this.hasSkill('fam_sw_t7')) mult += 0.2;
+    if (this.hasSkill('fam_sw_t11')) {
+      const raw = this.getRawCritPct();
+      if (raw > 80) mult += ((raw - 80) * 1.5) / 100;
+    }
+    return mult;
   }
 
   public getMoveSpeed(): number {
@@ -1134,17 +1176,149 @@ export class GameState {
     const eqSpd = this.getEquippedStats().speedPct;
     spd *= 1 + eqSpd / 100;
     if (this.hasSkill('magic_swift')) spd *= 1.15;
+    if (this.hasSkill('fam_bm_t12')) spd *= 1.15;
+    if (this.hasSkill('fam_sw_t12')) spd *= 1.14;
+    else if (this.hasSkill('fam_sw_t5')) spd *= 1.08;
+    else if (this.hasSkill('fam_sw_t1')) spd *= 1.04;
     return Math.round(spd);
   }
 
   public getDashCooldownMs(): number {
-    return this.hasSkill('magic_swift') ? 630 : 900;
+    let cd = this.hasSkill('magic_swift') ? 630 : 900;
+    if (this.hasSkill('fam_sw_t12')) cd = Math.round(cd * 0.75);
+    else if (this.hasSkill('fam_sw_t5')) cd = Math.round(cd * 0.85);
+    return cd;
   }
 
   public getPickupRadius(): number {
     let r = this.hasSkill('foraging_magnet') ? 76 : 38;
     if (this.hasTrinketEffect('pickup_magnet')) r += 26;
     return r;
+  }
+
+  public getFamiliarTier(): number {
+    let highest = 0;
+    for (const s of SKILLS) {
+      if (s.pillar === 'familiar' && s.heroClass === this.heroClass && this.hasSkill(s.id)) {
+        if (s.tier > highest) highest = s.tier;
+      }
+    }
+    return highest;
+  }
+
+  public getFamiliarEnergyRegenPerSec(): number {
+    if (this.hasSkill('fam_so_t12')) return 8;
+    if (this.hasSkill('fam_so_t6')) return 4;
+    if (this.hasSkill('fam_so_t2')) return 2;
+    return 0;
+  }
+
+  public getFamiliarCombatProfile(): {
+    tier: number;
+    isApex: boolean;
+    damage: number;
+    cooldownMs: number;
+    detectRange: number;
+    followDist: number;
+    attackStyle: 'melee' | 'ranged';
+    projectileCount: number;
+    pierceCount: number;
+    canCrit: boolean;
+    knockback: number;
+  } {
+    const tier = this.getFamiliarTier();
+    const isApex = tier >= 12;
+    const eqWeaponId = this.equipment.weapon || 'sword_wood';
+    const baseWeaponAtk = Math.max(10, this.getWeaponDamage(eqWeaponId));
+
+    // Tier 0 baseline: intentionally weak & close-leashed
+    if (tier === 0) {
+      return {
+        tier: 0,
+        isApex: false,
+        damage: Math.max(2, Math.round(baseWeaponAtk * 0.1)),
+        cooldownMs: 3200,
+        detectRange: 56,
+        followDist: 48,
+        attackStyle: 'melee',
+        projectileCount: 1,
+        pierceCount: 0,
+        canCrit: false,
+        knockback: 0,
+      };
+    }
+
+    if (this.heroClass === 'Beastmaster') {
+      const scale = isApex ? 1.0 : this.hasSkill('fam_bm_t6') ? 0.6 : this.hasSkill('fam_bm_t3') ? 0.35 : 0.2;
+      const cd = isApex ? 1100 : this.hasSkill('fam_bm_t8') ? 1500 : this.hasSkill('fam_bm_t3') ? 2000 : 2800;
+      return {
+        tier,
+        isApex,
+        damage: Math.max(3, Math.round(baseWeaponAtk * scale)),
+        cooldownMs: cd,
+        detectRange: 96,
+        followDist: 48,
+        attackStyle: 'melee',
+        projectileCount: 1,
+        pierceCount: 0,
+        canCrit: this.hasSkill('fam_bm_t6'),
+        knockback: 0,
+      };
+    }
+
+    if (this.heroClass === 'Gladiator') {
+      const scale = isApex ? 1.25 : this.hasSkill('fam_gl_t9') ? 0.9 : this.hasSkill('fam_gl_t6') ? 0.65 : this.hasSkill('fam_gl_t2') ? 0.3 : 0.15;
+      const cd = isApex ? 1400 : this.hasSkill('fam_gl_t9') ? 1600 : this.hasSkill('fam_gl_t2') ? 2200 : 2800;
+      return {
+        tier,
+        isApex,
+        damage: Math.max(3, Math.round(baseWeaponAtk * scale)),
+        cooldownMs: cd,
+        detectRange: 88,
+        followDist: 44,
+        attackStyle: 'melee',
+        projectileCount: 1,
+        pierceCount: 0,
+        canCrit: false,
+        knockback: this.hasSkill('fam_gl_t2') ? 14 : 0,
+      };
+    }
+
+    if (this.heroClass === 'Sorcerer') {
+      const scale = isApex ? 0.9 : this.hasSkill('fam_so_t10') ? 0.7 : this.hasSkill('fam_so_t4') ? 0.45 : 0.25;
+      const cd = isApex ? 1200 : this.hasSkill('fam_so_t10') ? 1500 : this.hasSkill('fam_so_t4') ? 2000 : 2600;
+      const elemMult = this.hasSkill('fam_so_t7') ? 1.2 : 1.0;
+      return {
+        tier,
+        isApex,
+        damage: Math.max(3, Math.round(baseWeaponAtk * scale * elemMult)),
+        cooldownMs: cd,
+        detectRange: 120,
+        followDist: 48,
+        attackStyle: 'ranged',
+        projectileCount: isApex ? 3 : this.hasSkill('fam_so_t10') ? 2 : 1,
+        pierceCount: isApex ? 2 : 0,
+        canCrit: this.hasSkill('fam_so_t11'),
+        knockback: 0,
+      };
+    }
+
+    // Swashbuckler
+    const scale = isApex ? 0.95 : this.hasSkill('fam_sw_t8') ? 0.65 : this.hasSkill('fam_sw_t2') ? 0.25 : 0.15;
+    const cd = isApex ? 1100 : this.hasSkill('fam_sw_t8') ? 1700 : this.hasSkill('fam_sw_t2') ? 2300 : 2900;
+    return {
+      tier,
+      isApex,
+      damage: Math.max(3, Math.round(baseWeaponAtk * scale)),
+      cooldownMs: cd,
+      detectRange: 128,
+      followDist: 48,
+      attackStyle: this.hasSkill('fam_sw_t2') ? 'ranged' : 'melee',
+      projectileCount: isApex ? 3 : 1,
+      pierceCount: isApex || this.hasSkill('fam_sw_t8') ? 2 : 0,
+      canCrit: false,
+      knockback: 0,
+    };
   }
 
   // --- Quest System ---
@@ -1585,12 +1759,9 @@ export class GameState {
 
   public debugAddLevels(count: number): void {
     for (let i = 0; i < count; i++) {
-      this.level += 1;
-      this.skillPoints += 1;
+      this.applyLevelUp();
     }
     this.xp = 0;
-    this.hp = this.getMaxHp();
-    this.energy = this.getMaxEnergy();
     this.emit();
   }
 

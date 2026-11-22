@@ -53,7 +53,7 @@ import { EffectSequencer } from '../vfx/EffectSequencer';
 import { showWorldEmote } from '../vfx/WorldEmote';
 import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
-import { FoxCompanion, Player } from '../entities/Player';
+import { FamiliarCompanion, Player } from '../entities/Player';
 import { dialogueBox } from '../ui/DialogueBox';
 import { FishingMinigame, type FishBehavior } from '../ui/FishingMinigame';
 import { tryActivateGadget } from '../entities/GadgetHelper';
@@ -174,7 +174,7 @@ export class OverworldScene extends Phaser.Scene {
   public static readonly SOIL_UNWATERED_DECAY_MS = 10 * 60 * 1000;
 
   private player!: Player;
-  private fox!: FoxCompanion;
+  private fox!: FamiliarCompanion;
   private hud!: HudController;
   private lighting!: LightingSystem;
   private ocean!: OceanSystem;
@@ -336,7 +336,7 @@ export class OverworldScene extends Phaser.Scene {
         };
     const safeStart = this.findNearestWalkablePoint(rawStart.x, rawStart.y);
     this.player = new Player(this, safeStart.x, safeStart.y);
-    this.fox = new FoxCompanion(this, safeStart.x - 16, safeStart.y + 6);
+    this.fox = new FamiliarCompanion(this, safeStart.x - 16, safeStart.y + 6);
 
     this.populateOwnedWorld();
 
@@ -4375,7 +4375,7 @@ export class OverworldScene extends Phaser.Scene {
       this.fox.updateCompanion(dt, this.player.x, this.player.y, {
         findTarget: () => {
           let best: Enemy | null = null;
-          let bestD = 78;
+          let bestD = 135;
           for (const e of this.enemies) {
             if (!e.active || e.isDead) continue;
             const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
@@ -4386,15 +4386,52 @@ export class OverworldScene extends Phaser.Scene {
           }
           return best ? { x: best.x, y: best.y } : null;
         },
-        onBite: (fx, fy, dmg) => {
+        onBite: (fx, fy, dmg, meta) => {
           const target = this.enemies.find(
-            (e) => e.active && !e.isDead && Math.hypot(e.x - fx, e.y - fy) <= 18,
+            (e) => e.active && !e.isDead && Math.hypot(e.x - fx, e.y - fy) <= 22,
           );
           if (target) {
-            spawnBurstParticles(this, target.x, target.y - 4, 0xffaa44, 5);
+            spawnBurstParticles(this, target.x, target.y - 4, meta?.isSlam ? 0xff8833 : 0xffaa44, meta?.isSlam ? 9 : 5);
             const nx = (target.x - this.fox.x) / (Math.hypot(target.x - this.fox.x, target.y - this.fox.y) || 1);
             const ny = (target.y - this.fox.y) / (Math.hypot(target.x - this.fox.x, target.y - this.fox.y) || 1);
             this.damageEnemy(target, dmg, nx, ny);
+            if (meta?.isCrit && gameState.hasSkill('fam_bm_t6')) {
+              gameState.hp = Math.min(gameState.getMaxHp(), gameState.hp + 3);
+            }
+            if (meta?.isSlam) {
+              for (const e of this.enemies) {
+                if (!e.active || e.isDead || e === target) continue;
+                if (Math.hypot(e.x - fx, e.y - fy) <= 48) {
+                  this.damageEnemy(e, Math.round(dmg * 0.7), nx, ny);
+                }
+              }
+            }
+          }
+        },
+        onRangedBolt: (fromX, fromY, target, meta) => {
+          const baseAng = Math.atan2(target.y - fromY, target.x - fromX);
+          const count = Math.max(1, meta.count);
+          const spread = count > 1 ? 0.22 : 0;
+          const tex = this.textures.exists('projectiles/FaerieBall') ? 'projectiles/FaerieBall' : 'projectiles/Arrow';
+          const speed = gameState.hasSkill('fam_so_t4') ? 210 : 165;
+          for (let i = 0; i < count; i++) {
+            const offset = count === 1 ? 0 : (i - (count - 1) / 2) * spread;
+            const ang = baseAng + offset;
+            const spr = this.add
+              .image(fromX, fromY, tex)
+              .setRotation(ang)
+              .setTint(meta.tint)
+              .setScale(meta.isNova ? 1.35 : 0.9)
+              .setDepth(5000);
+            this.projectiles.push({
+              sprite: spr,
+              vx: Math.cos(ang) * speed,
+              vy: Math.sin(ang) * speed,
+              damage: meta.damage,
+              fromPlayer: true,
+              lifeMs: 1100,
+              kind: gameState.heroClass === 'Swashbuckler' ? 'arrow' : 'thunder',
+            });
           }
         },
         onForage: (fx, fy) => {
@@ -4404,6 +4441,26 @@ export class OverworldScene extends Phaser.Scene {
           } else {
             this.spawnCoin(fx, fy, 3);
             spawnFloatingText(this, fx, fy - 12, 'Fox +3g', '#ffe066', '7px');
+          }
+        },
+        onFetchLoot: (fx, fy, radius) => {
+          for (const d of this.drops) {
+            if (!d.active) continue;
+            const dist = Math.hypot(d.x - fx, d.y - fy);
+            if (dist <= radius) {
+              d.x += (this.player.x - d.x) * 0.45;
+              d.y += (this.player.y - d.y) * 0.45;
+            }
+          }
+        },
+        onTaunt: (fx, fy, radius) => {
+          spawnBurstParticles(this, fx, fy, 0xffaa44, 8);
+          for (const e of this.enemies) {
+            if (!e.active || e.isDead) continue;
+            if (Math.hypot(e.x - fx, e.y - fy) <= radius) {
+              e.x += (fx - e.x) * 0.25;
+              e.y += (fy - e.y) * 0.25;
+            }
           }
         },
       },

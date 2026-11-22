@@ -5530,6 +5530,71 @@
       "width": 16,
       "height": 16
     },
+    "familiars/gladiator_base": {
+      "path": "assets/familiars/gladiator_base.png",
+      "width": 72,
+      "height": 96
+    },
+    "familiars/gladiator_base_icon": {
+      "path": "assets/familiars/gladiator_base_icon.png",
+      "width": 24,
+      "height": 24
+    },
+    "familiars/gladiator_apex": {
+      "path": "assets/familiars/gladiator_apex.png",
+      "width": 72,
+      "height": 96
+    },
+    "familiars/gladiator_apex_icon": {
+      "path": "assets/familiars/gladiator_apex_icon.png",
+      "width": 24,
+      "height": 24
+    },
+    "familiars/sorcerer_base": {
+      "path": "assets/familiars/sorcerer_base.png",
+      "width": 72,
+      "height": 96
+    },
+    "familiars/sorcerer_base_icon": {
+      "path": "assets/familiars/sorcerer_base_icon.png",
+      "width": 24,
+      "height": 24
+    },
+    "familiars/sorcerer_apex": {
+      "path": "assets/familiars/sorcerer_apex.png",
+      "width": 72,
+      "height": 96
+    },
+    "familiars/sorcerer_apex_icon": {
+      "path": "assets/familiars/sorcerer_apex_icon.png",
+      "width": 24,
+      "height": 24
+    },
+    "familiars/swashbuckler_base": {
+      "path": "assets/familiars/swashbuckler_base.png",
+      "width": 72,
+      "height": 96
+    },
+    "familiars/swashbuckler_base_icon": {
+      "path": "assets/familiars/swashbuckler_base_icon.png",
+      "width": 24,
+      "height": 24
+    },
+    "familiars/swashbuckler_apex": {
+      "path": "assets/familiars/swashbuckler_apex.png",
+      "width": 72,
+      "height": 96
+    },
+    "familiars/swashbuckler_apex_icon": {
+      "path": "assets/familiars/swashbuckler_apex_icon.png",
+      "width": 24,
+      "height": 24
+    },
+    "familiars/beastmaster_base_icon": {
+      "path": "assets/familiars/beastmaster_base_icon.png",
+      "width": 48,
+      "height": 48
+    },
     "sprout_ui/panels/panel_wood_tan": {
       "path": "assets/sprout_ui/panels/panel_wood_tan.png",
       "width": 106,
@@ -12710,6 +12775,98 @@
           "cols": 14,
           "rows": 4
         }
+      }
+    }
+  },
+  "familiars": {
+    "gladiator_base": {
+      "key": "familiars/gladiator_base",
+      "iconKey": "familiars/gladiator_base_icon",
+      "frameWidth": 24,
+      "frameHeight": 24,
+      "cols": 3,
+      "rows": 4,
+      "feetOffset": 11,
+      "rowOrder": {
+        "down": 0,
+        "left": 1,
+        "right": 2,
+        "up": 3
+      }
+    },
+    "gladiator_apex": {
+      "key": "familiars/gladiator_apex",
+      "iconKey": "familiars/gladiator_apex_icon",
+      "frameWidth": 24,
+      "frameHeight": 24,
+      "cols": 3,
+      "rows": 4,
+      "feetOffset": 11,
+      "rowOrder": {
+        "down": 0,
+        "left": 1,
+        "right": 2,
+        "up": 3
+      }
+    },
+    "sorcerer_base": {
+      "key": "familiars/sorcerer_base",
+      "iconKey": "familiars/sorcerer_base_icon",
+      "frameWidth": 24,
+      "frameHeight": 24,
+      "cols": 3,
+      "rows": 4,
+      "feetOffset": 11,
+      "rowOrder": {
+        "down": 0,
+        "left": 1,
+        "right": 2,
+        "up": 3
+      }
+    },
+    "sorcerer_apex": {
+      "key": "familiars/sorcerer_apex",
+      "iconKey": "familiars/sorcerer_apex_icon",
+      "frameWidth": 24,
+      "frameHeight": 24,
+      "cols": 3,
+      "rows": 4,
+      "feetOffset": 11,
+      "rowOrder": {
+        "down": 0,
+        "left": 1,
+        "right": 2,
+        "up": 3
+      }
+    },
+    "swashbuckler_base": {
+      "key": "familiars/swashbuckler_base",
+      "iconKey": "familiars/swashbuckler_base_icon",
+      "frameWidth": 24,
+      "frameHeight": 24,
+      "cols": 3,
+      "rows": 4,
+      "feetOffset": 10,
+      "rowOrder": {
+        "down": 0,
+        "left": 1,
+        "right": 2,
+        "up": 3
+      }
+    },
+    "swashbuckler_apex": {
+      "key": "familiars/swashbuckler_apex",
+      "iconKey": "familiars/swashbuckler_apex_icon",
+      "frameWidth": 24,
+      "frameHeight": 24,
+      "cols": 3,
+      "rows": 4,
+      "feetOffset": 10,
+      "rowOrder": {
+        "down": 0,
+        "left": 1,
+        "right": 2,
+        "up": 3
       }
     }
   },

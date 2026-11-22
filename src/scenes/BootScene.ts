@@ -69,6 +69,32 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
+    // 3b. Familiar Spritesheets & Icons
+    const familiarSpecs =
+      (manifest as {
+        familiars?: Record<
+          string,
+          { key: string; iconKey: string; frameWidth: number; frameHeight: number }
+        >;
+      }).familiars ?? {};
+    for (const fam of Object.values(familiarSpecs)) {
+      const img = images[fam.key];
+      if (img) {
+        this.load.spritesheet(fam.key, img.path, {
+          frameWidth: fam.frameWidth,
+          frameHeight: fam.frameHeight,
+        });
+      }
+      const iconImg = images[fam.iconKey];
+      if (iconImg) {
+        this.load.image(fam.iconKey, iconImg.path);
+      }
+    }
+    const bmIcon = images['familiars/beastmaster_base_icon'];
+    if (bmIcon) {
+      this.load.image('familiars/beastmaster_base_icon', bmIcon.path);
+    }
+
     // 4. Crops, Chests, Bonfire, Bobber, NPCs, Animals, Bomb
     const sheetLoads: Array<{ key: string; fw: number; fh: number }> = [
       { key: 'objects/Crops (berries)', fw: 16, fh: 32 },

@@ -4,7 +4,7 @@ import { fmtKeyPrompt } from '../core/Platform';
 import { SFX } from '../core/SoundFX';
 import { startSceneAndWaitCreate, transitionManager } from '../core/TransitionManager';
 import { computeResponsiveZoom } from '../core/ViewportScaler';
-import { FoxCompanion, Player } from '../entities/Player';
+import { FamiliarCompanion, Player } from '../entities/Player';
 import { spawnFloatingText } from '../entities/CombatHelpers';
 import { TILE_PX } from '../data/islands';
 import { dialogueBox } from '../ui/DialogueBox';
@@ -24,7 +24,7 @@ export class HouseScene extends Phaser.Scene {
   private solidGrid: boolean[][] = [];
 
   private player!: Player;
-  private fox?: FoxCompanion;
+  private fox?: FamiliarCompanion;
   private hud!: HudController;
   private cameraRig!: CameraRig;
 
@@ -60,7 +60,7 @@ export class HouseScene extends Phaser.Scene {
 
     this.player = new Player(this, this.exitDoor.x, this.exitDoor.y - 18);
     if (gameState.heroClass === 'Beastmaster') {
-      this.fox = new FoxCompanion(this, this.player.x - 14, this.player.y + 4);
+      this.fox = new FamiliarCompanion(this, this.player.x - 14, this.player.y + 4);
     }
 
     const worldW = this.worldTilesW * TILE_PX;

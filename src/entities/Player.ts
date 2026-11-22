@@ -402,80 +402,257 @@ export class Player extends Phaser.GameObjects.Container {
   }
 }
 
-export class FoxCompanion extends Phaser.GameObjects.Container {
+import { getFamiliarSpecForClass, type FamiliarSpec } from '../data/familiars';
+
+export interface FamiliarCombatHooks {
+  findTarget: () => { x: number; y: number } | null;
+  onBite: (x: number, y: number, dmg: number, meta?: { isCrit?: boolean; isSlam?: boolean; isFlurry?: boolean; isNova?: boolean; knockback?: number }) => void;
+  onRangedBolt?: (
+    fromX: number,
+    fromY: number,
+    target: { x: number; y: number },
+    meta: { damage: number; count: number; pierce: number; tint: number; isNova: boolean; canCrit: boolean },
+  ) => void;
+  onForage?: (x: number, y: number, gatherPct: number, maxNodes: number) => void;
+  onFetchLoot?: (x: number, y: number, radius: number) => void;
+  onTendCrops?: (x: number, y: number) => void;
+  onTaunt?: (x: number, y: number, radius: number) => void;
+}
+
+export class FamiliarCompanion extends Phaser.GameObjects.Container {
   private sprite: Phaser.GameObjects.Sprite;
   private shadow: Phaser.GameObjects.Ellipse;
-  private baseFeetOffset = 6.4;
+  private spec: FamiliarSpec;
+  private curFormId = '';
+  private curIsApex = false;
+  private baseFeetOffset = 8;
   private facing: Direction = 'down';
   private curAnim = '';
-  private attackCooldownMs = 2500;
-  private forageCooldownMs = 18000;
+  private attackCooldownMs = 2200;
+  private forageCooldownMs = 2500;
+  private fetchCooldownMs = 600;
+  private cropCooldownMs = 3500;
+  private tauntCooldownMs = 8000;
+  private energyRegenTimerMs = 0;
+  private attackCounter = 0;
   private strikeLungeMs = 0;
   private strikeTargetX = 0;
   private strikeTargetY = 0;
   private splashTimerMs = 0;
   private swimClockMs = 0;
+  private hoverClockMs = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
-    const foxInfo = (manifest.heroes as Record<string, { idle?: { feetOffset?: number } }>).Fox;
-    const scale = 0.8;
-    const feetOffset = (foxInfo?.idle?.feetOffset ?? 8) * scale;
-    this.baseFeetOffset = feetOffset;
-    this.shadow = scene.add.ellipse(0, -1, 9, 4, 0x000000, 0.35);
-    this.sprite = scene.add.sprite(0, -feetOffset, 'heroes/Fox/Fox_idle', 0).setScale(scale);
+    this.spec = getFamiliarSpecForClass(gameState.heroClass);
+    this.shadow = scene.add.ellipse(0, -1, 10, 4, 0x000000, 0.35);
+    this.sprite = scene.add.sprite(0, -8, 'heroes/Fox/Fox_idle', 0);
     this.add([this.shadow, this.sprite]);
+    this.syncAppearance(gameState.getFamiliarTier() >= 12, true);
     this.setDepth(y);
     scene.add.existing(this);
+  }
+
+  public syncAppearance(isApex: boolean, force = false): void {
+    const newSpec = getFamiliarSpecForClass(gameState.heroClass);
+    const formId = isApex ? newSpec.apexId : newSpec.baseId;
+    if (!force && this.curFormId === formId && this.curIsApex === isApex) return;
+
+    this.spec = newSpec;
+    this.curFormId = formId;
+    this.curIsApex = isApex;
+    this.curAnim = '';
+
+    if (newSpec.spriteKind === 'fox') {
+      const foxInfo = (manifest.heroes as Record<string, { idle?: { feetOffset?: number } }>).Fox;
+      const feetOffset = (foxInfo?.idle?.feetOffset ?? 8) * newSpec.scale;
+      this.baseFeetOffset = feetOffset;
+      this.sprite.setTexture('heroes/Fox/Fox_idle', 0);
+      this.sprite.setScale(newSpec.scale);
+      this.sprite.setPosition(0, -feetOffset);
+      this.sprite.setTint(isApex ? newSpec.apexTint : 0xffffff);
+    } else {
+      const famManifest = (manifest as { familiars?: Record<string, { key: string; feetOffset?: number }> }).familiars ?? {};
+      const entry = famManifest[formId] ?? famManifest[newSpec.baseId];
+      const texKey = entry?.key ?? `familiars/${formId}`;
+      const feetOffset = (entry?.feetOffset ?? 10) * newSpec.scale;
+      this.baseFeetOffset = feetOffset;
+      if (this.scene.textures.exists(texKey)) {
+        this.sprite.setTexture(texKey, 1);
+      }
+      this.sprite.setScale(newSpec.scale);
+      this.sprite.setPosition(0, -feetOffset);
+      this.sprite.setTint(0xffffff);
+    }
+
+    if (!force && isApex) {
+      // Brief golden evolution flash
+      this.scene.tweens.add({
+        targets: this.sprite,
+        scaleX: newSpec.scale * 1.3,
+        scaleY: newSpec.scale * 1.3,
+        duration: 180,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+      });
+    }
+    this.playAnim('idle');
+  }
+
+  private playAttackFeedback(): void {
+    if (this.spec.spriteKind === 'fox') return;
+    const baseScale = this.spec.scale;
+    if (this.spec.heroClass === 'Gladiator') {
+      this.scene.tweens.add({
+        targets: this.sprite,
+        scaleX: baseScale * 1.24,
+        scaleY: baseScale * 0.82,
+        duration: 110,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+      });
+    } else {
+      this.scene.tweens.add({
+        targets: this.sprite,
+        scaleX: baseScale * 1.18,
+        scaleY: baseScale * 1.18,
+        duration: 120,
+        yoyo: true,
+        ease: 'Sine.easeInOut',
+      });
+    }
   }
 
   public updateCompanion(
     dtMs: number,
     targetX: number,
     targetY: number,
-    assists?: {
-      findTarget: () => { x: number; y: number } | null;
-      onBite: (x: number, y: number, dmg: number) => void;
-      onForage: (x: number, y: number) => void;
-    },
+    assists?: FamiliarCombatHooks,
     water?: {
       isWaterAt: (x: number, y: number) => boolean;
       onSplash: (x: number, y: number) => void;
     },
   ): void {
+    const profile = gameState.getFamiliarCombatProfile();
+    this.syncAppearance(profile.isApex);
+
     if (this.attackCooldownMs > 0) this.attackCooldownMs -= dtMs;
     if (this.forageCooldownMs > 0) this.forageCooldownMs -= dtMs;
+    if (this.fetchCooldownMs > 0) this.fetchCooldownMs -= dtMs;
+    if (this.cropCooldownMs > 0) this.cropCooldownMs -= dtMs;
+    if (this.tauntCooldownMs > 0) this.tauntCooldownMs -= dtMs;
     if (this.strikeLungeMs > 0) this.strikeLungeMs -= dtMs;
+    this.hoverClockMs += dtMs;
 
-    if (assists) {
-      if (this.attackCooldownMs <= 0) {
-        const foe = assists.findTarget();
-        if (foe && Math.hypot(foe.x - targetX, foe.y - targetY) <= 78) {
-          this.attackCooldownMs = 5200;
-          this.strikeLungeMs = 260;
-          this.strikeTargetX = foe.x;
-          this.strikeTargetY = foe.y;
-          const dmg = Math.round(5 + gameState.level * 1.5);
-          assists.onBite(foe.x, foe.y, dmg);
-        }
-      }
-      if (this.forageCooldownMs <= 0 && !assists.findTarget()) {
-        this.forageCooldownMs = 21000;
-        assists.onForage(this.x, this.y);
+    // Sorcerer passive Energy regen aura
+    const regenRate = gameState.getFamiliarEnergyRegenPerSec();
+    if (regenRate > 0 && Math.hypot(this.x - targetX, this.y - targetY) <= 120) {
+      this.energyRegenTimerMs += dtMs;
+      if (this.energyRegenTimerMs >= 1000) {
+        this.energyRegenTimerMs -= 1000;
+        gameState.energy = Math.min(gameState.getMaxEnergy(), gameState.energy + regenRate);
       }
     }
 
-    const goalX = this.strikeLungeMs > 0 ? this.strikeTargetX : targetX - 16;
-    const goalY = this.strikeLungeMs > 0 ? this.strikeTargetY : targetY + 6;
+    const foe = assists?.findTarget() ?? null;
+
+    if (assists) {
+      // Combat
+      if (this.attackCooldownMs <= 0 && foe && Math.hypot(foe.x - targetX, foe.y - targetY) <= profile.detectRange) {
+        this.attackCooldownMs = profile.cooldownMs;
+        this.attackCounter += 1;
+
+        if (profile.attackStyle === 'ranged' && assists.onRangedBolt) {
+          this.facing = vectorToDirection(foe.x - this.x, foe.y - this.y, this.facing);
+          this.playAttackFeedback();
+          const isNova = gameState.hasSkill('fam_so_t8') && this.attackCounter % 5 === 0;
+          assists.onRangedBolt(this.x, this.y - 6, foe, {
+            damage: isNova ? Math.round(profile.damage * 1.45) : profile.damage,
+            count: profile.projectileCount,
+            pierce: profile.pierceCount,
+            tint: this.spec.projectileTint,
+            isNova,
+            canCrit: profile.canCrit,
+          });
+        } else {
+          this.strikeLungeMs = 240;
+          this.strikeTargetX = foe.x;
+          this.strikeTargetY = foe.y;
+          this.playAttackFeedback();
+
+          const isSlam =
+            this.spec.heroClass === 'Gladiator' &&
+            gameState.hasSkill('fam_gl_t6') &&
+            this.attackCounter % (profile.isApex ? 2 : 3) === 0;
+          const isFlurry =
+            this.spec.heroClass === 'Beastmaster' &&
+            gameState.hasSkill('fam_bm_t8') &&
+            this.attackCounter % 4 === 0;
+          const isCrit = profile.canCrit && Math.random() < gameState.getCritChance();
+          const dmg = isCrit ? Math.round(profile.damage * gameState.getCritDamageMultiplier()) : profile.damage;
+
+          assists.onBite(foe.x, foe.y, dmg, {
+            isCrit,
+            isSlam,
+            isFlurry,
+            knockback: profile.knockback,
+          });
+        }
+      }
+
+      // Beastmaster Utility (gated behind Skills!)
+      if (gameState.hasSkill('fam_bm_t1') && this.forageCooldownMs <= 0 && !foe && assists.onForage) {
+        this.forageCooldownMs = 2500;
+        const pct = gameState.hasSkill('fam_bm_t9') ? 0.85 : 0.25;
+        const maxNodes = gameState.hasSkill('fam_bm_t9') ? 2 : 1;
+        assists.onForage(this.x, this.y, pct, maxNodes);
+      }
+
+      if (gameState.hasSkill('fam_bm_t2') && this.fetchCooldownMs <= 0 && assists.onFetchLoot) {
+        this.fetchCooldownMs = 550;
+        assists.onFetchLoot(this.x, this.y, 96);
+      }
+
+      if (gameState.hasSkill('fam_bm_t5') && this.cropCooldownMs <= 0 && !foe && assists.onTendCrops) {
+        this.cropCooldownMs = 3500;
+        assists.onTendCrops(this.x, this.y);
+      }
+
+      // Gladiator Taunt (T3+)
+      if (gameState.hasSkill('fam_gl_t3') && this.tauntCooldownMs <= 0 && foe && assists.onTaunt) {
+        this.tauntCooldownMs = 8000;
+        assists.onTaunt(this.x, this.y, 72);
+      }
+    }
+
+    // Positioning: Gladiator T1 Bulwark Stance positions between player and nearest foe
+    let restX = targetX - 16;
+    let restY = targetY + 6;
+    if (
+      this.spec.heroClass === 'Gladiator' &&
+      gameState.hasSkill('fam_gl_t1') &&
+      foe &&
+      Math.hypot(foe.x - targetX, foe.y - targetY) <= 110
+    ) {
+      const fdx = foe.x - targetX;
+      const fdy = foe.y - targetY;
+      const fdist = Math.hypot(fdx, fdy) || 1;
+      const offset = Math.min(28, fdist * 0.45);
+      restX = targetX + (fdx / fdist) * offset;
+      restY = targetY + (fdy / fdist) * offset;
+    }
+
+    const goalX = this.strikeLungeMs > 0 ? this.strikeTargetX : restX;
+    const goalY = this.strikeLungeMs > 0 ? this.strikeTargetY : restY;
     const dx = goalX - this.x;
     const dy = goalY - this.y;
     const dist = Math.hypot(dx, dy);
     let isMoving = false;
     if (dist > 140) {
-      this.x = targetX - 16;
-      this.y = targetY + 6;
+      this.x = restX;
+      this.y = restY;
     } else if (dist > (this.strikeLungeMs > 0 ? 4 : 14)) {
-      const spd = Math.min(this.strikeLungeMs > 0 ? 180 : 95, dist * 4.0) * (dtMs / 1000);
+      const spd = Math.min(this.strikeLungeMs > 0 ? 185 : 98, dist * 4.0) * (dtMs / 1000);
       this.x += (dx / dist) * spd;
       this.y += (dy / dist) * spd;
       this.facing = vectorToDirection(dx, dy, this.facing);
@@ -489,7 +666,6 @@ export class FoxCompanion extends Phaser.GameObjects.Container {
     if (inWater) {
       this.swimClockMs += dtMs;
       this.shadow.setVisible(false);
-      // Bob & submerge lower half in water
       this.sprite.y = -this.baseFeetOffset + 4.5 + Math.sin(this.swimClockMs * 0.012) * 1.1;
       const fw = this.sprite.width || 16;
       const fh = this.sprite.height || 16;
@@ -503,7 +679,11 @@ export class FoxCompanion extends Phaser.GameObjects.Container {
     } else {
       this.shadow.setVisible(true);
       this.sprite.setCrop();
-      this.sprite.y = -this.baseFeetOffset;
+      const hoverY =
+        this.spec.heroClass === 'Sorcerer' || this.spec.heroClass === 'Swashbuckler'
+          ? Math.sin(this.hoverClockMs * 0.006) * 2
+          : 0;
+      this.sprite.y = -this.baseFeetOffset + hoverY;
       this.splashTimerMs = 0;
     }
 
@@ -511,9 +691,14 @@ export class FoxCompanion extends Phaser.GameObjects.Container {
   }
 
   private playAnim(anim: 'idle' | 'walk'): void {
-    const key = `hero_Fox_${anim}_${this.facing}`;
+    const key =
+      this.spec.spriteKind === 'fox'
+        ? `hero_Fox_${anim}_${this.facing}`
+        : `fam_${this.curFormId}_${anim}_${this.facing}`;
     if (this.curAnim === key) return;
     this.curAnim = key;
     if (this.scene.anims.exists(key)) this.sprite.play(key, true);
   }
 }
+
+export { FamiliarCompanion as FoxCompanion };

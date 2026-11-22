@@ -21,7 +21,7 @@ import { DungeonChest } from '../entities/DungeonChest';
 import { DungeonProp } from '../entities/DungeonProp';
 import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
-import { FoxCompanion, Player } from '../entities/Player';
+import { FamiliarCompanion, Player } from '../entities/Player';
 import { selectBestAimTarget, type AimCandidate } from '../entities/targeting';
 import { dialogueBox } from '../ui/DialogueBox';
 import { HudController } from '../ui/HudController';
@@ -45,7 +45,7 @@ interface TutorialChestEntry {
 export class TutorialDungeonScene extends Phaser.Scene {
   private solidGrid: boolean[][] = [];
   private player!: Player;
-  private fox?: FoxCompanion;
+  private fox?: FamiliarCompanion;
   private hud!: HudController;
   private cameraRig!: CameraRig;
   private lighting!: LightingSystem;
@@ -124,7 +124,7 @@ export class TutorialDungeonScene extends Phaser.Scene {
     this.atmosphere = new DungeonAtmosphere(this, 0xe8dec8, 34);
     this.player = new Player(this, 8 * TILE_PX, 6 * TILE_PX);
     if (gameState.heroClass === 'Beastmaster') {
-      this.fox = new FoxCompanion(this, this.player.x - 14, this.player.y + 6);
+      this.fox = new FamiliarCompanion(this, this.player.x - 14, this.player.y + 6);
     }
 
     const worldW = WORLD_W * TILE_PX;

@@ -38,7 +38,7 @@ import { detailDungeonRoom } from '../world/DungeonDetailer';
 import { LightingSystem, type PointLightSource } from '../world/LightingSystem';
 import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
-import { FoxCompanion, Player } from '../entities/Player';
+import { FamiliarCompanion, Player } from '../entities/Player';
 import { selectBestAimTarget, type AimCandidate } from '../entities/targeting';
 import { HudController } from '../ui/HudController';
 import { revealSequence } from '../ui/RevealSequence';
@@ -174,7 +174,7 @@ export class DungeonScene extends Phaser.Scene {
   private voidFloor = 1;
   private nextFloorPortal?: Phaser.GameObjects.Container;
   private player!: Player;
-  private fox?: FoxCompanion;
+  private fox?: FamiliarCompanion;
   private hud!: HudController;
   private cameraRig!: CameraRig;
   private fx!: EffectSequencer;
@@ -308,7 +308,7 @@ export class DungeonScene extends Phaser.Scene {
     this.lighting.paused = true;
     this.atmosphere = new DungeonAtmosphere(this, 0xe8dec8, 34);
     if (gameState.heroClass === 'Beastmaster') {
-      this.fox = new FoxCompanion(this, this.player.x - 14, this.player.y + 6);
+      this.fox = new FamiliarCompanion(this, this.player.x - 14, this.player.y + 6);
     }
 
     const roomW = this.worldTilesW * TILE_PX;
@@ -1611,7 +1611,7 @@ export class DungeonScene extends Phaser.Scene {
         this.fox.updateCompanion(dt, this.player.x, this.player.y, {
           findTarget: () => {
             let best: Enemy | null = null;
-            let bestD = 84;
+            let bestD = 135;
             for (const e of this.enemies) {
               if (!e.active || e.isDead || (e === this.boss && !this.gateOpen)) continue;
               const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
@@ -1622,18 +1622,54 @@ export class DungeonScene extends Phaser.Scene {
             }
             return best ? { x: best.x, y: best.y } : null;
           },
-          onBite: (fx, fy, dmg) => {
+          onBite: (fx, fy, dmg, meta) => {
             const target = this.enemies.find(
-              (e) => e.active && !e.isDead && Math.hypot(e.x - fx, e.y - fy) <= 18,
+              (e) => e.active && !e.isDead && Math.hypot(e.x - fx, e.y - fy) <= 22,
             );
             if (target) {
-              spawnBurstParticles(this, target.x, target.y - 4, 0xffaa44, 5);
+              spawnBurstParticles(this, target.x, target.y - 4, 0xffaa44, meta?.isSlam ? 9 : 5);
               const nx = (target.x - this.fox!.x) / (Math.hypot(target.x - this.fox!.x, target.y - this.fox!.y) || 1);
               const ny = (target.y - this.fox!.y) / (Math.hypot(target.x - this.fox!.x, target.y - this.fox!.y) || 1);
               this.damageEnemy(target, dmg, nx, ny);
+              if (meta?.isCrit && gameState.hasSkill('fam_bm_t6')) {
+                gameState.hp = Math.min(gameState.getMaxHp(), gameState.hp + 3);
+              }
+              if (meta?.isSlam) {
+                for (const e of this.enemies) {
+                  if (!e.active || e.isDead || e === target) continue;
+                  if (Math.hypot(e.x - fx, e.y - fy) <= 48) {
+                    this.damageEnemy(e, Math.round(dmg * 0.7), nx, ny);
+                  }
+                }
+              }
             }
           },
-          onForage: () => {},
+          onRangedBolt: (fromX, fromY, target, meta) => {
+            const baseAng = Math.atan2(target.y - fromY, target.x - fromX);
+            const count = Math.max(1, meta.count);
+            const spread = count > 1 ? 0.22 : 0;
+            const tex = this.textures.exists('projectiles/FaerieBall') ? 'projectiles/FaerieBall' : 'projectiles/Arrow';
+            const speed = gameState.hasSkill('fam_so_t4') ? 210 : 165;
+            for (let i = 0; i < count; i++) {
+              const offset = count === 1 ? 0 : (i - (count - 1) / 2) * spread;
+              const ang = baseAng + offset;
+              const spr = this.add
+                .image(fromX, fromY, tex)
+                .setRotation(ang)
+                .setTint(meta.tint)
+                .setScale(meta.isNova ? 1.35 : 0.9)
+                .setDepth(5000);
+              this.projectiles.push({
+                sprite: spr,
+                vx: Math.cos(ang) * speed,
+                vy: Math.sin(ang) * speed,
+                damage: meta.damage,
+                fromPlayer: true,
+                lifeMs: 1100,
+                kind: gameState.heroClass === 'Swashbuckler' ? 'arrow' : 'thunder',
+              });
+            }
+          },
         });
       }
       const ptr = this.input.activePointer;
