@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { isMobileTouchDevice } from '../core/Platform';
 
 export interface PointLightSource {
   x: number;
@@ -56,9 +55,8 @@ function multiplyColors(c1: number, c2: number): number {
 export class LightingSystem {
   private static readonly EDGE_PAD = 64;
   private static readonly MAX_DARKNESS_OPACITY = 0.65;
+  private static readonly LIGHT_REDRAW_INTERVAL_MS = 33;
 
-  private readonly rtScale: number;
-  private readonly redrawIntervalMs: number;
   private scene: Phaser.Scene;
   private lightmap: Phaser.GameObjects.RenderTexture;
   private beamMap: Phaser.GameObjects.RenderTexture;
@@ -81,16 +79,13 @@ export class LightingSystem {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    const mobile = isMobileTouchDevice();
-    this.rtScale = mobile ? 0.4 : 0.5;
-    this.redrawIntervalMs = mobile ? 50 : 33;
     this.ensureLightTextures();
 
     const w = Math.max(320, scene.scale.width);
     const h = Math.max(200, scene.scale.height);
     const pad = LightingSystem.EDGE_PAD;
-    const rtW = Math.max(64, Math.ceil((w + pad * 2) * this.rtScale));
-    const rtH = Math.max(64, Math.ceil((h + pad * 2) * this.rtScale));
+    const rtW = w + pad * 2;
+    const rtH = h + pad * 2;
 
     this.lightmap = scene.add
       .renderTexture(w / 2, h / 2, rtW, rtH)
@@ -98,7 +93,6 @@ export class LightingSystem {
       .setFlipY(true)
       .setScrollFactor(0)
       .setDepth(8900)
-      .setScale(1 / this.rtScale)
       .setBlendMode(Phaser.BlendModes.MULTIPLY);
 
     this.beamMap = scene.add
@@ -107,7 +101,6 @@ export class LightingSystem {
       .setFlipY(true)
       .setScrollFactor(0)
       .setDepth(8901)
-      .setScale(1 / this.rtScale)
       .setBlendMode(Phaser.BlendModes.ADD);
 
     // Register pure RGB additive blend mode (ONE, ONE, ZERO, ONE) so dst.alpha stays 1.0
@@ -264,8 +257,8 @@ export class LightingSystem {
     const vw = Math.max(320, this.scene.scale.width);
     const vh = Math.max(200, this.scene.scale.height);
     const pad = LightingSystem.EDGE_PAD;
-    const rtW = Math.max(64, Math.ceil((vw + pad * 2) * this.rtScale));
-    const rtH = Math.max(64, Math.ceil((vh + pad * 2) * this.rtScale));
+    const rtW = vw + pad * 2;
+    const rtH = vh + pad * 2;
     if (this.lightmap.width !== rtW || this.lightmap.height !== rtH) {
       this.lightmap.resize(rtW, rtH);
       this.beamMap.resize(rtW, rtH);
@@ -290,23 +283,22 @@ export class LightingSystem {
     const viewX = cam.scrollX + (vw - viewW) * 0.5;
     const viewY = cam.scrollY + (vh - viewH) * 0.5;
     const dispScale = 1 / cam.zoom;
-    const rtDispScale = dispScale / this.rtScale;
 
     const now = this.scene.time.now;
-    const scrollDx = (this.lastRenderViewX - viewX) * cam.zoom;
-    const scrollDy = (this.lastRenderViewY - viewY) * cam.zoom;
+    const scrollDx = this.lastRenderViewX - viewX;
+    const scrollDy = this.lastRenderViewY - viewY;
     const needsRedraw =
       this.forceRedraw ||
-      now - this.lastRenderTime >= this.redrawIntervalMs ||
+      now - this.lastRenderTime >= LightingSystem.LIGHT_REDRAW_INTERVAL_MS ||
       cam.zoom !== this.lastRenderZoom ||
       ambient !== this.lastAmbient ||
-      Math.abs(scrollDx) > pad * 0.75 ||
-      Math.abs(scrollDy) > pad * 0.75;
+      Math.abs(scrollDx * cam.zoom) > pad * 0.75 ||
+      Math.abs(scrollDy * cam.zoom) > pad * 0.75;
 
     if (!needsRedraw) {
-      // Shift cached lightmaps by exact camera delta so lights stay 100% locked to world coordinates
-      this.lightmap.setPosition(vw / 2 + scrollDx, vh / 2 + scrollDy).setScale(rtDispScale);
-      this.beamMap.setPosition(vw / 2 + scrollDx, vh / 2 + scrollDy).setScale(rtDispScale);
+      // Shift cached lightmaps by exact world camera delta so lights stay 100% locked to world coordinates
+      this.lightmap.setPosition(vw / 2 + scrollDx, vh / 2 + scrollDy).setScale(dispScale);
+      this.beamMap.setPosition(vw / 2 + scrollDx, vh / 2 + scrollDy).setScale(dispScale);
       return dayWrapped;
     }
 
@@ -317,8 +309,8 @@ export class LightingSystem {
     this.lastRenderZoom = cam.zoom;
     this.lastAmbient = ambient;
 
-    this.lightmap.setPosition(vw / 2, vh / 2).setScale(rtDispScale);
-    this.beamMap.setPosition(vw / 2, vh / 2).setScale(rtDispScale);
+    this.lightmap.setPosition(vw / 2, vh / 2).setScale(dispScale);
+    this.beamMap.setPosition(vw / 2, vh / 2).setScale(dispScale);
 
     const skipLightmap = ambient === 0xffffff && nightFactor <= 0.02;
     if (skipLightmap) {
@@ -328,8 +320,8 @@ export class LightingSystem {
       this.lightmap.fill(ambient, 1);
     }
 
-    const toRtX = (wx: number) => ((wx - viewX) * cam.zoom + pad) * this.rtScale;
-    const toRtY = (wy: number) => ((wy - viewY) * cam.zoom + pad) * this.rtScale;
+    const toRtX = (wx: number) => (wx - viewX) * cam.zoom + pad;
+    const toRtY = (wy: number) => (wy - viewY) * cam.zoom + pad;
 
     const tSec = now * 0.001;
     const hasLights = nightFactor > 0.04 || pointLights.length > 0;
@@ -342,47 +334,11 @@ export class LightingSystem {
       return dayWrapped;
     }
 
-    // Helper to stamp directly onto a RenderTexture's WebGL renderTarget without beginDraw's
-    // transparent canvasTarget + full-screen blitFrame (eliminates DST_ALPHA square artifacts
-    // and keeps fill(ambient, 1) untouched).
-    const renderDirectToRT = (
-      rt: Phaser.GameObjects.RenderTexture,
-      drawFn: () => void,
-    ): void => {
-      const dt = rt.texture as unknown as {
-        renderTarget: Phaser.Renderer.WebGL.RenderTarget | null;
-        camera: Phaser.Cameras.Scene2D.Camera;
-        dirty: boolean;
-      };
-      const renderer = this.scene.renderer;
-      if (dt.renderTarget && renderer && renderer.type === Phaser.WEBGL) {
-        const glRenderer = renderer as Phaser.Renderer.WebGL.WebGLRenderer;
-        dt.camera.preRender();
-        dt.renderTarget.bind(true, rtW, rtH);
-        glRenderer.setProjectionMatrix(rtW, rtH);
-        drawFn();
-        dt.renderTarget.unbind(true);
-        glRenderer.resetProjectionMatrix();
-        glRenderer.resetViewport();
-        glRenderer.resetScissor();
-        dt.dirty = true;
-      }
-    };
-
     const renderer = this.scene.renderer;
-    const isWebGL = renderer && renderer.type === Phaser.WEBGL;
-    const glRenderer = isWebGL ? (renderer as Phaser.Renderer.WebGL.WebGLRenderer) : null;
-    const renderImgWebGL = (img: Phaser.GameObjects.Image, camObj: Phaser.Cameras.Scene2D.Camera) => {
-      if (!glRenderer) return;
-      glRenderer.setBlendMode(this.pureAddBlendMode);
-      (img as unknown as {
-        renderWebGL: (
-          r: Phaser.Renderer.WebGL.WebGLRenderer,
-          src: Phaser.GameObjects.Image,
-          c: Phaser.Cameras.Scene2D.Camera,
-        ) => void;
-      }).renderWebGL(glRenderer, img, camObj);
-    };
+    const glRenderer =
+      renderer && renderer.type === Phaser.WEBGL
+        ? (renderer as Phaser.Renderer.WebGL.WebGLRenderer)
+        : null;
 
     // Pass 1: Draw point & spot lights directly into lightmap (on top of fill(ambient, 1))
     if (!skipLightmap && nightFactor > 0.05) {
@@ -395,7 +351,7 @@ export class LightingSystem {
           const flicker = pl.flicker
             ? 1 + Math.sin(tSec * 9.5 + seed) * 0.055 + Math.sin(tSec * 17.3 + seed * 1.7) * 0.035
             : 1;
-          const sr = pl.radius * flicker * cam.zoom * this.rtScale;
+          const sr = pl.radius * flicker * cam.zoom;
           if (sx < -sr || sy < -sr || sx > rtW + sr || sy > rtH + sr) continue;
 
           const scale = (sr * 2) / 128;
@@ -408,7 +364,7 @@ export class LightingSystem {
             .setAlpha(lightPower)
             .setBlendMode(this.pureAddBlendMode);
           if (glRenderer) {
-            renderImgWebGL(this.stampImg, lmCamera);
+            this.renderImgWebGL(glRenderer, this.stampImg, lmCamera);
           } else {
             this.lightmap.draw(this.stampImg);
           }
@@ -416,8 +372,8 @@ export class LightingSystem {
         for (const sp of spotLights) {
           const sx = toRtX(sp.x);
           const sy = toRtY(sp.y);
-          const lenPx = sp.length * cam.zoom * this.rtScale;
-          const wPx = sp.width * cam.zoom * this.rtScale;
+          const lenPx = sp.length * cam.zoom;
+          const wPx = sp.width * cam.zoom;
           if (sx < -lenPx || sy < -lenPx || sx > rtW + lenPx || sy > rtH + lenPx) continue;
 
           const baseInt = sp.intensity ?? 0.95;
@@ -430,7 +386,7 @@ export class LightingSystem {
             .setAlpha(intensity)
             .setBlendMode(this.pureAddBlendMode);
           if (glRenderer) {
-            renderImgWebGL(this.spotImg, lmCamera);
+            this.renderImgWebGL(glRenderer, this.spotImg, lmCamera);
           } else {
             this.lightmap.draw(this.spotImg);
           }
@@ -438,7 +394,7 @@ export class LightingSystem {
       };
 
       if (glRenderer) {
-        renderDirectToRT(this.lightmap, drawLightmapStamps);
+        this.renderDirectToRT(glRenderer, this.lightmap, rtW, rtH, drawLightmapStamps);
       } else {
         drawLightmapStamps();
       }
@@ -461,7 +417,7 @@ export class LightingSystem {
           const flicker = pl.flicker
             ? 1 + Math.sin(tSec * 9.5 + seed) * 0.055 + Math.sin(tSec * 17.3 + seed * 1.7) * 0.035
             : 1;
-          const sr = pl.radius * flicker * cam.zoom * this.rtScale;
+          const sr = pl.radius * flicker * cam.zoom;
           if (sx < -sr || sy < -sr || sx > rtW + sr || sy > rtH + sr) continue;
 
           drewBeam = true;
@@ -475,7 +431,7 @@ export class LightingSystem {
             .setAlpha(haloAlpha)
             .setBlendMode(this.pureAddBlendMode);
           if (glRenderer) {
-            renderImgWebGL(this.stampImg, bmCamera);
+            this.renderImgWebGL(glRenderer, this.stampImg, bmCamera);
           } else {
             this.beamMap.draw(this.stampImg);
           }
@@ -484,8 +440,8 @@ export class LightingSystem {
           for (const sp of spotLights) {
             const sx = toRtX(sp.x);
             const sy = toRtY(sp.y);
-            const lenPx = sp.length * cam.zoom * this.rtScale;
-            const wPx = sp.width * cam.zoom * this.rtScale;
+            const lenPx = sp.length * cam.zoom;
+            const wPx = sp.width * cam.zoom;
             if (sx < -lenPx || sy < -lenPx || sx > rtW + lenPx || sy > rtH + lenPx) continue;
 
             drewBeam = true;
@@ -498,7 +454,7 @@ export class LightingSystem {
               .setAlpha(0.22 * nightFactor * baseInt)
               .setBlendMode(this.pureAddBlendMode);
             if (glRenderer) {
-              renderImgWebGL(this.spotImg, bmCamera);
+              this.renderImgWebGL(glRenderer, this.spotImg, bmCamera);
             } else {
               this.beamMap.draw(this.spotImg);
             }
@@ -507,7 +463,7 @@ export class LightingSystem {
       };
 
       if (glRenderer) {
-        renderDirectToRT(this.beamMap, drawBeamStamps);
+        this.renderDirectToRT(glRenderer, this.beamMap, rtW, rtH, drawBeamStamps);
       } else {
         drawBeamStamps();
       }
@@ -526,12 +482,56 @@ export class LightingSystem {
     return dayWrapped;
   }
 
+  /**
+   * Stamps directly onto a RenderTexture's WebGL renderTarget without beginDraw's
+   * transparent canvasTarget + full-screen blitFrame (eliminates DST_ALPHA square artifacts
+   * and keeps fill(ambient, 1) untouched).
+   */
+  private renderDirectToRT(
+    glRenderer: Phaser.Renderer.WebGL.WebGLRenderer,
+    rt: Phaser.GameObjects.RenderTexture,
+    rtW: number,
+    rtH: number,
+    drawFn: () => void,
+  ): void {
+    const dt = rt.texture as unknown as {
+      renderTarget: Phaser.Renderer.WebGL.RenderTarget | null;
+      camera: Phaser.Cameras.Scene2D.Camera;
+      dirty: boolean;
+    };
+    if (!dt.renderTarget) return;
+    dt.camera.preRender();
+    dt.renderTarget.bind(true, rtW, rtH);
+    glRenderer.setProjectionMatrix(rtW, rtH);
+    drawFn();
+    dt.renderTarget.unbind(true);
+    glRenderer.resetProjectionMatrix();
+    glRenderer.resetViewport();
+    glRenderer.resetScissor();
+    dt.dirty = true;
+  }
+
+  private renderImgWebGL(
+    glRenderer: Phaser.Renderer.WebGL.WebGLRenderer,
+    img: Phaser.GameObjects.Image,
+    camObj: Phaser.Cameras.Scene2D.Camera,
+  ): void {
+    glRenderer.setBlendMode(this.pureAddBlendMode);
+    (img as unknown as {
+      renderWebGL: (
+        r: Phaser.Renderer.WebGL.WebGLRenderer,
+        src: Phaser.GameObjects.Image,
+        c: Phaser.Cameras.Scene2D.Camera,
+      ) => void;
+    }).renderWebGL(glRenderer, img, camObj);
+  }
+
   public resize(width: number, height: number): void {
     const vw = Math.max(320, width);
     const vh = Math.max(200, height);
     const pad = LightingSystem.EDGE_PAD;
-    const rtW = Math.max(64, Math.ceil((vw + pad * 2) * this.rtScale));
-    const rtH = Math.max(64, Math.ceil((vh + pad * 2) * this.rtScale));
+    const rtW = vw + pad * 2;
+    const rtH = vh + pad * 2;
     if (this.lightmap.width !== rtW || this.lightmap.height !== rtH) {
       this.lightmap.resize(rtW, rtH);
       this.beamMap.resize(rtW, rtH);
@@ -539,9 +539,9 @@ export class LightingSystem {
     }
     const cam = this.scene.cameras?.main;
     const zoom = cam?.zoom ?? 1;
-    const rtDispScale = 1 / (zoom * this.rtScale);
-    this.lightmap.setPosition(vw / 2, vh / 2).setScale(rtDispScale);
-    this.beamMap.setPosition(vw / 2, vh / 2).setScale(rtDispScale);
+    const dispScale = 1 / zoom;
+    this.lightmap.setPosition(vw / 2, vh / 2).setScale(dispScale);
+    this.beamMap.setPosition(vw / 2, vh / 2).setScale(dispScale);
     this.forceRedraw = true;
   }
 
