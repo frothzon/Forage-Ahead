@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { musicEngine } from './core/MusicEngine';
+import { isMobileTouchDevice } from './core/Platform';
 import { transitionManager } from './core/TransitionManager';
 import { BootScene } from './scenes/BootScene';
 import { DungeonScene } from './scenes/DungeonScene';
@@ -16,6 +18,16 @@ const config: Phaser.Types.Core.GameConfig = {
   backgroundColor: '#0d1624',
   pixelArt: true,
   roundPixels: false,
+  fps: {
+    target: 60,
+    limit: 60,
+  },
+  render: {
+    pixelArt: true,
+    antialias: false,
+    antialiasGL: false,
+    powerPreference: isMobileTouchDevice() ? 'low-power' : 'default',
+  },
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.NO_CENTER,
@@ -24,4 +36,16 @@ const config: Phaser.Types.Core.GameConfig = {
 };
 
 transitionManager.mount();
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      game.loop.sleep();
+      musicEngine.suspend();
+    } else {
+      game.loop.wake();
+      musicEngine.resume();
+    }
+  });
+}

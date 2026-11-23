@@ -656,7 +656,7 @@ export class MusicEngine {
       const targetGain = !this.enabled || this.muted ? 0 : this.masterVolume * 0.28;
       this.musicBus.gain.linearRampToValueAtTime(Math.max(0.0001, targetGain), this.ctx.currentTime + fadeSec);
       if (!this.schedulerTimer && typeof window !== 'undefined') {
-        this.schedulerTimer = window.setInterval(() => this.schedulerTick(), 25);
+        this.schedulerTimer = window.setInterval(() => this.schedulerTick(), 40);
       }
     };
 
@@ -676,6 +676,25 @@ export class MusicEngine {
     }
   }
 
+  public suspend(): void {
+    this.stopScheduler();
+    if (this.ctx && this.ctx.state === 'running') {
+      void this.ctx.suspend();
+    }
+  }
+
+  public resume(): void {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      void this.ctx.resume();
+    }
+    if (this.enabled && !this.muted && this.activeTrack && !this.schedulerTimer && typeof window !== 'undefined') {
+      if (this.ctx) {
+        this.nextNoteTime = Math.max(this.nextNoteTime, this.ctx.currentTime + 0.04);
+      }
+      this.schedulerTimer = window.setInterval(() => this.schedulerTick(), 40);
+    }
+  }
+
   public stopScheduler(): void {
     if (this.fadeSwapTimer) {
       window.clearTimeout(this.fadeSwapTimer);
@@ -690,7 +709,7 @@ export class MusicEngine {
 
   private schedulerTick(): void {
     if (!this.ctx || !this.activeTrack || !this.enabled || this.muted || this.fadingOut) return;
-    const lookahead = 0.12;
+    const lookahead = 0.15;
     const stepSec = 60 / this.activeTrack.bpm / 4;
 
     while (this.nextNoteTime < this.ctx.currentTime + lookahead) {

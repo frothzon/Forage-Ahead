@@ -1,12 +1,9 @@
 import Phaser from 'phaser';
+import { isMobileTouchDevice } from '../core/Platform';
 import type { WindState } from './WeatherSystem';
 
 const OCEAN_FRAG_SHADER = `
-#ifdef GL_FRAGMENT_PRECISION_HIGH
-precision highp float;
-#else
 precision mediump float;
-#endif
 
 uniform vec2 resolution;
 uniform float uTime;
@@ -15,6 +12,7 @@ uniform vec2 uCamSize;
 uniform vec2 uWindDir;
 uniform float uWindSpeed;
 uniform float uNightFactor;
+uniform float uMobile;
 
 void main() {
   vec2 screenUv = vec2(gl_FragCoord.x / max(1.0, resolution.x), 1.0 - gl_FragCoord.y / max(1.0, resolution.y));
@@ -46,19 +44,20 @@ void main() {
   float c2 = cellMin * cellMin;
   float surfaceNet = (c2 * c2 * c2 * cellMin) * 3.0;
 
-  // Additional deeper underwater caustics layer
-  vec2 subUv = (worldPos - wPerp * (uTime * 3.0)) / 135.0;
-  vec4 k2 = vec4(uTime * 0.52 + 3.7);
-  k2.xy = subUv * 5.5;
-  float s1 = length(0.5 - fract(k2.xyw *= m * 0.5));
-  float s2 = length(0.5 - fract(k2.xyw *= m * 0.2));
-  float subMin = min(s1, s2);
-  float subPow = subMin * subMin * subMin * subMin * subMin;
-  float extraCaustic = subPow * 1.4;
-
   // Combine deeper cyan caustics + bright surface cellular highlights, dimmed softly at night
   float dayVis = 1.0 - uNightFactor * 0.42;
-  col += vec3(0.14, 0.44, 0.56) * extraCaustic * dayVis;
+  if (uMobile < 0.5) {
+    // Additional deeper underwater caustics layer (desktop only)
+    vec2 subUv = (worldPos - wPerp * (uTime * 3.0)) / 135.0;
+    vec4 k2 = vec4(uTime * 0.52 + 3.7);
+    k2.xy = subUv * 5.5;
+    float s1 = length(0.5 - fract(k2.xyw *= m * 0.5));
+    float s2 = length(0.5 - fract(k2.xyw *= m * 0.2));
+    float subMin = min(s1, s2);
+    float subPow = subMin * subMin * subMin * subMin * subMin;
+    float extraCaustic = subPow * 1.4;
+    col += vec3(0.14, 0.44, 0.56) * extraCaustic * dayVis;
+  }
   col += vec3(surfaceNet) * (0.95 - uNightFactor * 0.35);
 
   gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
@@ -93,6 +92,8 @@ interface SplashDroplet {
  * animated underwater caustics, specular wave glints, and fishing splash effects.
  */
 export class OceanSystem {
+  private readonly oceanScale: number;
+  private readonly isMobile: boolean;
   private scene: Phaser.Scene;
   private shaderObj?: Phaser.GameObjects.Shader;
   private fallbackGfx?: Phaser.GameObjects.Graphics;
@@ -101,12 +102,18 @@ export class OceanSystem {
 
   private ripples: WaterRipple[] = [];
   private droplets: SplashDroplet[] = [];
+  private ripplesDirty = false;
+  private dropletsDirty = false;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
+    this.isMobile = isMobileTouchDevice();
+    this.oceanScale = this.isMobile ? 0.5 : 0.75;
 
     const w = Math.max(320, scene.scale.width);
     const h = Math.max(200, scene.scale.height);
+    const rtW = Math.max(160, Math.ceil(w * this.oceanScale));
+    const rtH = Math.max(100, Math.ceil(h * this.oceanScale));
 
     if (scene.game.renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer) {
       const baseShader = new Phaser.Display.BaseShader('ocean_waves', OCEAN_FRAG_SHADER, undefined, {
@@ -116,12 +123,14 @@ export class OceanSystem {
         uWindDir: { type: '2f', value: { x: 1, y: 0.25 } },
         uWindSpeed: { type: '1f', value: 1 },
         uNightFactor: { type: '1f', value: 0 },
+        uMobile: { type: '1f', value: this.isMobile ? 1 : 0 },
       });
       this.shaderObj = scene.add
-        .shader(baseShader, w / 2, h / 2, w, h)
+        .shader(baseShader, w / 2, h / 2, rtW, rtH)
         .setOrigin(0.5, 0.5)
         .setScrollFactor(0)
-        .setDepth(0.35);
+        .setDepth(0.35)
+        .setScale(1 / this.oceanScale);
     } else {
       this.fallbackGfx = scene.add.graphics().setScrollFactor(0).setDepth(0.35);
     }
@@ -184,10 +193,12 @@ export class OceanSystem {
     const vh = Math.max(200, this.scene.scale.height);
 
     if (this.shaderObj) {
-      if (this.shaderObj.width !== vw || this.shaderObj.height !== vh) {
-        this.shaderObj.setSize(vw, vh);
+      const rtW = Math.max(160, Math.ceil(vw * this.oceanScale));
+      const rtH = Math.max(100, Math.ceil(vh * this.oceanScale));
+      if (this.shaderObj.width !== rtW || this.shaderObj.height !== rtH) {
+        this.shaderObj.setSize(rtW, rtH);
       }
-      this.shaderObj.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
+      this.shaderObj.setPosition(vw / 2, vh / 2).setScale(1 / (cam.zoom * this.oceanScale));
       this.shaderObj.setUniform('resolution.value.x', vw);
       this.shaderObj.setUniform('resolution.value.y', vh);
       this.shaderObj.setUniform('uTime.value', tSec);
@@ -205,37 +216,45 @@ export class OceanSystem {
       this.fallbackGfx.fillRect(0, 0, vw, vh);
     }
 
-    this.rippleGfx.clear();
-    for (let i = this.ripples.length - 1; i >= 0; i--) {
-      const rp = this.ripples[i];
-      rp.ageMs += dtMs;
-      if (rp.ageMs < 0) continue;
-      if (rp.ageMs >= rp.lifeMs) {
-        this.ripples.splice(i, 1);
-        continue;
+    if (this.ripples.length > 0 || this.ripplesDirty) {
+      this.rippleGfx.clear();
+      this.ripplesDirty = this.ripples.length > 0;
+      for (let i = this.ripples.length - 1; i >= 0; i--) {
+        const rp = this.ripples[i];
+        rp.ageMs += dtMs;
+        if (rp.ageMs < 0) continue;
+        if (rp.ageMs >= rp.lifeMs) {
+          this.ripples.splice(i, 1);
+          continue;
+        }
+        const p = rp.ageMs / rp.lifeMs;
+        const curR = rp.radius + (rp.maxRadius - rp.radius) * p;
+        const a = rp.alpha * (1 - p);
+        this.rippleGfx.lineStyle(1.2, 0xcff7ff, a);
+        this.rippleGfx.strokeEllipse(rp.x, rp.y, curR * 2, curR * 1.15);
       }
-      const p = rp.ageMs / rp.lifeMs;
-      const curR = rp.radius + (rp.maxRadius - rp.radius) * p;
-      const a = rp.alpha * (1 - p);
-      this.rippleGfx.lineStyle(1.2, 0xcff7ff, a);
-      this.rippleGfx.strokeEllipse(rp.x, rp.y, curR * 2, curR * 1.15);
+      if (this.ripples.length > 0) this.ripplesDirty = true;
     }
 
-    this.splashGfx.clear();
-    for (let i = this.droplets.length - 1; i >= 0; i--) {
-      const d = this.droplets[i];
-      d.ageMs += dtMs;
-      if (d.ageMs >= d.lifeMs) {
-        this.droplets.splice(i, 1);
-        continue;
+    if (this.droplets.length > 0 || this.dropletsDirty) {
+      this.splashGfx.clear();
+      this.dropletsDirty = this.droplets.length > 0;
+      for (let i = this.droplets.length - 1; i >= 0; i--) {
+        const d = this.droplets[i];
+        d.ageMs += dtMs;
+        if (d.ageMs >= d.lifeMs) {
+          this.droplets.splice(i, 1);
+          continue;
+        }
+        d.x += d.vx * dt;
+        d.y += d.vy * dt;
+        d.vz -= 165 * dt;
+        d.z = Math.max(0, d.z + d.vz * dt);
+        const a = 1 - d.ageMs / d.lifeMs;
+        this.splashGfx.fillStyle(d.color, a);
+        this.splashGfx.fillCircle(d.x, d.y - d.z, d.size);
       }
-      d.x += d.vx * dt;
-      d.y += d.vy * dt;
-      d.vz -= 165 * dt;
-      d.z = Math.max(0, d.z + d.vz * dt);
-      const a = 1 - d.ageMs / d.lifeMs;
-      this.splashGfx.fillStyle(d.color, a);
-      this.splashGfx.fillCircle(d.x, d.y - d.z, d.size);
+      if (this.droplets.length > 0) this.dropletsDirty = true;
     }
   }
 

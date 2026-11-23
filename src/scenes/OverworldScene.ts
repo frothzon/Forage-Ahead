@@ -196,7 +196,20 @@ export class OverworldScene extends Phaser.Scene {
   private buildings: BuildingEntity[] = [];
   private buildingsByTile = new Map<number, BuildingEntity[]>();
   private houseDoors: BuildingEntity[] = [];
+  private static readonly STEP_PALETTE: Record<string, number> = {
+    grass: 0x9be68e,
+    autumn: 0xe6a85c,
+    graveyard: 0x988eb8,
+    winter: 0xe8f6ff,
+    infernal: 0xff7b54,
+  };
+
   private cachedMinimapBuildings: Array<{ tx: number; ty: number }> | null = null;
+  private cachedMinimapBridges: Array<{ tx: number; ty: number }> = [];
+  private cachedMinimapBridgeCount = -1;
+  private readonly moveDir = new Phaser.Math.Vector2();
+  private readonly pointLightsBuf: PointLightSource[] = [];
+  private readonly spotLightsBuf: SpotLightSource[] = [];
   private buildingTickCallbacks?: Parameters<BuildingEntity['updateBuilding']>[1];
   private soilStateMap = new Map<string, { lastWateredMs: number; lastUsedMs: number }>();
   private soilDecayTimerMs = 0;
@@ -4065,10 +4078,10 @@ export class OverworldScene extends Phaser.Scene {
     if (this.petActionCooldownMs > 0) this.petActionCooldownMs = Math.max(0, this.petActionCooldownMs - dt);
     if (this.stokeCooldownMs > 0) this.stokeCooldownMs = Math.max(0, this.stokeCooldownMs - dt);
 
-    // Synchronized traveling wave bobbing across all wooden bridges
+    // Synchronized traveling wave bobbing across visible wooden bridges
     const waveNowMs = this.time.now;
     for (const b of this.bridgeSprites.values()) {
-      if (b.sprite.active) {
+      if (b.sprite.active && this.isNearCamera(b.sprite.x, b.sprite.y, 48)) {
         b.sprite.y = computeBridgeBobY(b.tx, b.ty, waveNowMs, b.baseY);
       }
     }
@@ -4204,7 +4217,7 @@ export class OverworldScene extends Phaser.Scene {
 
     if (!this.hud.isBlockingInput() && !this.fishingMinigame.isActive()) {
       const tv = this.hud.getTouchMoveVector();
-      const dir = new Phaser.Math.Vector2(
+      const dir = this.moveDir.set(
         (this.keys.D.isDown || this.keys.RIGHT.isDown ? 1 : 0) -
           (this.keys.A.isDown || this.keys.LEFT.isDown ? 1 : 0) +
           tv.x,
@@ -4248,14 +4261,7 @@ export class OverworldScene extends Phaser.Scene {
       const gx = Phaser.Math.Clamp(Math.floor(ptx / ISLAND_CELL_TILES), 0, 4);
       const gy = Phaser.Math.Clamp(Math.floor(pty / ISLAND_CELL_TILES), 0, 4);
       const biome = getIslandAt(gx, gy)?.biome ?? 'grass';
-      const stepPalette: Record<string, number> = {
-        grass: 0x9be68e,
-        autumn: 0xe6a85c,
-        graveyard: 0x988eb8,
-        winter: 0xe8f6ff,
-        infernal: 0xff7b54,
-      };
-      const stepCol = this.bridgeSet.has(`${ptx},${pty}`) ? 0xc99c6b : (stepPalette[biome] ?? 0xd8d2c5);
+      const stepCol = this.bridgeSet.has(`${ptx},${pty}`) ? 0xc99c6b : (OverworldScene.STEP_PALETTE[biome] ?? 0xd8d2c5);
       const surface: 'grass' | 'sand' | 'stone' | 'snow' =
         onRoad || this.bridgeSet.has(`${ptx},${pty}`)
           ? 'stone'
@@ -4335,10 +4341,11 @@ export class OverworldScene extends Phaser.Scene {
       }
       this.refreshNpcPrompts();
 
-      // Update wandering wildlife animals
+      // Update wandering wildlife animals (camera-culled)
       const aDtSec = dt / 1000;
       for (const a of this.animals) {
         if (!a.sprite?.active || !a.sprite.anims) continue;
+        if (!this.isNearCamera(a.x, a.y, 120)) continue;
         if (a.petCooldownMs > 0) a.petCooldownMs = Math.max(0, a.petCooldownMs - dt);
         a.wanderTimerMs -= dt;
         if (a.wanderTimerMs <= 0) {
@@ -4602,6 +4609,24 @@ export class OverworldScene extends Phaser.Scene {
     for (const rc of this.ranchEntities) {
       const sp = getSpeciesById(rc.save.speciesId);
       if (!sp) continue;
+      const inCam = this.isNearCamera(rc.save.x, rc.save.y, 120);
+      if (!inCam && !runOffscreenTick) continue;
+
+      const rcDt = inCam ? dt : offscreenDt;
+      if (rc.save.happiness >= 40 && rc.save.readyEggs < 3) {
+        const eggSpeedMult = gameState.hasSkill('foraging_egg_whisperer') ? 1.35 : 1;
+        rc.save.layTimerMs -= rcDt * eggSpeedMult;
+        if (rc.save.layTimerMs <= 0) {
+          rc.save.layTimerMs = sp.layIntervalMs;
+          rc.save.readyEggs += 1;
+        }
+      }
+
+      if (!inCam) {
+        if (rc.label.visible) rc.label.setVisible(false);
+        continue;
+      }
+
       rc.wanderTimerMs -= dt;
       if (rc.wanderTimerMs <= 0) {
         rc.wanderTimerMs = Phaser.Math.Between(1400, 3200);
@@ -4628,25 +4653,19 @@ export class OverworldScene extends Phaser.Scene {
           rc.vy = -rc.vy;
         }
       }
-      if (rc.save.happiness >= 40 && rc.save.readyEggs < 3) {
-        const eggSpeedMult = gameState.hasSkill('foraging_egg_whisperer') ? 1.35 : 1;
-        rc.save.layTimerMs -= dt * eggSpeedMult;
-        if (rc.save.layTimerMs <= 0) {
-          rc.save.layTimerMs = sp.layIntervalMs;
-          rc.save.readyEggs += 1;
-        }
-      }
       rc.label.setPosition(rc.save.x, rc.save.y - 14);
       const near = Math.hypot(rc.save.x - this.player.x, rc.save.y - this.player.y) <= 32;
       if (rc.save.readyEggs > 0) {
-        rc.label.setText(fmtKeyPrompt('E', `Egg x${rc.save.readyEggs}`));
-        rc.label.setColor('#ffe066');
-        rc.label.setVisible(true);
+        const nextTxt = fmtKeyPrompt('E', `Egg x${rc.save.readyEggs}`);
+        if (rc.label.text !== nextTxt) rc.label.setText(nextTxt);
+        if (rc.label.style.color !== '#ffe066') rc.label.setColor('#ffe066');
+        if (!rc.label.visible) rc.label.setVisible(true);
       } else if (near) {
-        rc.label.setText(fmtKeyPrompt('E', `Pet ♥${rc.save.happiness}%`));
-        rc.label.setColor('#ff9ec4');
-        rc.label.setVisible(true);
-      } else {
+        const nextTxt = fmtKeyPrompt('E', `Pet ♥${rc.save.happiness}%`);
+        if (rc.label.text !== nextTxt) rc.label.setText(nextTxt);
+        if (rc.label.style.color !== '#ff9ec4') rc.label.setColor('#ff9ec4');
+        if (!rc.label.visible) rc.label.setVisible(true);
+      } else if (rc.label.visible) {
         rc.label.setVisible(false);
       }
     }
@@ -4871,14 +4890,18 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    // Corner Minimap refresh (~5 Hz)
+    // Corner Minimap refresh (~3 Hz on mobile, ~5 Hz on desktop)
     this.minimapTimerMs += dt;
-    if (this.minimapTimerMs >= 200) {
+    const minimapInterval = isMobileTouchDevice() ? 350 : 200;
+    if (this.minimapTimerMs >= minimapInterval) {
       this.minimapTimerMs = 0;
-      const bridges: Array<{ tx: number; ty: number }> = [];
-      for (const bk of this.bridgeSet) {
-        const [bx, by] = bk.split(',').map(Number);
-        bridges.push({ tx: bx, ty: by });
+      if (this.cachedMinimapBridgeCount !== this.bridgeSet.size) {
+        this.cachedMinimapBridgeCount = this.bridgeSet.size;
+        this.cachedMinimapBridges = [];
+        for (const bk of this.bridgeSet) {
+          const [bx, by] = bk.split(',').map(Number);
+          this.cachedMinimapBridges.push({ tx: bx, ty: by });
+        }
       }
       const tracked = gameState.getTrackedQuest();
       const waypoint = tracked?.waypoint
@@ -4898,7 +4921,7 @@ export class OverworldScene extends Phaser.Scene {
         playerTx: Math.floor(this.player.x / TILE_PX),
         playerTy: Math.floor(this.player.y / TILE_PX),
         terrainGrid: this.terrainGrid,
-        bridges,
+        bridges: this.cachedMinimapBridges,
         buildings: this.cachedMinimapBuildings,
         portals: this.dungeonPortals.map((p) => ({ tx: Math.floor(p.x / TILE_PX), ty: Math.floor(p.y / TILE_PX) })),
         enemies: this.enemies
@@ -4955,14 +4978,15 @@ export class OverworldScene extends Phaser.Scene {
     this.lighthouseAngle = (this.lighthouseAngle + dtMs * 0.0014) % (Math.PI * 2);
     const flicker = 0.92 + Math.sin(this.time.now * 0.015) * 0.08;
 
-    const pointLights: PointLightSource[] = [
-      // Simple smooth circular light field fading outward around the player
-      { x: this.player.x, y: this.player.y - 4, radius: 24, color: 0xffe4aa, intensity: 1.0 },
-    ];
+    const pointLights = this.pointLightsBuf;
+    pointLights.length = 0;
+    // Simple smooth circular light field fading outward around the player
+    pointLights.push({ x: this.player.x, y: this.player.y - 4, radius: 24, color: 0xffe4aa, intensity: 1.0 });
     if (this.activeHouseGroupId > 0) {
       pointLights.push({ x: this.player.x, y: this.player.y - 4, radius: 52, color: 0xffe4aa, intensity: 0.45 });
     }
-    const spotLights: SpotLightSource[] = [];
+    const spotLights = this.spotLightsBuf;
+    spotLights.length = 0;
 
     for (const b of this.buildings) {
       if (!b.active || !b.emitsLight) continue;

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { isMobileTouchDevice } from '../core/Platform';
 
 interface DustMote {
   rect: Phaser.GameObjects.Rectangle;
@@ -21,7 +22,8 @@ export class DungeonAtmosphere {
 
   constructor(scene: Phaser.Scene, accentColor = 0xe8dec8, count = 34) {
     this.scene = scene;
-    for (let i = 0; i < count; i++) {
+    const effectiveCount = isMobileTouchDevice() ? Math.min(count, 18) : count;
+    for (let i = 0; i < effectiveCount; i++) {
       const sparkle = i % 4 === 0;
       const size = sparkle ? 1.8 : 1.3;
       const color = sparkle ? 0xfff3b8 : accentColor;

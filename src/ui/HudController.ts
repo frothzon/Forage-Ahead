@@ -66,6 +66,7 @@ export interface MinimapSnapshot {
   playerTx: number;
   playerTy: number;
   terrainGrid: string[][];
+  terrainRevision?: number;
   bridges: Array<{ tx: number; ty: number }>;
   buildings: Array<{ tx: number; ty: number }>;
   portals: Array<{ tx: number; ty: number }>;
@@ -131,13 +132,22 @@ export class HudController {
   private chromeBuilt = false;
   private minimapVisible = false;
   private minimapCanvas?: HTMLCanvasElement;
+  private minimapTerrainCanvas?: HTMLCanvasElement;
+  private minimapTerrainFingerprint = '';
   private minimapZoom = 1;
   private lastMinimapSnapshot: MinimapSnapshot | null = null;
+  private cachedMinimapSize = 0;
+  private cachedMinimapWinW = -1;
+  private cachedMinimapWinH = -1;
+  private cachedMinimapHudScale = -1;
   private wasModalOpen = false;
   private lastModalTab: HudModal = 'none';
   private toastTimer?: number;
   private toastMsg = '';
   private timeLabelText = 'Day 1 • Sunny';
+  private timeBadgeEl: HTMLElement | null = null;
+  private weatherIconEl: HTMLImageElement | null = null;
+  private lastWeatherIconName = '';
   private bossInfo: { name: string; hp: number; maxHp: number; portrait?: string } | null = null;
   private portraitMoodOverride: 'happy' | 'angry' | null = null;
   private portraitMoodTimer?: number;
@@ -574,11 +584,18 @@ export class HudController {
   }
 
   public setTimeLabel(label: string): void {
+    if (label === this.timeLabelText) return;
     this.timeLabelText = label;
-    const el = this.chromeLayer.querySelector<HTMLElement>('#hud-time-badge');
-    if (el) el.textContent = label;
-    const weatherIcon = this.chromeLayer.querySelector<HTMLImageElement>('#hud-weather-icon');
-    if (weatherIcon) {
+
+    if (!this.timeBadgeEl || !this.timeBadgeEl.isConnected) {
+      this.timeBadgeEl = this.chromeLayer.querySelector<HTMLElement>('#hud-time-badge');
+    }
+    if (this.timeBadgeEl) this.timeBadgeEl.textContent = label;
+
+    if (!this.weatherIconEl || !this.weatherIconEl.isConnected) {
+      this.weatherIconEl = this.chromeLayer.querySelector<HTMLImageElement>('#hud-weather-icon');
+    }
+    if (this.weatherIconEl) {
       const lower = label.toLowerCase();
       const isNight = lower.includes('night');
       const isDusk = lower.includes('dusk') || lower.includes('dawn');
@@ -592,7 +609,10 @@ export class HudController {
       } else if (lower.includes('sand')) {
         iconName = 'dusk_hot_sun';
       }
-      weatherIcon.src = `assets/sprout_ui/weather/icon_sm_${iconName}.png`;
+      if (iconName !== this.lastWeatherIconName) {
+        this.lastWeatherIconName = iconName;
+        this.weatherIconEl.src = `assets/sprout_ui/weather/icon_sm_${iconName}.png`;
+      }
     }
   }
 
@@ -624,8 +644,19 @@ export class HudController {
 
   private getDynamicMinimapSize(): number {
     const s = this.hudScale || 1;
-    const vw = (typeof window !== 'undefined' ? window.innerWidth : 1280) / s;
-    const vh = (typeof window !== 'undefined' ? window.innerHeight : 720) / s;
+    const rawW = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    const rawH = typeof window !== 'undefined' ? window.innerHeight : 720;
+    if (
+      this.cachedMinimapSize > 0 &&
+      rawW === this.cachedMinimapWinW &&
+      rawH === this.cachedMinimapWinH &&
+      s === this.cachedMinimapHudScale
+    ) {
+      return this.cachedMinimapSize;
+    }
+
+    const vw = rawW / s;
+    const vh = rawH / s;
     const vitals = this.chromeLayer?.querySelector<HTMLElement>('#hud-vitals-panel');
     const nav = this.chromeLayer?.querySelector<HTMLElement>('#hud-top-nav');
     let maxGapW = vw * 0.34;
@@ -636,7 +667,75 @@ export class HudController {
       if (gapPx > 60) maxGapW = gapPx;
     }
     const idealH = vh * 0.30;
-    return Math.round(Math.max(116, Math.min(260, maxGapW, idealH)));
+    const size = Math.round(Math.max(116, Math.min(260, maxGapW, idealH)));
+    this.cachedMinimapSize = size;
+    this.cachedMinimapWinW = rawW;
+    this.cachedMinimapWinH = rawH;
+    this.cachedMinimapHudScale = s;
+    return size;
+  }
+
+  private getTerrainFingerprint(data: MinimapSnapshot): string {
+    if (data.terrainRevision !== undefined) {
+      return `${data.worldTiles}:${data.terrainRevision}`;
+    }
+    let nonWater = 0;
+    const n = data.worldTiles;
+    for (let y = 0; y < n; y++) {
+      const row = data.terrainGrid[y];
+      if (!row) continue;
+      for (let x = 0; x < n; x++) {
+        if (row[x] !== 'water') nonWater++;
+      }
+    }
+    return `${n}:${nonWater}`;
+  }
+
+  private ensureMinimapTerrainCanvas(data: MinimapSnapshot): HTMLCanvasElement | undefined {
+    if (typeof document === 'undefined') return undefined;
+    const fp = this.getTerrainFingerprint(data);
+    if (
+      this.minimapTerrainCanvas &&
+      this.minimapTerrainCanvas.width === data.worldTiles &&
+      this.minimapTerrainCanvas.height === data.worldTiles &&
+      this.minimapTerrainFingerprint === fp
+    ) {
+      return this.minimapTerrainCanvas;
+    }
+
+    if (!this.minimapTerrainCanvas) {
+      this.minimapTerrainCanvas = document.createElement('canvas');
+    }
+    this.minimapTerrainCanvas.width = data.worldTiles;
+    this.minimapTerrainCanvas.height = data.worldTiles;
+    this.minimapTerrainFingerprint = fp;
+
+    const tCtx = this.minimapTerrainCanvas.getContext('2d');
+    if (!tCtx) return undefined;
+
+    tCtx.fillStyle = '#183f59';
+    tCtx.fillRect(0, 0, data.worldTiles, data.worldTiles);
+
+    const colMap: Record<string, string> = {
+      grass: '#58b354',
+      autumn: '#d6975c',
+      winter: '#cce8f4',
+      graveyard: '#736c8a',
+      infernal: '#a8474c',
+    };
+
+    for (let y = 0; y < data.worldTiles; y++) {
+      const row = data.terrainGrid[y];
+      if (!row) continue;
+      for (let x = 0; x < data.worldTiles; x++) {
+        const t = row[x];
+        if (t === 'water') continue;
+        tCtx.fillStyle = colMap[t] ?? '#58b354';
+        tCtx.fillRect(x, y, 1, 1);
+      }
+    }
+
+    return this.minimapTerrainCanvas;
   }
 
   public updateMinimap(data: MinimapSnapshot): void {
@@ -664,32 +763,27 @@ export class HudController {
     ctx.fillStyle = '#183f59';
     ctx.fillRect(0, 0, W, H);
 
-    const colMap: Record<string, string> = {
-      grass: '#58b354',
-      autumn: '#d6975c',
-      winter: '#cce8f4',
-      graveyard: '#736c8a',
-      infernal: '#a8474c',
-    };
-
-    const yMin = Math.max(0, Math.floor(startTy));
-    const yMax = Math.min(data.worldTiles - 1, Math.ceil(startTy + viewTiles));
-    const xMin = Math.max(0, Math.floor(startTx));
-    const xMax = Math.min(data.worldTiles - 1, Math.ceil(startTx + viewTiles));
     const tileDrawSz = Math.max(1.5, Math.ceil(scale));
-
-    for (let y = yMin; y <= yMax; y++) {
-      const row = data.terrainGrid[y];
-      if (!row) continue;
-      for (let x = xMin; x <= xMax; x++) {
-        const t = row[x];
-        if (t === 'water') continue;
-        ctx.fillStyle = colMap[t] ?? '#58b354';
-        ctx.fillRect(
-          Math.floor((x - startTx) * scale),
-          Math.floor((y - startTy) * scale),
-          tileDrawSz,
-          tileDrawSz,
+    const terrainOffscreen = this.ensureMinimapTerrainCanvas(data);
+    if (terrainOffscreen) {
+      ctx.imageSmoothingEnabled = false;
+      const srcX = Math.max(0, startTx);
+      const srcY = Math.max(0, startTy);
+      const srcRight = Math.min(data.worldTiles, startTx + viewTiles);
+      const srcBottom = Math.min(data.worldTiles, startTy + viewTiles);
+      const srcW = srcRight - srcX;
+      const srcH = srcBottom - srcY;
+      if (srcW > 0 && srcH > 0) {
+        ctx.drawImage(
+          terrainOffscreen,
+          srcX,
+          srcY,
+          srcW,
+          srcH,
+          (srcX - startTx) * scale,
+          (srcY - startTy) * scale,
+          srcW * scale,
+          srcH * scale,
         );
       }
     }

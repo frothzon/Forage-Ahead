@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { isMobileTouchDevice } from '../core/Platform';
 import type { BiomeKind } from '../data/islands';
 import type { WeatherLightModifier } from './LightingSystem';
 import { setGlobalWind } from './WindShader';
@@ -40,9 +41,10 @@ const CLOUD_SHADOW_TEX_KEY = '_perlin_cloud_shadows';
  * - Rain streaks, snowflakes, persistent desert haze, and light desert sandstorms
  */
 export class WeatherSystem {
+  private readonly isMobile: boolean;
   private scene: Phaser.Scene;
   private cloudTile: Phaser.GameObjects.TileSprite;
-  private hazeGfx: Phaser.GameObjects.Graphics;
+  private hazeRect: Phaser.GameObjects.Rectangle;
   private precipGfx: Phaser.GameObjects.Graphics;
 
   public currentBiome: BiomeKind = 'grass';
@@ -53,13 +55,17 @@ export class WeatherSystem {
   private manualOverride: WeatherKind | null = null;
   private hazeAlpha = 0;
   private hazeColor = 0xe6ba78;
+  private hazeVw = 0;
+  private hazeVh = 0;
   private cloudOpacity = 0.28;
   private cloudDriftX = 0;
   private cloudDriftY = 0;
   private particles: WeatherParticle[] = [];
+  private precipDirty = false;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
+    this.isMobile = isMobileTouchDevice();
     this.ensurePerlinCloudTexture();
 
     const vw = Math.max(320, scene.scale.width);
@@ -73,10 +79,13 @@ export class WeatherSystem {
       .setAlpha(this.cloudOpacity);
 
     // Desert / heat atmospheric haze overlay
-    this.hazeGfx = scene.add
-      .graphics()
+    this.hazeVw = vw;
+    this.hazeVh = vh;
+    this.hazeRect = scene.add
+      .rectangle(vw / 2, vh / 2, vw, vh, this.hazeColor, 1)
       .setScrollFactor(0)
-      .setDepth(8840);
+      .setDepth(8840)
+      .setVisible(false);
 
     // Rain / snow / sandstorm grains
     this.precipGfx = scene.add
@@ -241,21 +250,38 @@ export class WeatherSystem {
     }
     this.hazeAlpha += (targetHazeAlpha - this.hazeAlpha) * Math.min(1, dt * 2.5);
     this.hazeColor = targetHazeColor;
-    this.hazeGfx.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
-    this.hazeGfx.clear();
     if (this.hazeAlpha > 0.01) {
+      if (this.hazeVw !== vw || this.hazeVh !== vh) {
+        this.hazeVw = vw;
+        this.hazeVh = vh;
+        this.hazeRect.setSize(vw, vh);
+      }
       const shimmer = 1 + Math.sin(this.scene.time.now * 0.0022) * 0.08;
-      this.hazeGfx.fillStyle(this.hazeColor, this.hazeAlpha * shimmer);
-      this.hazeGfx.fillRect(-vw / 2, -vh / 2, vw, vh);
+      this.hazeRect
+        .setPosition(vw / 2, vh / 2)
+        .setScale(1 / cam.zoom)
+        .setFillStyle(this.hazeColor, this.hazeAlpha * shimmer)
+        .setVisible(true);
+    } else if (this.hazeRect.visible) {
+      this.hazeRect.setVisible(false);
     }
 
     // 3. Precipitation (Rain, Snow, Light Sandstorm Grains)
+    if (this.weather !== 'rain' && this.weather !== 'snow' && this.weather !== 'sandstorm') {
+      if (this.precipDirty) {
+        this.precipGfx.clear();
+        this.precipDirty = false;
+      }
+      return;
+    }
+
     this.precipGfx.setPosition(vw / 2, vh / 2).setScale(1 / cam.zoom);
     this.precipGfx.clear();
-    if (this.weather !== 'rain' && this.weather !== 'snow' && this.weather !== 'sandstorm') return;
+    this.precipDirty = true;
 
-    const count =
-      this.weather === 'rain' ? 105 : this.weather === 'sandstorm' ? 85 : 75;
+    const count = this.isMobile
+      ? this.weather === 'rain' ? 60 : this.weather === 'sandstorm' ? 50 : 45
+      : this.weather === 'rain' ? 105 : this.weather === 'sandstorm' ? 85 : 75;
     const tSec = this.scene.time.now * 0.001;
 
     for (let i = 0; i < count; i++) {
@@ -278,8 +304,9 @@ export class WeatherSystem {
         const vy = 48 * p.speed;
         p.x = (p.x + vx * dt + vw) % vw;
         p.y = (p.y + vy * dt + vh) % vh;
+        const s = p.size * 1.7;
         this.precipGfx.fillStyle(0xf5f9ff, p.alpha * 0.88);
-        this.precipGfx.fillCircle(p.x - vw / 2, p.y - vh / 2, p.size * 0.85);
+        this.precipGfx.fillRect(p.x - vw / 2 - s * 0.5, p.y - vh / 2 - s * 0.5, s, s);
       } else {
         const wx = this.wind.dirX || 0.9;
         const wy = this.wind.dirY * 0.45 + 0.15;
@@ -292,14 +319,14 @@ export class WeatherSystem {
         this.precipGfx.lineStyle(1.4, 0xf2d194, p.alpha * 0.55);
         this.precipGfx.lineBetween(px - wx * p.len * 1.4, py - wy * p.len * 1.4, px, py);
         this.precipGfx.fillStyle(0xf7dfb0, p.alpha * 0.75);
-        this.precipGfx.fillCircle(px, py, 1.1);
+        this.precipGfx.fillRect(px - 1.1, py - 1.1, 2.2, 2.2);
       }
     }
   }
 
   public destroy(): void {
     this.cloudTile.destroy();
-    this.hazeGfx.destroy();
+    this.hazeRect.destroy();
     this.precipGfx.destroy();
   }
 }

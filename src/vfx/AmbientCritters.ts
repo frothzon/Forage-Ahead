@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { isMobileTouchDevice } from '../core/Platform';
 import type { BiomeKind } from '../data/islands';
 
 type CritterKind = 'butterfly' | 'firefly' | 'ash';
@@ -21,7 +22,7 @@ export class AmbientCritterSystem {
   private readonly scene: Phaser.Scene;
   private readonly critters: Critter[] = [];
   private spawnTimerMs = 400;
-  private readonly maxCritters = 18;
+  private readonly maxCritters = isMobileTouchDevice() ? 10 : 18;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -57,8 +58,9 @@ export class AmbientCritterSystem {
 
       const dx = c.obj.x - playerX;
       const dy = c.obj.y - playerY;
-      const dist = Math.hypot(dx, dy);
-      if (playerDashing && dist < 54 && dist > 0.5) {
+      const distSq = dx * dx + dy * dy;
+      if (playerDashing && distSq < 54 * 54 && distSq > 0.25) {
+        const dist = Math.sqrt(distSq);
         c.vx += (dx / dist) * 140 * dt;
         c.vy += (dy / dist) * 140 * dt;
       }
