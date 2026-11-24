@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { buildBaseSnapshot, isQaMode, markQaReady, registerQaApi } from '../qa/QaDirector';
 import { getStructurePreviewSpec } from '../world/BuildingEntity';
 import { type HouseThemeId } from '../world/HouseLayoutBuilder';
 import {
@@ -68,6 +69,25 @@ export class HouseTestScene extends Phaser.Scene {
       this.themeIdx = (this.themeIdx + 1) % this.themes.length;
       this.buildWfcHousePreview();
     });
+
+    if (isQaMode()) {
+      registerQaApi({
+        getStateSnapshot: () => buildBaseSnapshot('HouseTestScene'),
+        triggerAction: (action) => {
+          if (action === 'toggle_roof') {
+            this.toggleRoof();
+            return true;
+          }
+          if (action === 'cycle_theme') {
+            this.themeIdx = (this.themeIdx + 1) % this.themes.length;
+            this.buildWfcHousePreview();
+            return true;
+          }
+          return false;
+        },
+      });
+      markQaReady();
+    }
   }
 
   private toggleRoof(): void {

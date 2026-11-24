@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "prepare-assets": "node scripts/prepare-assets.mjs",
+    "prepare-music": "node scripts/prepare-music.mjs",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "npm run build && node tests/e2e/runner.mjs",
+    "test:e2e:headed": "npm run build && node tests/e2e/runner.mjs --headed",
     "promo:capture": "node scripts/capturePromoShots.mjs",
     "promo:build": "node scripts/buildPromoVideo.mjs"
   },

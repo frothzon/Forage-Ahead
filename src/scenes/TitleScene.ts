@@ -11,6 +11,8 @@ import { dialogueBox } from '../ui/DialogueBox';
 import { revealSequence } from '../ui/RevealSequence';
 import { addSproutNineSlice, createSproutButton } from '../ui/PhaserNineSlice';
 import { getFamiliarSpecForClass } from '../data/familiars';
+import { buildBaseSnapshot, isQaMode, markQaReady, registerQaApi, resetQaReady } from '../qa/QaDirector';
+import { applyGoldGleamShader, type GoldGleamPipeline } from '../vfx/GoldGleamShader';
 
 interface ClassMeta {
   id: HeroClassId;
@@ -64,19 +66,86 @@ const GLYPHS: Record<string, string[]> = {
 };
 
 interface Shard {
-  gfx: Phaser.GameObjects.Rectangle;
+  gfx: Phaser.GameObjects.Image;
   vx: number;
   vy: number;
   vr: number;
+  gravity: number;
+  drag: number;
+  restitution: number;
+  isBoulder: boolean;
   bounces: number;
   settled: boolean;
 }
+
+interface DustPuff {
+  gfx: Phaser.GameObjects.Image;
+  vx: number;
+  vy: number;
+  drag: number;
+  age: number;
+  life: number;
+  startScale: number;
+  endScale: number;
+  startAlpha: number;
+}
+
+interface SkyBird {
+  sprite: Phaser.GameObjects.Sprite;
+  u: number;
+  vBase: number;
+  v: number;
+  speedU: number;
+  dir: 1 | -1;
+  sizeScale: number;
+  flapPhase: number;
+  flapSpeed: number;
+}
+
+interface ClearingSlime {
+  sprite: Phaser.GameObjects.Sprite;
+  shadow: Phaser.GameObjects.Ellipse;
+  u: number;
+  v: number;
+  startU: number;
+  startV: number;
+  targetU: number;
+  targetV: number;
+  state: 'idle' | 'wander' | 'crouch' | 'hop' | 'land';
+  timer: number;
+  duration: number;
+  hopPeak: number;
+  hopZ: number;
+  breathPhase: number;
+  squashX: number;
+  squashY: number;
+}
+
+const SLIME_CLEARING = {
+  centerU: 0.19,
+  centerV: 0.745,
+  radiusU: 0.045,
+  radiusV: 0.03,
+} as const;
 
 export class TitleScene extends Phaser.Scene {
   private selected: HeroClassId = 'Beastmaster';
   private menuContainer?: Phaser.GameObjects.Container;
   private rubbleContainer?: Phaser.GameObjects.Container;
+  private bgLayer?: Phaser.GameObjects.Layer;
+  private levelBgImg?: Phaser.GameObjects.Image;
+  private levelBgScrim?: Phaser.GameObjects.Rectangle;
+  private levelBgBlurFx?: Phaser.FX.Blur;
+  private ambientLifeStarted = false;
+  private birdSpawnTimer?: Phaser.Time.TimerEvent;
+  private skyBirds: SkyBird[] = [];
+  private clearingSlime?: ClearingSlime;
+  private levelBgBaseScale = 1;
+  private horizonRect?: Phaser.GameObjects.Rectangle;
+  private horizonLine?: Phaser.GameObjects.Rectangle;
+  private introStars: Phaser.GameObjects.Arc[] = [];
   private shards: Shard[] = [];
+  private dustPuffs: DustPuff[] = [];
   private groundY = 0;
   private copySourceSlot: SaveSlotIndex | null = null;
   private splashSkipped = false;
@@ -94,6 +163,17 @@ export class TitleScene extends Phaser.Scene {
     SFX.setMusicSituation('title');
 
     this.shards = [];
+    this.dustPuffs = [];
+    this.introStars = [];
+    this.bgLayer = undefined;
+    this.levelBgImg = undefined;
+    this.levelBgScrim = undefined;
+    this.levelBgBlurFx = undefined;
+    this.ambientLifeStarted = false;
+    this.birdSpawnTimer = undefined;
+    this.skyBirds = [];
+    this.clearingSlime = undefined;
+    this.levelBgBaseScale = 1;
     this.copySourceSlot = null;
     this.splashSkipped = false;
 
@@ -106,6 +186,7 @@ export class TitleScene extends Phaser.Scene {
       const rx = Phaser.Math.Between(24, Math.max(48, width - 24));
       const ry = Phaser.Math.Between(20, Math.max(40, Math.round(height * 0.82)));
       const dot = this.add.circle(rx, ry, Phaser.Math.Between(1, 2), 0x4b8ec2, 0.35);
+      this.introStars.push(dot);
       this.tweens.add({
         targets: dot,
         alpha: { from: 0.12, to: 0.6 },
@@ -116,8 +197,8 @@ export class TitleScene extends Phaser.Scene {
     }
 
     // Ground horizon strip where shattered title pieces settle
-    const horizonRect = this.add.rectangle(width / 2, this.groundY + (height - this.groundY) / 2, width, height - this.groundY, 0x101d2d);
-    const horizonLine = this.add.rectangle(width / 2, this.groundY, width, 2, 0x2f4d6e, 0.7);
+    this.horizonRect = this.add.rectangle(width / 2, this.groundY + (height - this.groundY) / 2, width, height - this.groundY, 0x101d2d);
+    this.horizonLine = this.add.rectangle(width / 2, this.groundY, width, 2, 0x2f4d6e, 0.7);
     this.rubbleContainer = this.add.container(0, 0).setDepth(5);
     this.menuContainer = this.add.container(0, 0).setDepth(20);
 
@@ -127,10 +208,11 @@ export class TitleScene extends Phaser.Scene {
       this.cameras.main.setSize(w, h);
       this.groundY = h * 0.87;
       bgRect.setPosition(w / 2, h / 2).setSize(w, h);
-      horizonRect.setPosition(w / 2, this.groundY + (h - this.groundY) / 2).setSize(w, h - this.groundY);
-      horizonLine.setPosition(w / 2, this.groundY).setSize(w, 2);
+      this.horizonRect?.setPosition(w / 2, this.groundY + (h - this.groundY) / 2).setSize(w, h - this.groundY);
+      this.horizonLine?.setPosition(w / 2, this.groundY).setSize(w, 2);
+      this.layoutLevelSelectBg(w, h);
       if (this.splashSkipped) {
-        this.showFileSelectMenu();
+        this.showFileSelectMenu('instant');
       }
     };
     this.scale.on('resize', onResize);
@@ -190,28 +272,107 @@ export class TitleScene extends Phaser.Scene {
 
     if (data?.skipSplash) {
       this.splashSkipped = true;
-      this.showFileSelectMenu();
+      this.showLevelSelectBgImmediate();
+      this.showFileSelectMenu('instant');
     } else {
       this.playIntroSplash();
+    }
+
+    if (isQaMode()) {
+      registerQaApi({
+        getStateSnapshot: () =>
+          buildBaseSnapshot('TitleScene', {
+            heroClass: this.selected,
+          }),
+        triggerAction: (action, payload) => {
+          if (action === 'select_hero') {
+            const hero = (payload?.heroClass as HeroClassId | undefined) ?? 'Gladiator';
+            this.selected = hero;
+            gameState.heroClass = hero;
+            this.showClassSelectMenu(0);
+            return true;
+          }
+          if (action === 'start_tutorial') {
+            resetQaReady();
+            gameState.setActiveSlot(0);
+            gameState.startNewGameWithTutorial(this.selected);
+            gameState.save(0);
+            this.scene.start('TutorialDungeonScene');
+            return true;
+          }
+          return false;
+        },
+      });
+      markQaReady();
     }
   }
 
   update(_time: number, dtMs: number): void {
-    if (this.shards.length === 0) return;
     const dt = Math.min(0.05, dtMs / 1000);
-    const gravity = 640;
+    if (this.ambientLifeStarted) {
+      this.updateSkyBirds(dt);
+      this.updateClearingSlime(dt);
+    }
+
+    for (let i = this.dustPuffs.length - 1; i >= 0; i--) {
+      const p = this.dustPuffs[i];
+      p.age += dt;
+      if (p.age >= p.life) {
+        p.gfx.destroy();
+        this.dustPuffs.splice(i, 1);
+        continue;
+      }
+      const dragPow = Math.pow(p.drag, dt * 60);
+      p.vx *= dragPow;
+      p.vy = p.vy * dragPow - 14 * dt;
+      p.gfx.x += p.vx * dt;
+      p.gfx.y += p.vy * dt;
+      const t = p.age / p.life;
+      p.gfx.setScale(Phaser.Math.Linear(p.startScale, p.endScale, t));
+      p.gfx.setAlpha(p.startAlpha * (1 - t));
+    }
+
+    if (this.shards.length === 0) return;
 
     for (const s of this.shards) {
       if (s.settled) continue;
-      s.vy += gravity * dt;
+      const dragPow = Math.pow(s.drag, dt * 60);
+      s.vx *= dragPow;
+      s.vy += s.gravity * dt;
       s.gfx.x += s.vx * dt;
       s.gfx.y += s.vy * dt;
       s.gfx.angle += s.vr * dt;
 
       if (s.gfx.y >= this.groundY) {
         s.gfx.y = this.groundY - Phaser.Math.Between(0, 4);
+        if (s.isBoulder && s.bounces === 0) {
+          this.spawnDustPuff(
+            s.gfx.x,
+            this.groundY - 2,
+            Phaser.Math.FloatBetween(-24, 24),
+            Phaser.Math.FloatBetween(-26, -10),
+            0.35,
+            0.75,
+            0.34,
+            Phaser.Math.FloatBetween(0.55, 0.85),
+          );
+          for (let c = 0; c < 2; c++) {
+            if (this.shards.length >= 220) break;
+            this.spawnRockShard(
+              s.gfx.x + Phaser.Math.Between(-5, 5),
+              this.groundY - 4,
+              Phaser.Math.FloatBetween(-85, 85),
+              Phaser.Math.FloatBetween(-130, -55),
+              Phaser.Math.FloatBetween(0.14, 0.24),
+              640,
+              0.99,
+              0.25,
+              false,
+            );
+          }
+        }
         if (s.bounces < 2 && Math.abs(s.vy) > 45) {
-          s.vy = -Math.abs(s.vy) * Phaser.Math.FloatBetween(0.28, 0.45);
+          s.vy = -Math.abs(s.vy) * s.restitution;
           s.vx *= 0.65;
           s.vr *= 0.55;
           s.bounces += 1;
@@ -220,67 +381,384 @@ export class TitleScene extends Phaser.Scene {
           s.vy = 0;
           s.vr = 0;
           s.settled = true;
-          s.gfx.setAlpha(0.72);
+          s.gfx.setAlpha(0.78);
         }
       }
     }
   }
 
+  private ensureRockTextures(): void {
+    if (!this.textures.exists('title_rock_0')) {
+      const variants: Array<{
+        pts: Array<[number, number]>;
+        base: string;
+        hi: string;
+        lo: string;
+        goldVein?: boolean;
+      }> = [
+        { pts: [[6, 3], [16, 2], [21, 9], [19, 19], [9, 21], [3, 13]], base: '#92897c', hi: '#c4bba9', lo: '#4a443d' },
+        { pts: [[4, 5], [13, 2], [20, 7], [21, 16], [12, 21], [4, 17]], base: '#7c7469', hi: '#b4ab9a', lo: '#3f3933', goldVein: true },
+        { pts: [[7, 2], [18, 4], [22, 12], [16, 21], [6, 19], [2, 10]], base: '#a1988a', hi: '#cfc6b6', lo: '#554e46' },
+        { pts: [[5, 4], [14, 3], [21, 10], [18, 20], [8, 22], [3, 14]], base: '#6e675e', hi: '#9e9587', lo: '#38332e' },
+        { pts: [[6, 2], [17, 3], [21, 11], [17, 20], [7, 20], [2, 11]], base: '#8c8376', hi: '#bfb6a5', lo: '#47413a', goldVein: true },
+        { pts: [[4, 6], [12, 2], [20, 6], [19, 18], [10, 22], [3, 15]], base: '#82796e', hi: '#b5ac9b', lo: '#423c36' },
+      ];
+
+      variants.forEach((v, idx) => {
+        const tex = this.textures.createCanvas(`title_rock_${idx}`, 24, 24);
+        if (!tex) return;
+        const ctx = tex.getContext();
+        ctx.beginPath();
+        v.pts.forEach(([px, py], i) => (i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
+        ctx.closePath();
+        ctx.fillStyle = v.base;
+        ctx.fill();
+
+        // Top-left bevel highlight
+        ctx.beginPath();
+        ctx.moveTo(v.pts[0][0], v.pts[0][1]);
+        ctx.lineTo(v.pts[1][0], v.pts[1][1]);
+        ctx.lineTo(12, 12);
+        ctx.lineTo(v.pts[v.pts.length - 1][0], v.pts[v.pts.length - 1][1]);
+        ctx.closePath();
+        ctx.fillStyle = v.hi;
+        ctx.fill();
+
+        // Bottom-right shadow facet
+        ctx.beginPath();
+        ctx.moveTo(v.pts[2][0], v.pts[2][1]);
+        ctx.lineTo(v.pts[3][0], v.pts[3][1]);
+        ctx.lineTo(v.pts[4][0], v.pts[4][1]);
+        ctx.lineTo(12, 12);
+        ctx.closePath();
+        ctx.fillStyle = v.lo;
+        ctx.fill();
+
+        if (v.goldVein) {
+          ctx.strokeStyle = '#ffd970';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(v.pts[0][0] + 2, v.pts[0][1] + 4);
+          ctx.lineTo(13, 12);
+          ctx.lineTo(v.pts[3][0] - 3, v.pts[3][1] - 3);
+          ctx.stroke();
+        }
+
+        ctx.strokeStyle = '#2e2a25';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        v.pts.forEach(([px, py], i) => (i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
+        ctx.closePath();
+        ctx.stroke();
+        tex.refresh();
+      });
+    }
+
+    if (!this.textures.exists('title_dust_puff')) {
+      const tex = this.textures.createCanvas('title_dust_puff', 32, 32);
+      if (tex) {
+        const ctx = tex.getContext();
+        const grad = ctx.createRadialGradient(16, 16, 2, 16, 16, 15);
+        grad.addColorStop(0, 'rgba(255,255,255,0.92)');
+        grad.addColorStop(0.55, 'rgba(255,255,255,0.45)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 32, 32);
+        tex.refresh();
+      }
+    }
+  }
+
+  private spawnRockShard(
+    x: number,
+    y: number,
+    vx: number,
+    vy: number,
+    scale: number,
+    gravity: number,
+    drag: number,
+    restitution: number,
+    isBoulder: boolean,
+    tint?: number,
+  ): void {
+    if (this.shards.length >= 220 || !this.textures.exists('title_rock_0')) return;
+    const key = `title_rock_${Phaser.Math.Between(0, 5)}`;
+    const img = this.add
+      .image(x, y, key)
+      .setScale(scale)
+      .setAngle(Phaser.Math.Between(0, 359))
+      .setDepth(isBoulder ? 7 : 6);
+    if (tint !== undefined) img.setTint(tint);
+    this.rubbleContainer?.add(img);
+    this.shards.push({
+      gfx: img,
+      vx,
+      vy,
+      vr: isBoulder ? Phaser.Math.Between(-180, 180) : Phaser.Math.Between(-420, 420),
+      gravity,
+      drag,
+      restitution,
+      isBoulder,
+      bounces: 0,
+      settled: false,
+    });
+  }
+
+  private spawnDustPuff(
+    x: number,
+    y: number,
+    vx: number,
+    vy: number,
+    startScale: number,
+    endScale: number,
+    startAlpha: number,
+    life: number,
+  ): void {
+    if (this.dustPuffs.length >= 35 || !this.textures.exists('title_dust_puff')) return;
+    const palette = [0xd8cdb8, 0xb6a894, 0x8c8173];
+    const img = this.add
+      .image(x, y, 'title_dust_puff')
+      .setTint(Phaser.Utils.Array.GetRandom(palette))
+      .setScale(startScale)
+      .setAlpha(startAlpha)
+      .setDepth(5);
+    this.rubbleContainer?.add(img);
+    this.dustPuffs.push({
+      gfx: img,
+      vx,
+      vy,
+      drag: 0.94,
+      age: 0,
+      life,
+      startScale,
+      endScale,
+      startAlpha,
+    });
+  }
+
+  private buildCarvedStoneWordTexture(
+    word: string,
+    cell: number,
+    rowCenterY: number,
+  ): { key: string; offsetX: number; shatterPoints: Array<{ bx: number; by: number }> } {
+    const key = `title_carved_${word}_${cell}`;
+    const charW = 5 * cell;
+    const charGap = Math.round(cell * 1.15);
+    const totalW = word.length * charW + (word.length - 1) * charGap;
+    const totalH = 5 * cell;
+    const depthOffset = Math.max(4, Math.round(cell * 0.55));
+    const pad = 6;
+    const canvasW = totalW + pad * 2 + depthOffset;
+    const canvasH = totalH + pad * 2 + depthOffset;
+
+    const shatterPoints: Array<{ bx: number; by: number }> = [];
+    let cursorX = -totalW / 2 + cell / 2;
+    for (const ch of word) {
+      const glyph = GLYPHS[ch];
+      if (glyph) {
+        for (let r = 0; r < 5; r++) {
+          for (let c = 0; c < 5; c++) {
+            if (glyph[r][c] !== '1') continue;
+            shatterPoints.push({
+              bx: cursorX + c * cell,
+              by: rowCenterY + (r - 2) * cell,
+            });
+          }
+        }
+      }
+      cursorX += charW + charGap;
+    }
+
+    if (!this.textures.exists(key)) {
+      const tex = this.textures.createCanvas(key, canvasW, canvasH);
+      if (tex) {
+        const ctx = tex.getContext();
+
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = canvasW;
+        maskCanvas.height = canvasH;
+        const mCtx = maskCanvas.getContext('2d')!;
+
+        const hash = (a: number, b: number, c: number, d: number) => {
+          const n = Math.sin(a * 127.1 + b * 311.7 + c * 74.7 + d * 19.3) * 43758.5453;
+          return n - Math.floor(n);
+        };
+
+        // 1. Draw continuous letter silhouettes with zero internal gaps
+        let gx = pad;
+        for (let wi = 0; wi < word.length; wi++) {
+          const glyph = GLYPHS[word[wi]];
+          if (glyph) {
+            for (let r = 0; r < 5; r++) {
+              for (let c = 0; c < 5; c++) {
+                if (glyph[r][c] !== '1') continue;
+                mCtx.fillStyle = '#ffffff';
+                mCtx.fillRect(gx + c * cell, pad + r * cell, cell, cell);
+              }
+            }
+            // Carve rough chiseled notches on outer boundary edges only
+            mCtx.globalCompositeOperation = 'destination-out';
+            for (let r = 0; r < 5; r++) {
+              for (let c = 0; c < 5; c++) {
+                if (glyph[r][c] !== '1') continue;
+                const x0 = gx + c * cell;
+                const y0 = pad + r * cell;
+                const topEmpty = r === 0 || glyph[r - 1][c] === '0';
+                const botEmpty = r === 4 || glyph[r + 1][c] === '0';
+                const leftEmpty = c === 0 || glyph[r][c - 1] === '0';
+                const rightEmpty = c === 4 || glyph[r][c + 1] === '0';
+
+                if (topEmpty && hash(wi, r, c, 1) < 0.55) {
+                  const nx = x0 + Math.floor(hash(wi, r, c, 2) * (cell - 3));
+                  mCtx.fillRect(nx, y0, 2, 1.5);
+                }
+                if (botEmpty && hash(wi, r, c, 3) < 0.55) {
+                  const nx = x0 + Math.floor(hash(wi, r, c, 4) * (cell - 3));
+                  mCtx.fillRect(nx, y0 + cell - 1.5, 2, 1.5);
+                }
+                if (leftEmpty && hash(wi, r, c, 5) < 0.55) {
+                  const ny = y0 + Math.floor(hash(wi, r, c, 6) * (cell - 3));
+                  mCtx.fillRect(x0, ny, 1.5, 2);
+                }
+                if (rightEmpty && hash(wi, r, c, 7) < 0.55) {
+                  const ny = y0 + Math.floor(hash(wi, r, c, 8) * (cell - 3));
+                  mCtx.fillRect(x0 + cell - 1.5, ny, 1.5, 2);
+                }
+              }
+            }
+            mCtx.globalCompositeOperation = 'source-over';
+          }
+          gx += charW + charGap;
+        }
+
+        // Helper to tint the maskCanvas into a temporary canvas
+        const makeTintedMask = (color: string) => {
+          const tc = document.createElement('canvas');
+          tc.width = canvasW;
+          tc.height = canvasH;
+          const tCtx = tc.getContext('2d')!;
+          tCtx.drawImage(maskCanvas, 0, 0);
+          tCtx.globalCompositeOperation = 'source-in';
+          tCtx.fillStyle = color;
+          tCtx.fillRect(0, 0, canvasW, canvasH);
+          return tc;
+        };
+
+        // 2. Layered 3D chiseled stone extrusion
+        const extColors = ['#342a22', '#524334', '#6f5c47'];
+        for (let d = depthOffset; d >= 1; d--) {
+          const ratio = 1 - d / Math.max(1, depthOffset);
+          const colIdx = Math.min(extColors.length - 1, Math.floor(ratio * extColors.length));
+          const layer = makeTintedMask(extColors[colIdx]);
+          ctx.drawImage(layer, d, d);
+        }
+
+        // 3. Smooth continuous stone-to-gold interior face
+        const faceCanvas = document.createElement('canvas');
+        faceCanvas.width = canvasW;
+        faceCanvas.height = canvasH;
+        const fCtx = faceCanvas.getContext('2d')!;
+        fCtx.drawImage(maskCanvas, 0, 0);
+        fCtx.globalCompositeOperation = 'source-atop';
+
+        const grad = fCtx.createLinearGradient(0, pad, 0, pad + totalH);
+        grad.addColorStop(0, '#f4d57a');
+        grad.addColorStop(0.38, '#c9a86a');
+        grad.addColorStop(0.75, '#8b7a62');
+        grad.addColorStop(1, '#685c4d');
+        fCtx.fillStyle = grad;
+        fCtx.fillRect(0, 0, canvasW, canvasH);
+
+        // Soft organic mineral grain blotches (no grid lines)
+        for (let i = 0; i < 42; i++) {
+          const bx = hash(i, 1, 2, 3) * canvasW;
+          const by = hash(i, 4, 5, 6) * canvasH;
+          const br = 4 + hash(i, 7, 8, 9) * 10;
+          fCtx.fillStyle = i % 2 === 0 ? 'rgba(255, 240, 196, 0.08)' : 'rgba(59, 50, 40, 0.1)';
+          fCtx.beginPath();
+          fCtx.arc(bx, by, br, 0, Math.PI * 2);
+          fCtx.fill();
+        }
+
+        // Thin diagonal golden ore veins across each letter
+        let vx = pad;
+        for (let wi = 0; wi < word.length; wi++) {
+          for (let v = 0; v < 2; v++) {
+            const sx = vx + hash(wi, v, 10, 11) * (charW * 0.55);
+            const sy = pad + hash(wi, v, 12, 13) * (totalH * 0.45);
+            const ex = sx + charW * (0.35 + hash(wi, v, 14, 15) * 0.4);
+            const ey = sy + totalH * (0.3 + hash(wi, v, 16, 17) * 0.45);
+            fCtx.strokeStyle = 'rgba(92, 67, 20, 0.45)';
+            fCtx.lineWidth = 2.2;
+            fCtx.beginPath();
+            fCtx.moveTo(sx, sy);
+            fCtx.lineTo((sx + ex) * 0.5 + 3, (sy + ey) * 0.5 - 2);
+            fCtx.lineTo(ex, ey);
+            fCtx.stroke();
+
+            fCtx.strokeStyle = 'rgba(255, 224, 118, 0.85)';
+            fCtx.lineWidth = 1.2;
+            fCtx.beginPath();
+            fCtx.moveTo(sx, sy);
+            fCtx.lineTo((sx + ex) * 0.5 + 3, (sy + ey) * 0.5 - 2);
+            fCtx.lineTo(ex, ey);
+            fCtx.stroke();
+          }
+          vx += charW + charGap;
+        }
+
+        // Crisp top-left chiseled bevel highlight & bottom-right inner rim
+        const hiRim = makeTintedMask('#fff2bd');
+        const hiCtx = hiRim.getContext('2d')!;
+        hiCtx.globalCompositeOperation = 'destination-out';
+        hiCtx.drawImage(maskCanvas, 1.6, 1.6);
+        fCtx.drawImage(hiRim, 0, 0);
+
+        const loRim = makeTintedMask('#2b221b');
+        const loCtx = loRim.getContext('2d')!;
+        loCtx.globalCompositeOperation = 'destination-out';
+        loCtx.drawImage(maskCanvas, -1.6, -1.6);
+        fCtx.drawImage(loRim, 0, 0);
+
+        ctx.drawImage(faceCanvas, 0, 0);
+        tex.refresh();
+      }
+    }
+
+    return {
+      key,
+      offsetX: depthOffset * 0.5,
+      shatterPoints,
+    };
+  }
+
   private playIntroSplash(): void {
+    this.ensureRockTextures();
     const { width, height } = this.scale;
     const compact = width < 920 || height < 480;
     const cell = compact ? 7 : 10;
-    const step = cell + (compact ? 1 : 2);
-    const depthOffset = Math.max(3, Math.round(cell * 0.45));
 
     const titleContainer = this.add.container(width / 2, -120).setDepth(15);
-    const blocks: Array<{
-      bx: number;
-      by: number;
-      front: Phaser.GameObjects.Rectangle;
-      top: Phaser.GameObjects.Rectangle;
-      side: Phaser.GameObjects.Rectangle;
-      crack: Phaser.GameObjects.Graphics;
-    }> = [];
+    const rowGap = compact ? 5.8 * cell : 6.4 * cell;
+    const forageSpec = this.buildCarvedStoneWordTexture('FORAGE', cell, -rowGap * 0.5);
+    const aheadSpec = this.buildCarvedStoneWordTexture('AHEAD', cell, rowGap * 0.5);
 
-    const buildWord = (word: string, rowCenterY: number) => {
-      const charW = 5 * step;
-      const charGap = step * 1.1;
-      const totalW = word.length * charW + (word.length - 1) * charGap;
-      let cursorX = -totalW / 2 + cell / 2;
+    const forageImg = this.add
+      .image(forageSpec.offsetX, -rowGap * 0.5, forageSpec.key)
+      .setOrigin(0.5);
+    const aheadImg = this.add
+      .image(aheadSpec.offsetX, rowGap * 0.5, aheadSpec.key)
+      .setOrigin(0.5);
+    const crackGfx = this.add.graphics();
+    titleContainer.add([forageImg, aheadImg, crackGfx]);
 
-      for (const ch of word) {
-        const glyph = GLYPHS[ch];
-        if (glyph) {
-          for (let r = 0; r < 5; r++) {
-            for (let c = 0; c < 5; c++) {
-              if (glyph[r][c] !== '1') continue;
-              const bx = cursorX + c * step;
-              const by = rowCenterY + (r - 2) * step;
+    const gleamPipes: GoldGleamPipeline[] = [];
+    const p1 = applyGoldGleamShader(forageImg, { intensity: 1.15, speed: 0.65 });
+    const p2 = applyGoldGleamShader(aheadImg, { intensity: 1.15, speed: 0.65 });
+    if (p1) gleamPipes.push(p1);
+    if (p2) gleamPipes.push(p2);
 
-              const side = this.add
-                .rectangle(bx + depthOffset, by + depthOffset, cell, cell, 0x6b4b12)
-                .setOrigin(0.5);
-              const top = this.add
-                .rectangle(bx + depthOffset * 0.5, by + depthOffset * 0.5, cell, cell, 0xa87a1c)
-                .setOrigin(0.5);
-              const front = this.add
-                .rectangle(bx, by, cell, cell, 0xffd54f)
-                .setOrigin(0.5);
-              const crack = this.add.graphics({ x: bx, y: by });
-
-              titleContainer.add([side, top, front, crack]);
-              blocks.push({ bx, by, front, top, side, crack });
-            }
-          }
-        }
-        cursorX += charW + charGap;
-      }
-    };
-
-    const rowGap = compact ? 5.8 * step : 6.4 * step;
-    buildWord('FORAGE', -rowGap * 0.5);
-    buildWord('AHEAD', rowGap * 0.5);
+    const blocks = [...forageSpec.shatterPoints, ...aheadSpec.shatterPoints];
 
     const skipHint = this.add
       .text(width / 2, height - 18, 'Tap or press any key to skip', {
@@ -296,7 +774,8 @@ export class TitleScene extends Phaser.Scene {
       this.splashSkipped = true;
       titleContainer.destroy();
       skipHint.destroy();
-      this.showFileSelectMenu();
+      this.showLevelSelectBgImmediate();
+      this.showFileSelectMenu('instant');
     };
 
     const onSkip = () => {
@@ -318,6 +797,23 @@ export class TitleScene extends Phaser.Scene {
         if (this.splashSkipped) return;
         this.cameras.main.shake(140, 0.008);
         SFX.playMine();
+        for (const p of gleamPipes) {
+          p.intensity = 1.45;
+          this.tweens.add({ targets: p, intensity: 1.05, duration: 360, ease: 'Quad.Out' });
+        }
+        for (let i = 0; i < 9; i++) {
+          const sideDir = i % 2 === 0 ? -1 : 1;
+          this.spawnDustPuff(
+            width / 2 + sideDir * Phaser.Math.Between(18, 125),
+            height * 0.44 + Phaser.Math.Between(-12, 18),
+            sideDir * Phaser.Math.FloatBetween(35, 95),
+            Phaser.Math.FloatBetween(-28, 12),
+            Phaser.Math.FloatBetween(0.45, 0.75),
+            Phaser.Math.FloatBetween(1.1, 1.55),
+            Phaser.Math.FloatBetween(0.28, 0.44),
+            Phaser.Math.FloatBetween(0.75, 1.15),
+          );
+        }
         const ring = this.add
           .circle(width / 2, height * 0.44, 24, 0xffe066, 0.08)
           .setStrokeStyle(2, 0xffe066, 0.85)
@@ -333,36 +829,83 @@ export class TitleScene extends Phaser.Scene {
       },
     });
 
-    // Stage 2: Age & Crack (stone weathering + glowing fractures)
+    // Stage 2: Propagating Cracks & Pre-Shatter Crumbling (900ms -> 1880ms)
     this.time.delayedCall(920, () => {
       if (this.splashSkipped) return;
       SFX.playStoneCrack();
-      for (const b of blocks) {
-        b.front.setFillStyle(0x9a9184);
-        b.top.setFillStyle(0x6c655c);
-        b.side.setFillStyle(0x413c37);
-        if (Math.random() < 0.72) {
-          b.crack.lineStyle(1.3, Math.random() < 0.35 ? 0xffb347 : 0x26211e, 0.95);
-          b.crack.beginPath();
-          b.crack.moveTo(-cell * 0.45, Phaser.Math.FloatBetween(-cell * 0.4, cell * 0.4));
-          b.crack.lineTo(0, Phaser.Math.FloatBetween(-cell * 0.25, cell * 0.25));
-          b.crack.lineTo(cell * 0.45, Phaser.Math.FloatBetween(-cell * 0.4, cell * 0.4));
-          b.crack.strokePath();
-        }
-      }
       this.cameras.main.shake(220, 0.005);
+      forageImg.setTint(0xd6cfc4);
+      aheadImg.setTint(0xd6cfc4);
+      for (const p of gleamPipes) p.intensity = 0.72;
+
+      let maxDist = 1;
+      for (const b of blocks) {
+        const d = Math.hypot(b.bx, b.by);
+        if (d > maxDist) maxDist = d;
+      }
+
+      for (const b of blocks) {
+        const waveDelay = Math.round((Math.hypot(b.bx, b.by) / maxDist) * 160);
+        this.time.delayedCall(waveDelay, () => {
+          if (this.splashSkipped || !crackGfx.active) return;
+          if (Math.random() < 0.75) {
+            crackGfx.lineStyle(1.3, Math.random() < 0.35 ? 0xffb347 : 0x26211e, 0.95);
+            crackGfx.beginPath();
+            crackGfx.moveTo(b.bx - cell * 0.45, b.by + Phaser.Math.FloatBetween(-cell * 0.4, cell * 0.4));
+            crackGfx.lineTo(b.bx, b.by + Phaser.Math.FloatBetween(-cell * 0.25, cell * 0.25));
+            crackGfx.lineTo(b.bx + cell * 0.45, b.by + Phaser.Math.FloatBetween(-cell * 0.4, cell * 0.4));
+            crackGfx.strokePath();
+          }
+        });
+      }
+
+      const spawnCrumblePebble = () => {
+        if (this.splashSkipped || blocks.length === 0 || !titleContainer.active) return;
+        const b = Phaser.Utils.Array.GetRandom(blocks);
+        const wx = titleContainer.x + b.bx + Phaser.Math.Between(-3, 3);
+        const wy = titleContainer.y + b.by + cell * 0.4;
+        this.spawnRockShard(
+          wx,
+          wy,
+          Phaser.Math.FloatBetween(-28, 28),
+          Phaser.Math.FloatBetween(10, 45),
+          Phaser.Math.FloatBetween(0.14, 0.24),
+          620,
+          0.992,
+          0.25,
+          false,
+        );
+        this.spawnDustPuff(
+          wx,
+          wy,
+          Phaser.Math.FloatBetween(-12, 12),
+          Phaser.Math.FloatBetween(-14, 4),
+          0.22,
+          0.5,
+          0.26,
+          0.55,
+        );
+      };
+
+      for (let t = 230; t <= 920; t += 110) {
+        this.time.delayedCall(t, spawnCrumblePebble);
+      }
     });
 
     this.time.delayedCall(1450, () => {
       if (this.splashSkipped) return;
       SFX.playStoneCrack();
+      forageImg.setTint(0xafa89e);
+      aheadImg.setTint(0xafa89e);
+      for (const p of gleamPipes) p.intensity = 0.45;
       for (const b of blocks) {
-        b.front.setFillStyle(0x6e6963);
-        b.crack.lineStyle(1.2, 0x7ce8ff, 0.85);
-        b.crack.beginPath();
-        b.crack.moveTo(Phaser.Math.FloatBetween(-cell * 0.35, cell * 0.35), -cell * 0.45);
-        b.crack.lineTo(Phaser.Math.FloatBetween(-cell * 0.2, cell * 0.2), cell * 0.45);
-        b.crack.strokePath();
+        if (Math.random() < 0.72) {
+          crackGfx.lineStyle(1.2, 0x7ce8ff, 0.85);
+          crackGfx.beginPath();
+          crackGfx.moveTo(b.bx + Phaser.Math.FloatBetween(-cell * 0.35, cell * 0.35), b.by - cell * 0.45);
+          crackGfx.lineTo(b.bx + Phaser.Math.FloatBetween(-cell * 0.2, cell * 0.2), b.by + cell * 0.45);
+          crackGfx.strokePath();
+        }
       }
       this.tweens.add({
         targets: titleContainer,
@@ -373,7 +916,7 @@ export class TitleScene extends Phaser.Scene {
       });
     });
 
-    // Stage 3: Shatter into a million pieces on the ground
+    // Stage 3: Organic Multi-Tier Radial Rock Shatter (1900ms, staggered over ~140ms)
     this.time.delayedCall(1900, () => {
       if (this.splashSkipped) return;
       SFX.playShatter();
@@ -381,38 +924,118 @@ export class TitleScene extends Phaser.Scene {
 
       const baseX = titleContainer.x;
       const baseY = titleContainer.y;
-      const palette = [0x8c857c, 0x6b655e, 0xb89748, 0x4d4843, 0xa89f94];
 
+      let maxDist = 1;
       for (const b of blocks) {
-        const wx = baseX + b.bx;
-        const wy = baseY + b.by;
-        const shardCount = 2;
-        for (let i = 0; i < shardCount; i++) {
-          const sz = Phaser.Math.Between(Math.max(2, Math.floor(cell * 0.32)), Math.max(4, Math.floor(cell * 0.65)));
-          const rect = this.add
-            .rectangle(
-              wx + Phaser.Math.Between(-3, 3),
-              wy + Phaser.Math.Between(-3, 3),
-              sz,
-              sz,
-              Phaser.Utils.Array.GetRandom(palette),
-            )
-            .setDepth(6);
-          this.rubbleContainer?.add(rect);
-
-          const dx = wx - width / 2;
-          this.shards.push({
-            gfx: rect,
-            vx: dx * Phaser.Math.FloatBetween(0.6, 1.35) + Phaser.Math.Between(-95, 95),
-            vy: Phaser.Math.Between(-210, 40),
-            vr: Phaser.Math.Between(-360, 360),
-            bounces: 0,
-            settled: false,
-          });
-        }
+        const d = Math.hypot(b.bx, b.by);
+        if (d > maxDist) maxDist = d;
       }
 
-      titleContainer.destroy();
+      // Layered Stone Dust Clouds bursting outward from the rupture
+      for (let i = 0; i < 24; i++) {
+        const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+        const spd = Phaser.Math.FloatBetween(35, 165);
+        this.spawnDustPuff(
+          baseX + Phaser.Math.Between(-95, 95),
+          baseY + Phaser.Math.Between(-35, 35),
+          Math.cos(angle) * spd,
+          Math.sin(angle) * spd * 0.6 - 18,
+          Phaser.Math.FloatBetween(0.5, 0.95),
+          Phaser.Math.FloatBetween(1.15, 1.95),
+          Phaser.Math.FloatBetween(0.3, 0.52),
+          Phaser.Math.FloatBetween(0.9, 1.5),
+        );
+      }
+
+      const bucketDelays = [0, 35, 70, 105, 140];
+      const buckets: Array<typeof blocks> = bucketDelays.map(() => []);
+      for (const b of blocks) {
+        const ratio = Math.hypot(b.bx, b.by) / maxDist;
+        const idx = Math.min(buckets.length - 1, Math.floor(ratio * buckets.length));
+        buckets[idx].push(b);
+      }
+
+      buckets.forEach((group, bIdx) => {
+        const delay = bucketDelays[bIdx];
+        const emitGroup = () => {
+          if (this.splashSkipped) return;
+          if (bIdx === 1 && titleContainer.active) {
+            forageImg.setVisible(false);
+            aheadImg.setVisible(false);
+            crackGfx.setVisible(false);
+          }
+          for (const b of group) {
+            const wx = baseX + b.bx;
+            const wy = baseY + b.by;
+            const dx = wx - width / 2;
+            const dy = wy - baseY;
+            const roll = Math.random();
+
+            if (roll < 0.14) {
+              // Large Boulder (~14%)
+              this.spawnRockShard(
+                wx + Phaser.Math.Between(-2, 2),
+                wy + Phaser.Math.Between(-2, 2),
+                dx * Phaser.Math.FloatBetween(0.45, 0.9) + Phaser.Math.Between(-55, 55),
+                Phaser.Math.FloatBetween(-165, 20) + dy * 0.4,
+                Phaser.Math.FloatBetween(0.65, 1.0),
+                740,
+                0.994,
+                Phaser.Math.FloatBetween(0.22, 0.32),
+                true,
+              );
+            } else if (roll < 0.6) {
+              // Medium Rock Shard (~46%)
+              this.spawnRockShard(
+                wx + Phaser.Math.Between(-3, 3),
+                wy + Phaser.Math.Between(-3, 3),
+                dx * Phaser.Math.FloatBetween(0.65, 1.3) + Phaser.Math.Between(-85, 85),
+                Phaser.Math.FloatBetween(-215, 35) + dy * 0.6,
+                Phaser.Math.FloatBetween(0.34, 0.58),
+                640,
+                0.992,
+                Phaser.Math.FloatBetween(0.22, 0.42),
+                false,
+              );
+            } else {
+              // Fine Gravel & Pebble Spray (~40%)
+              const goldGlint = Math.random() < 0.2 ? 0xffd970 : undefined;
+              this.spawnRockShard(
+                wx + Phaser.Math.Between(-4, 4),
+                wy + Phaser.Math.Between(-4, 4),
+                dx * Phaser.Math.FloatBetween(0.85, 1.65) + Phaser.Math.Between(-130, 130),
+                Phaser.Math.FloatBetween(-245, 25) + dy * 0.7,
+                Phaser.Math.FloatBetween(0.14, 0.28),
+                600,
+                0.988,
+                Phaser.Math.FloatBetween(0.26, 0.45),
+                false,
+                goldGlint,
+              );
+              if (Math.random() < 0.32) {
+                this.spawnRockShard(
+                  wx + Phaser.Math.Between(-4, 4),
+                  wy + Phaser.Math.Between(-4, 4),
+                  dx * Phaser.Math.FloatBetween(0.9, 1.75) + Phaser.Math.Between(-145, 145),
+                  Phaser.Math.FloatBetween(-230, 30),
+                  Phaser.Math.FloatBetween(0.14, 0.24),
+                  590,
+                  0.986,
+                  Phaser.Math.FloatBetween(0.24, 0.4),
+                  false,
+                  Math.random() < 0.25 ? 0xe8be55 : undefined,
+                );
+              }
+            }
+          }
+          if (bIdx === buckets.length - 1 && titleContainer.active) {
+            titleContainer.destroy();
+          }
+        };
+
+        if (delay === 0) emitGroup();
+        else this.time.delayedCall(delay, emitGroup);
+      });
 
       // Stage 4: Arcane shockwave transition into the Game Selection Menu
       const wave = this.add
@@ -429,20 +1052,462 @@ export class TitleScene extends Phaser.Scene {
       });
     });
 
-    this.time.delayedCall(2850, () => {
+    this.time.delayedCall(2750, () => {
       if (this.splashSkipped) return;
-      this.input.off('pointerdown', onSkip);
-      this.input.keyboard?.off('keydown', onSkip);
-      this.splashSkipped = true;
-      skipHint.destroy();
-      this.showFileSelectMenu();
+
+      // 1. Fade out the Forage Ahead text effect (rubble, horizon, stars, skip hint)
+      this.tweens.killTweensOf(this.introStars);
+      const fadeTargets: object[] = [skipHint, ...this.introStars];
+      if (this.rubbleContainer) fadeTargets.push(this.rubbleContainer);
+      if (this.horizonRect) fadeTargets.push(this.horizonRect);
+      if (this.horizonLine) fadeTargets.push(this.horizonLine);
+      this.tweens.add({
+        targets: fadeTargets,
+        alpha: 0,
+        duration: 550,
+        ease: 'Quad.Out',
+        onComplete: () => {
+          if (skipHint.active) skipHint.destroy();
+        },
+      });
+
+      // 2. Fade in bgLayer (level_selection_background + ambient life) with gentle settle scale
+      this.ensureLevelSelectBg();
+      this.startAmbientLife(false);
+      const startBlurAndMenu = () => {
+        if (this.splashSkipped) return;
+
+        // 3. Slowly blur the unified bgLayer + fade in readability scrim
+        if (this.bgLayer && !this.levelBgBlurFx) {
+          this.levelBgBlurFx = this.bgLayer.postFX?.addBlur(0, 1.0, 1.0, 0);
+        }
+        if (this.levelBgBlurFx) {
+          this.levelBgBlurFx.strength = 0;
+          this.tweens.add({
+            targets: this.levelBgBlurFx,
+            strength: 0.55,
+            duration: 950,
+            ease: 'Sine.InOut',
+          });
+        }
+        if (this.levelBgScrim) {
+          this.tweens.add({
+            targets: this.levelBgScrim,
+            alpha: 0.24,
+            duration: 950,
+            ease: 'Sine.InOut',
+          });
+        }
+
+        // 4. ~300ms after blur starts, drop down the Level Selection UI & jiggle
+        this.time.delayedCall(300, () => {
+          if (this.splashSkipped) return;
+          this.input.off('pointerdown', onSkip);
+          this.input.keyboard?.off('keydown', onSkip);
+          this.splashSkipped = true;
+          this.showFileSelectMenu('drop');
+        });
+      };
+
+      if (this.bgLayer) {
+        this.bgLayer.setAlpha(0);
+        this.tweens.add({
+          targets: this.bgLayer,
+          alpha: 1,
+          duration: 750,
+          ease: 'Sine.InOut',
+        });
+      }
+
+      if (this.levelBgImg) {
+        this.levelBgImg.setScale(this.levelBgBaseScale * 1.05).setAlpha(1);
+        this.tweens.add({
+          targets: this.levelBgImg,
+          scale: this.levelBgBaseScale,
+          duration: 750,
+          ease: 'Sine.InOut',
+          onComplete: startBlurAndMenu,
+        });
+      } else {
+        this.time.delayedCall(750, startBlurAndMenu);
+      }
     });
   }
 
-  private showFileSelectMenu(): void {
+  private ensureLevelSelectBg(): void {
+    const { width, height } = this.scale;
+    if (!this.bgLayer) {
+      this.bgLayer = this.add.layer().setDepth(8).setAlpha(0);
+    }
+    if (!this.levelBgImg && this.textures.exists('title_level_bg')) {
+      this.levelBgImg = this.add
+        .image(width / 2, height / 2, 'title_level_bg')
+        .setOrigin(0.5, 0.5)
+        .setDepth(0)
+        .setAlpha(1);
+      this.bgLayer.add(this.levelBgImg);
+    }
+    if (!this.levelBgScrim) {
+      this.levelBgScrim = this.add
+        .rectangle(width / 2, height / 2, width, height, 0x0a1320, 1)
+        .setDepth(9)
+        .setAlpha(0);
+    }
+    this.layoutLevelSelectBg(width, height);
+  }
+
+  private bgUvToScreen(u: number, v: number): { x: number; y: number; scale: number } {
+    if (this.levelBgImg) {
+      return {
+        x: this.levelBgImg.x + (u - 0.5) * this.levelBgImg.displayWidth,
+        y: this.levelBgImg.y + (v - 0.5) * this.levelBgImg.displayHeight,
+        scale: this.levelBgImg.scaleX,
+      };
+    }
+    const { width, height } = this.scale;
+    return { x: u * width, y: v * height, scale: 1 };
+  }
+
+  private layoutLevelSelectBg(w: number, h: number): void {
+    if (this.levelBgImg) {
+      const frame = this.levelBgImg.frame;
+      const texW = Math.max(1, frame.realWidth || this.levelBgImg.width);
+      const texH = Math.max(1, frame.realHeight || this.levelBgImg.height);
+      this.levelBgBaseScale = Math.max(w / texW, h / texH);
+      this.levelBgImg.setPosition(w / 2, h / 2).setScale(this.levelBgBaseScale);
+    }
+    if (this.levelBgScrim) {
+      this.levelBgScrim.setPosition(w / 2, h / 2).setSize(w, h);
+    }
+    if (this.ambientLifeStarted) {
+      this.updateSkyBirds(0);
+      this.updateClearingSlime(0);
+    }
+  }
+
+  private hideIntroElementsImmediate(): void {
+    this.tweens.killTweensOf(this.introStars);
+    for (const star of this.introStars) {
+      star.setAlpha(0);
+    }
+    for (const s of this.shards) {
+      s.gfx.destroy();
+    }
+    this.shards = [];
+    for (const p of this.dustPuffs) {
+      p.gfx.destroy();
+    }
+    this.dustPuffs = [];
+    this.rubbleContainer?.setAlpha(0);
+    this.horizonRect?.setAlpha(0);
+    this.horizonLine?.setAlpha(0);
+  }
+
+  private showLevelSelectBgImmediate(): void {
+    this.hideIntroElementsImmediate();
+    this.ensureLevelSelectBg();
+    this.levelBgImg?.setAlpha(1).setScale(this.levelBgBaseScale);
+    if (this.bgLayer) {
+      this.bgLayer.setAlpha(1);
+      if (!this.levelBgBlurFx) {
+        this.levelBgBlurFx = this.bgLayer.postFX?.addBlur(0, 1.0, 1.0, 0.55);
+      } else {
+        this.levelBgBlurFx.strength = 0.55;
+      }
+    }
+    this.levelBgScrim?.setAlpha(0.24);
+    this.startAmbientLife(true);
+  }
+
+  private startAmbientLife(immediate: boolean): void {
+    if (!this.bgLayer) return;
+    if (!this.ambientLifeStarted) {
+      this.ambientLifeStarted = true;
+      this.spawnClearingSlime();
+      this.time.delayedCall(immediate ? 150 : 400, () => {
+        if (this.bgLayer?.active) {
+          this.spawnBirdFlock();
+        }
+      });
+    }
+    this.scheduleNextBirdFlock();
+  }
+
+  private scheduleNextBirdFlock(): void {
+    this.birdSpawnTimer?.remove(false);
+    this.birdSpawnTimer = this.time.delayedCall(Phaser.Math.Between(3500, 7000), () => {
+      if (!this.bgLayer?.active) return;
+      this.spawnBirdFlock();
+      this.scheduleNextBirdFlock();
+    });
+  }
+
+  private ensureBirdTextures(): void {
+    if (this.textures.exists('title_bird_0')) return;
+    // 3 crisp pixel-art V-wing gull silhouettes (upstroke, midstroke, downstroke)
+    const frames: string[][] = [
+      [
+        '11............11',
+        '..11........11..',
+        '....11....11....',
+        '......1111......',
+      ],
+      [
+        '................',
+        '111..........111',
+        '...1111111111...',
+        '......1111......',
+      ],
+      [
+        '......1111......',
+        '....11....11....',
+        '..11........11..',
+        '11............11',
+      ],
+    ];
+    frames.forEach((rows, idx) => {
+      const tex = this.textures.createCanvas(`title_bird_${idx}`, 16, 6);
+      if (!tex) return;
+      const ctx = tex.getContext();
+      ctx.fillStyle = '#ffffff';
+      for (let y = 0; y < rows.length; y++) {
+        for (let x = 0; x < rows[y].length; x++) {
+          if (rows[y][x] === '1') {
+            ctx.fillRect(x, y + 1, 1, 1);
+          }
+        }
+      }
+      tex.refresh();
+    });
+  }
+
+  private spawnBirdFlock(): void {
+    if (!this.bgLayer) return;
+    this.ensureBirdTextures();
+    if (!this.textures.exists('title_bird_0')) return;
+
+    const count = Phaser.Math.Between(2, 4);
+    const dir: 1 | -1 = Math.random() < 0.78 ? 1 : -1;
+    const flockV = Phaser.Math.FloatBetween(0.11, 0.31);
+    const palette = [0x4e3d56, 0x634d66, 0x3f344d];
+
+    for (let i = 0; i < count; i++) {
+      const sprite = this.add
+        .sprite(0, 0, 'title_bird_0')
+        .setDepth(1)
+        .setTint(Phaser.Utils.Array.GetRandom(palette))
+        .setAlpha(0.88);
+      this.bgLayer.add(sprite);
+
+      const uOffset = i * Phaser.Math.FloatBetween(0.018, 0.036);
+      const vBase = Phaser.Math.Clamp(flockV + Phaser.Math.FloatBetween(-0.028, 0.028), 0.1, 0.34);
+      const bird: SkyBird = {
+        sprite,
+        u: dir === 1 ? -0.04 - uOffset : 1.04 + uOffset,
+        vBase,
+        v: vBase,
+        speedU: Phaser.Math.FloatBetween(0.038, 0.062),
+        dir,
+        sizeScale: Phaser.Math.FloatBetween(0.85, 1.35),
+        flapPhase: Phaser.Math.FloatBetween(0, Math.PI * 2),
+        flapSpeed: Phaser.Math.FloatBetween(6.5, 9.5),
+      };
+      this.skyBirds.push(bird);
+    }
+    this.updateSkyBirds(0);
+  }
+
+  private updateSkyBirds(dt: number): void {
+    for (let i = this.skyBirds.length - 1; i >= 0; i--) {
+      const b = this.skyBirds[i];
+      b.u += b.dir * b.speedU * dt;
+      b.flapPhase += b.flapSpeed * dt;
+      b.v = b.vBase + Math.sin(b.flapPhase * 0.45) * 0.007;
+
+      if ((b.dir === 1 && b.u > 1.06) || (b.dir === -1 && b.u < -0.06)) {
+        b.sprite.destroy();
+        this.skyBirds.splice(i, 1);
+        continue;
+      }
+
+      const pos = this.bgUvToScreen(b.u, b.v);
+      const s = b.sizeScale * Math.max(0.65, pos.scale);
+      const wave = Math.sin(b.flapPhase);
+      const frameIdx = wave > 0.35 ? 0 : wave < -0.35 ? 2 : 1;
+      const frameKey = `title_bird_${frameIdx}`;
+      if (b.sprite.texture.key !== frameKey && this.textures.exists(frameKey)) {
+        b.sprite.setTexture(frameKey);
+      }
+      b.sprite.setPosition(pos.x, pos.y).setScale(s);
+    }
+  }
+
+  private randomClearingPoint(): { u: number; v: number } {
+    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+    const r = Math.sqrt(Math.random());
+    return {
+      u: SLIME_CLEARING.centerU + Math.cos(angle) * r * SLIME_CLEARING.radiusU,
+      v: SLIME_CLEARING.centerV + Math.sin(angle) * r * SLIME_CLEARING.radiusV,
+    };
+  }
+
+  private spawnClearingSlime(): void {
+    if (!this.bgLayer || this.clearingSlime) return;
+    if (!this.textures.exists('monsters/Slime/Slime_idle')) return;
+
+    const shadow = this.add.ellipse(0, 0, 22, 9, 0x2a1c0e, 0.34).setDepth(1);
+    const sprite = this.add.sprite(0, 0, 'monsters/Slime/Slime_idle', 0).setOrigin(0.5, 0.72).setDepth(2);
+    if (this.anims.exists('mon_Slime_idle_down')) {
+      sprite.play('mon_Slime_idle_down');
+    }
+    this.bgLayer.add([shadow, sprite]);
+
+    this.clearingSlime = {
+      sprite,
+      shadow,
+      u: 0.195,
+      v: SLIME_CLEARING.centerV,
+      startU: 0.195,
+      startV: SLIME_CLEARING.centerV,
+      targetU: 0.195,
+      targetV: SLIME_CLEARING.centerV,
+      state: 'idle',
+      timer: 0,
+      duration: Phaser.Math.FloatBetween(0.9, 1.8),
+      hopPeak: 18,
+      hopZ: 0,
+      breathPhase: 0,
+      squashX: 1,
+      squashY: 1,
+    };
+    this.updateClearingSlime(0);
+  }
+
+  private updateClearingSlime(dt: number): void {
+    const slime = this.clearingSlime;
+    if (!slime) return;
+
+    slime.timer += dt;
+    slime.breathPhase += dt * 4.2;
+
+    if (slime.state === 'idle') {
+      slime.hopZ = 0;
+      slime.squashX = 1 + Math.sin(slime.breathPhase) * 0.06;
+      slime.squashY = 1 - Math.sin(slime.breathPhase) * 0.05;
+      if (slime.timer >= slime.duration) {
+        slime.timer = 0;
+        if (Math.random() < 0.45) {
+          slime.state = 'crouch';
+          slime.duration = 0.14;
+          const pt = this.randomClearingPoint();
+          slime.startU = slime.u;
+          slime.startV = slime.v;
+          slime.targetU = pt.u;
+          slime.targetV = pt.v;
+          slime.hopPeak = Phaser.Math.FloatBetween(16, 24);
+        } else {
+          slime.state = 'wander';
+          slime.duration = Phaser.Math.FloatBetween(0.9, 1.8);
+          const pt = this.randomClearingPoint();
+          slime.startU = slime.u;
+          slime.startV = slime.v;
+          slime.targetU = pt.u;
+          slime.targetV = pt.v;
+          const dirAnim = slime.targetU < slime.u ? 'mon_Slime_walk_left' : 'mon_Slime_walk_right';
+          if (this.anims.exists(dirAnim)) {
+            slime.sprite.play(dirAnim, true);
+          }
+        }
+      }
+    } else if (slime.state === 'wander') {
+      const p = Math.min(1, slime.timer / Math.max(0.01, slime.duration));
+      slime.u = Phaser.Math.Linear(slime.startU, slime.targetU, p);
+      slime.v = Phaser.Math.Linear(slime.startV, slime.targetV, p);
+      slime.hopZ = 0;
+      slime.squashX = 1 + Math.sin(slime.breathPhase * 1.8) * 0.05;
+      slime.squashY = 1 - Math.sin(slime.breathPhase * 1.8) * 0.05;
+      if (p >= 1) {
+        slime.timer = 0;
+        if (Math.random() < 0.42) {
+          slime.state = 'crouch';
+          slime.duration = 0.14;
+          const pt = this.randomClearingPoint();
+          slime.startU = slime.u;
+          slime.startV = slime.v;
+          slime.targetU = pt.u;
+          slime.targetV = pt.v;
+          slime.hopPeak = Phaser.Math.FloatBetween(16, 24);
+        } else {
+          slime.state = 'idle';
+          slime.duration = Phaser.Math.FloatBetween(0.8, 2.0);
+          if (this.anims.exists('mon_Slime_idle_down')) {
+            slime.sprite.play('mon_Slime_idle_down', true);
+          }
+        }
+      }
+    } else if (slime.state === 'crouch') {
+      const p = Math.min(1, slime.timer / slime.duration);
+      slime.hopZ = 0;
+      slime.squashX = Phaser.Math.Linear(1, 1.22, p);
+      slime.squashY = Phaser.Math.Linear(1, 0.78, p);
+      if (p >= 1) {
+        slime.state = 'hop';
+        slime.timer = 0;
+        slime.duration = 0.48;
+        const dirAnim = slime.targetU < slime.u ? 'mon_Slime_walk_left' : 'mon_Slime_walk_right';
+        if (this.anims.exists(dirAnim)) {
+          slime.sprite.play(dirAnim, true);
+        }
+      }
+    } else if (slime.state === 'hop') {
+      const p = Math.min(1, slime.timer / slime.duration);
+      slime.u = Phaser.Math.Linear(slime.startU, slime.targetU, p);
+      slime.v = Phaser.Math.Linear(slime.startV, slime.targetV, p);
+      slime.hopZ = 4 * slime.hopPeak * p * (1 - p);
+      slime.squashX = 0.86;
+      slime.squashY = 1.16;
+      if (p >= 1) {
+        slime.state = 'land';
+        slime.timer = 0;
+        slime.duration = 0.18;
+        slime.hopZ = 0;
+      }
+    } else if (slime.state === 'land') {
+      const p = Math.min(1, slime.timer / slime.duration);
+      slime.hopZ = 0;
+      slime.squashX = Phaser.Math.Linear(1.24, 1, p);
+      slime.squashY = Phaser.Math.Linear(0.76, 1, p);
+      if (p >= 1) {
+        slime.state = 'idle';
+        slime.timer = 0;
+        slime.duration = Phaser.Math.FloatBetween(0.9, 2.0);
+        slime.squashX = 1;
+        slime.squashY = 1;
+        if (this.anims.exists('mon_Slime_idle_down')) {
+          slime.sprite.play('mon_Slime_idle_down', true);
+        }
+      }
+    }
+
+    const pos = this.bgUvToScreen(slime.u, slime.v);
+    const baseScale = 1.28 * Math.max(0.65, pos.scale);
+    const hopPx = slime.hopZ * Math.max(0.65, pos.scale);
+    const airRatio = slime.hopPeak > 0 ? Math.min(1, slime.hopZ / slime.hopPeak) : 0;
+
+    slime.shadow
+      .setPosition(pos.x, pos.y + 3 * Math.max(0.65, pos.scale))
+      .setScale(baseScale * (1 - 0.35 * airRatio));
+    slime.shadow.setAlpha(0.34 * (1 - 0.35 * airRatio));
+
+    slime.sprite
+      .setPosition(pos.x, pos.y - hopPx)
+      .setScale(baseScale * slime.squashX, baseScale * slime.squashY);
+  }
+
+  private showFileSelectMenu(entrance: 'instant' | 'fade' | 'drop' = 'fade'): void {
     if (!this.menuContainer) return;
+    this.tweens.killTweensOf(this.menuContainer);
     this.menuContainer.removeAll(true);
-    this.menuContainer.setAlpha(0).setY(18);
 
     const { width, height } = this.scale;
     const compact = width < 920 || height < 500;
@@ -458,6 +1523,7 @@ export class TitleScene extends Phaser.Scene {
         strokeThickness: 6,
       })
       .setOrigin(0.5);
+    applyGoldGleamShader(title, { intensity: 0.85, speed: 0.35 });
 
     const subtitle = this.add
       .text(
@@ -669,6 +1735,42 @@ export class TitleScene extends Phaser.Scene {
       }
     }
 
+    if (entrance === 'instant') {
+      this.menuContainer.setAlpha(1).setPosition(0, 0).setAngle(0);
+      return;
+    }
+
+    if (entrance === 'drop') {
+      this.menuContainer.setAlpha(0).setPosition(0, -height * 0.78).setAngle(0);
+      this.tweens.add({
+        targets: this.menuContainer,
+        alpha: 1,
+        duration: 300,
+        ease: 'Quad.Out',
+      });
+      this.tweens.add({
+        targets: this.menuContainer,
+        y: 0,
+        duration: 620,
+        ease: 'Back.Out',
+        easeParams: [1.3],
+        onComplete: () => {
+          if (!this.menuContainer?.active) return;
+          this.tweens.chain({
+            targets: this.menuContainer,
+            tweens: [
+              { y: 7, x: 3, duration: 85, ease: 'Sine.Out' },
+              { y: -5, x: -2.5, duration: 90, ease: 'Sine.InOut' },
+              { y: 2, x: 1, duration: 80, ease: 'Sine.InOut' },
+              { y: 0, x: 0, duration: 75, ease: 'Sine.InOut' },
+            ],
+          });
+        },
+      });
+      return;
+    }
+
+    this.menuContainer.setAlpha(0).setPosition(0, 18).setAngle(0);
     this.tweens.add({
       targets: this.menuContainer,
       alpha: 1,
@@ -680,8 +1782,9 @@ export class TitleScene extends Phaser.Scene {
 
   private showClassSelectMenu(targetSlot: SaveSlotIndex): void {
     if (!this.menuContainer) return;
+    this.tweens.killTweensOf(this.menuContainer);
     this.menuContainer.removeAll(true);
-    this.menuContainer.setAlpha(0).setY(14);
+    this.menuContainer.setAlpha(0).setPosition(0, 14).setAngle(0);
 
     const { width, height } = this.scale;
     const compact = width < 920 || height < 480;

@@ -26,7 +26,7 @@ import {
   type DungeonId,
   type IslandSpec,
 } from '../data/islands';
-import { RECIPES, type CraftingStation } from '../data/recipes';
+import { RECIPES, type CraftingStation, type StructureType } from '../data/recipes';
 import {
   MAX_NODES_PER_ISLAND,
   NODE_RESPAWN_INTERVAL_MS,
@@ -71,6 +71,8 @@ import {
 } from '../world/AutoTiler';
 import { BuildingEntity, getStructurePreviewSpec } from '../world/BuildingEntity';
 import { createOverworldPromoTimeline, getPromoConfig, markPromoReady, type PromoTimeline } from '../promo/PromoDirector';
+import { SKILLS } from '../data/skills';
+import { buildBaseSnapshot, isQaMode, markQaReady, registerQaApi, resetQaReady } from '../qa/QaDirector';
 import { INNER_ISLAND_SIZE, generateIslandMask } from '../world/IslandGenerator';
 import {
   LightingSystem,
@@ -150,6 +152,7 @@ export function computeSalvageRefundCount(usedCount: number): number {
 }
 
 export class OverworldScene extends Phaser.Scene {
+  private lastMusicBiome?: string;
   private terrainGrid: TerrainType[][] = [];
   private overlayGrid: OverlayType[][] = [];
   private bridgeSet = new Set<string>();
@@ -2047,6 +2050,195 @@ export class OverworldScene extends Phaser.Scene {
         },
       });
       markPromoReady();
+    }
+
+    if (isQaMode()) {
+      registerQaApi({
+        getStateSnapshot: () =>
+          buildBaseSnapshot('OverworldScene', {
+            activeModal: this.hud?.activeModal ?? 'none',
+            activeWeather: this.weather?.weather ?? 'clear',
+            timeOfDay: this.lighting?.timeOfDay ?? 0.5,
+            playerPos: { x: Math.round(this.player.x), y: Math.round(this.player.y) },
+          }),
+        teleportIsland: (gx, gy) => {
+          const key = `${gx},${gy}`;
+          if (!gameState.ownedIslands.has(key)) {
+            gameState.ownedIslands.add(key);
+            this.stampIslandTerrain(gx, gy);
+            const ox = gx * ISLAND_CELL_TILES;
+            const oy = gy * ISLAND_CELL_TILES;
+            this.refreshAutoTiles(ox - 1, oy - 1, ox + ISLAND_CELL_TILES, oy + ISLAND_CELL_TILES);
+            this.populateIslandContent(gx, gy);
+            this.refreshPurchaseMarkers();
+          }
+          const half = Math.floor(ISLAND_CELL_TILES / 2);
+          const tile = this.findNearestLandTileOnIsland(gx, gy, half, half);
+          const pt = this.findNearestWalkablePoint(tile.tx * TILE_PX + 8, tile.ty * TILE_PX + 8);
+          this.player.setPosition(pt.x, pt.y);
+          this.cameras.main.centerOn(pt.x, pt.y);
+          return true;
+        },
+        setEnvironment: (timeOfDay, weatherKind) => {
+          this.lighting.timeOfDay = Math.max(0, Math.min(1, timeOfDay));
+          this.lighting.paused = true;
+          (this.lighting as unknown as { forceRedraw: boolean }).forceRedraw = true;
+          if (weatherKind) {
+            this.weather.setDebugWeather(weatherKind);
+          }
+          return true;
+        },
+        spawnEntity: (kind, id, offsetTilesX, offsetTilesY) => {
+          const tx = Math.floor(this.player.x / TILE_PX) + offsetTilesX;
+          const ty = Math.floor(this.player.y / TILE_PX) + offsetTilesY;
+          const wx = tx * TILE_PX + 8;
+          const wy = ty * TILE_PX + 8;
+          if (kind === 'enemy') {
+            const e = new Enemy(this, id, wx, wy);
+            this.enemies.push(e);
+            return true;
+          }
+          if (kind === 'building' || kind === 'crop') {
+            const b = new BuildingEntity(this, `qa_${id}_${tx}_${ty}_${Date.now()}`, id as StructureType, tx, ty);
+            this.registerBuilding(b);
+            return true;
+          }
+          if (kind === 'node') {
+            const n = new ResourceNode(this, tx, ty, id as NodeKind, 'grass');
+            this.nodes.push(n);
+            return true;
+          }
+          return false;
+        },
+        enterDungeon: (dungeonId, floor = 1) => {
+          resetQaReady();
+          this.scene.start('DungeonScene', { dungeonId, floor });
+          return true;
+        },
+        enterHouse: (theme = 'farmer') => {
+          resetQaReady();
+          this.scene.start('HouseScene', { theme });
+          return true;
+        },
+        openModal: (modal) => {
+          this.hud.toggleModal(modal as never);
+          return true;
+        },
+        closeModal: () => {
+          this.hud.closeModal();
+          return true;
+        },
+        triggerAction: (action, payload) => {
+          if (action === 'harvest_nearby') {
+            const node = this.nodes
+              .filter((n) => n.active)
+              .sort((a, b) => Math.hypot(a.x - this.player.x, a.y - this.player.y) - Math.hypot(b.x - this.player.x, b.y - this.player.y))[0];
+            if (!node) return false;
+            this.handlePrimaryAction(node.x, node.y, false);
+            return true;
+          }
+          if (action === 'attack_nearby' || action === 'fire_weapon') {
+            const itemId = payload?.itemId as string | undefined;
+            if (itemId) {
+              const idx = gameState.hotbar.indexOf(itemId);
+              if (idx !== -1) gameState.selectedHotbarIndex = idx;
+              else {
+                gameState.hotbar[0] = itemId;
+                gameState.selectedHotbarIndex = 0;
+              }
+            }
+            const enemy = this.enemies
+              .filter((e) => e.active)
+              .sort((a, b) => Math.hypot(a.x - this.player.x, a.y - this.player.y) - Math.hypot(b.x - this.player.x, b.y - this.player.y))[0];
+            const wx = enemy ? enemy.x : this.player.x + 24;
+            const wy = enemy ? enemy.y : this.player.y;
+            this.handlePrimaryAction(wx, wy, false);
+            return true;
+          }
+          if (action === 'place_bomb') {
+            const wx = this.player.x + ((payload?.offsetX as number | undefined) ?? 20);
+            const wy = this.player.y + ((payload?.offsetY as number | undefined) ?? 0);
+            this.detonateBomb(wx, wy);
+            return true;
+          }
+          if (action === 'till_plant_water') {
+            const tx = Math.floor(this.player.x / TILE_PX) + ((payload?.offsetTilesX as number | undefined) ?? 1);
+            const ty = Math.floor(this.player.y / TILE_PX) + ((payload?.offsetTilesY as number | undefined) ?? 0);
+            if (tx < 0 || ty < 0 || tx >= WORLD_TILES || ty >= WORLD_TILES) return false;
+            this.overlayGrid[ty][tx] = 'dirt';
+            gameState.overlays.push({ tx, ty, type: 'dirt' });
+            const now = this.time.now;
+            this.soilStateMap.set(`${tx},${ty}`, { lastWateredMs: now, lastUsedMs: now });
+            this.refreshAutoTiles(tx - 1, ty - 1, tx + 1, ty + 1);
+            const rawCrop = (payload?.cropId as string | undefined) ?? 'carrot';
+            const structType = (rawCrop.startsWith('crop_') ? rawCrop : `crop_${rawCrop}`) as StructureType;
+            const b = new BuildingEntity(this, `qa_${structType}_${tx}_${ty}_${Date.now()}`, structType, tx, ty);
+            this.registerBuilding(b);
+            this.refreshSoilWatered(tx, ty, now);
+            b.waterCrop();
+            return true;
+          }
+          if (action === 'enqueue_craft') {
+            const rawId = (payload?.recipeId as string | undefined) ?? 'smelt_iron';
+            const recipe =
+              RECIPES.find((r) => r.id === rawId || r.outputItemId === rawId) ??
+              RECIPES.find((r) => r.id === 'smelt_iron');
+            if (!recipe) return false;
+            const station =
+              this.buildings.find((b) => b.active && b.structureType === recipe.station) ??
+              this.buildings.find((b) => b.active && b.isCraftingStation());
+            if (!station) return false;
+            for (const ing of recipe.ingredients) {
+              const have = gameState.getItemCount(ing.itemId);
+              if (have < ing.count) gameState.addItem(ing.itemId, ing.count - have);
+            }
+            const ok = station.enqueueCraft(recipe.id);
+            if (ok) gameState.emit();
+            return ok;
+          }
+          if (action === 'buy_adjacent_island') {
+            for (let gy = 0; gy < 5; gy++) {
+              for (let gx = 0; gx < 5; gx++) {
+                const key = `${gx},${gy}`;
+                if (gameState.ownedIslands.has(key)) continue;
+                const hasAdj =
+                  gameState.ownedIslands.has(`${gx - 1},${gy}`) ||
+                  gameState.ownedIslands.has(`${gx + 1},${gy}`) ||
+                  gameState.ownedIslands.has(`${gx},${gy - 1}`) ||
+                  gameState.ownedIslands.has(`${gx},${gy + 1}`);
+                if (hasAdj) {
+                  this.attemptBuyIsland(gx, gy);
+                  return gameState.ownedIslands.has(key);
+                }
+              }
+            }
+            return false;
+          }
+          if (action === 'unlock_first_skill') {
+            const avail = SKILLS.find((s) => !gameState.unlockedSkills.has(s.id) && gameState.canUnlockSkill(s.id));
+            if (!avail) return false;
+            return gameState.unlockSkill(avail.id);
+          }
+          if (action === 'start_fishing') {
+            this.hud.setFishingMode(true);
+            this.fishingMinigame.start(
+              (caught) => {
+                this.hud.setFishingMode(false);
+                if (caught) {
+                  this.spawnLoot(this.player.x + 8, this.player.y + 8, 'fish', 1);
+                  this.hud.showToast('Caught Fresh Fish x1!');
+                } else {
+                  this.hud.showToast('The fish got away!');
+                }
+              },
+              { fishName: 'Fresh Fish', behavior: 'steady' },
+            );
+            return true;
+          }
+          return false;
+        },
+      });
+      markQaReady();
     }
   }
 
@@ -4966,6 +5158,10 @@ export class OverworldScene extends Phaser.Scene {
     const island = getIslandAt(gx, gy);
     if (island) {
       this.weather.setBiome(island.biome);
+      if (island.biome !== this.lastMusicBiome) {
+        this.lastMusicBiome = island.biome;
+        SFX.setMusicContext({ biome: island.biome });
+      }
       if (this.hud) {
         if (island.biome === 'infernal') this.hud.setEnvironmentVignette('infernal');
         else if (island.biome === 'winter' && this.weather.weather === 'snow') this.hud.setEnvironmentVignette('frost');

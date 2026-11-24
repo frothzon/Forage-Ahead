@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "generatedAt": "2026-11-24T00:35:14.673Z",
+  "tracks": {
+    "mus_title_theme": {
+      "id": "mus_title_theme",
+      "url": "assets/music/mus_title_theme.ogg",
+      "durationSec": 174.54,
+      "loopStartSec": 0,
+      "loopEndSec": 174.57,
+      "bpm": 96,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_pause": {
+      "id": "mus_pause",
+      "url": "assets/music/mus_pause.ogg",
+      "durationSec": 175.62,
+      "loopStartSec": 0,
+      "loopEndSec": 175.66,
+      "bpm": 78,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_overworld_grass": {
+      "id": "mus_overworld_grass",
+      "url": "assets/music/mus_overworld_grass.ogg",
+      "durationSec": 174.64,
+      "loopStartSec": 0,
+      "loopEndSec": 174.67,
+      "bpm": 108,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_overworld_autumn": {
+      "id": "mus_overworld_autumn",
+      "url": "assets/music/mus_overworld_autumn.ogg",
+      "durationSec": 175.24,
+      "loopStartSec": 0,
+      "loopEndSec": 175.32,
+      "bpm": 112,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_overworld_graveyard": {
+      "id": "mus_overworld_graveyard",
+      "url": "assets/music/mus_overworld_graveyard.ogg",
+      "durationSec": 172.62,
+      "loopStartSec": 0,
+      "loopEndSec": 172.66,
+      "bpm": 88,
+      "beatsPerBar": 6,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_overworld_winter": {
+      "id": "mus_overworld_winter",
+      "url": "assets/music/mus_overworld_winter.ogg",
+      "durationSec": 174.54,
+      "loopStartSec": 0,
+      "loopEndSec": 174.62,
+      "bpm": 86,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_overworld_infernal": {
+      "id": "mus_overworld_infernal",
+      "url": "assets/music/mus_overworld_infernal.ogg",
+      "durationSec": 177.22,
+      "loopStartSec": 0,
+      "loopEndSec": 177.26,
+      "bpm": 118,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_near_enemy": {
+      "id": "mus_near_enemy",
+      "url": "assets/music/mus_near_enemy.ogg",
+      "durationSec": 178.14,
+      "loopStartSec": 0,
+      "loopEndSec": 178.22,
+      "bpm": 138,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_dungeon_skull_crypt": {
+      "id": "mus_dungeon_skull_crypt",
+      "url": "assets/music/mus_dungeon_skull_crypt.ogg",
+      "durationSec": 175.78,
+      "loopStartSec": 0,
+      "loopEndSec": 175.79,
+      "bpm": 114,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_dungeon_sunken_tomb": {
+      "id": "mus_dungeon_sunken_tomb",
+      "url": "assets/music/mus_dungeon_sunken_tomb.ogg",
+      "durationSec": 178.42,
+      "loopStartSec": 0,
+      "loopEndSec": 178.46,
+      "bpm": 118,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_dungeon_frost_cavern": {
+      "id": "mus_dungeon_frost_cavern",
+      "url": "assets/music/mus_dungeon_frost_cavern.ogg",
+      "durationSec": 175.78,
+      "loopStartSec": 0,
+      "loopEndSec": 175.79,
+      "bpm": 110,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_dungeon_infernal_sanctum": {
+      "id": "mus_dungeon_infernal_sanctum",
+      "url": "assets/music/mus_dungeon_infernal_sanctum.ogg",
+      "durationSec": 177.92,
+      "loopStartSec": 0,
+      "loopEndSec": 178.01,
+      "bpm": 130,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_dungeon_void_spire": {
+      "id": "mus_dungeon_void_spire",
+      "url": "assets/music/mus_dungeon_void_spire.ogg",
+      "durationSec": 176.16,
+      "loopStartSec": 0,
+      "loopEndSec": 176.18,
+      "bpm": 124,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_dungeon_void_deep": {
+      "id": "mus_dungeon_void_deep",
+      "url": "assets/music/mus_dungeon_void_deep.ogg",
+      "durationSec": 177.92,
+      "loopStartSec": 0,
+      "loopEndSec": 177.96,
+      "bpm": 134,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_boss_standard": {
+      "id": "mus_boss_standard",
+      "url": "assets/music/mus_boss_standard.ogg",
+      "durationSec": 177.16,
+      "loopStartSec": 0,
+      "loopEndSec": 177.18,
+      "bpm": 142,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_boss_final": {
+      "id": "mus_boss_final",
+      "url": "assets/music/mus_boss_final.ogg",
+      "durationSec": 176.94,
+      "loopStartSec": 0,
+      "loopEndSec": 176.97,
+      "bpm": 148,
+      "beatsPerBar": 4,
+      "stinger": false,
+      "crossfadeBaked": true
+    },
+    "mus_stinger_dungeon_clear": {
+      "id": "mus_stinger_dungeon_clear",
+      "url": "assets/music/mus_stinger_dungeon_clear.ogg",
+      "durationSec": 7.63,
+      "loopStartSec": 0,
+      "loopEndSec": null,
+      "bpm": 128,
+      "beatsPerBar": 4,
+      "stinger": true,
+      "crossfadeBaked": false
+    },
+    "mus_stinger_grand_victory": {
+      "id": "mus_stinger_grand_victory",
+      "url": "assets/music/mus_stinger_grand_victory.ogg",
+      "durationSec": 5.33,
+      "loopStartSec": 0,
+      "loopEndSec": null,
+      "bpm": 108,
+      "beatsPerBar": 4,
+      "stinger": true,
+      "crossfadeBaked": false
+    },
+    "mus_stinger_defeat": {
+      "id": "mus_stinger_defeat",
+      "url": "assets/music/mus_stinger_defeat.ogg",
+      "durationSec": 9.54,
+      "loopStartSec": 0,
+      "loopEndSec": null,
+      "bpm": 72,
+      "beatsPerBar": 4,
+      "stinger": true,
+      "crossfadeBaked": false
+    }
+  }
+}

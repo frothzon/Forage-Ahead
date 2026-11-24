@@ -1,4 +1,4 @@
-import { musicEngine, type MusicSituation } from './MusicEngine';
+import { musicEngine, type MusicContext, type MusicSituation, type StingerId } from './MusicEngine';
 
 export type NoiseColor = 'white' | 'pink' | 'brown';
 export type RoomSpace = 'overworld' | 'dungeon';
@@ -57,7 +57,7 @@ class SoundFXManager {
 
   public muted = false;
   public masterVolume = 0.7;
-  public musicEnabled = false;
+  public musicEnabled = true;
   private musicTimer?: number;
   private readonly prefsKey = 'forage_ahead_audio_v1';
 
@@ -254,6 +254,14 @@ class SoundFXManager {
     else if (sit === 'overworld' || sit === 'near_enemy') this.setRoomSpace('overworld');
     musicEngine.setSituation(sit);
     musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume);
+  }
+
+  public setMusicContext(ctx: Partial<MusicContext>): void {
+    musicEngine.setContext(ctx);
+  }
+
+  public playStinger(stinger: StingerId): void {
+    musicEngine.playStinger(stinger);
   }
 
   public setMusicPaused(paused: boolean): void {

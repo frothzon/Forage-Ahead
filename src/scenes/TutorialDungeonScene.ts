@@ -27,6 +27,7 @@ import { dialogueBox } from '../ui/DialogueBox';
 import { HudController } from '../ui/HudController';
 import { revealSequence } from '../ui/RevealSequence';
 import { CameraRig } from '../vfx/CameraRig';
+import { buildBaseSnapshot, isQaMode, markQaReady, registerQaApi, resetQaReady } from '../qa/QaDirector';
 import { DungeonAtmosphere } from '../vfx/DungeonAtmosphere';
 import { detailDungeonRoom } from '../world/DungeonDetailer';
 import { LightingSystem, type PointLightSource } from '../world/LightingSystem';
@@ -197,6 +198,40 @@ export class TutorialDungeonScene extends Phaser.Scene {
         moveHint,
       ],
     });
+
+    if (isQaMode()) {
+      registerQaApi({
+        getStateSnapshot: () =>
+          buildBaseSnapshot('TutorialDungeonScene', {
+            activeModal: this.hud?.activeModal ?? 'none',
+            playerPos: { x: Math.round(this.player.x), y: Math.round(this.player.y) },
+          }),
+        openModal: (modal) => {
+          this.hud.toggleModal(modal as never);
+          return true;
+        },
+        closeModal: () => {
+          this.hud.closeModal();
+          return true;
+        },
+        triggerAction: (action) => {
+          if (action === 'skip_tutorial') {
+            resetQaReady();
+            this.skipTutorialToOverworld();
+            return true;
+          }
+          if (action === 'attack_nearby') {
+            const target = this.enemies.find((e) => e.active);
+            const tx = target ? target.x : this.player.x + 24;
+            const ty = target ? target.y : this.player.y;
+            this.handleAttack(tx, ty);
+            return true;
+          }
+          return false;
+        },
+      });
+      markQaReady();
+    }
   }
 
   private mountSkipButton(): void {

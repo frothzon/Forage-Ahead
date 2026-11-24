@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import manifest from '../data/assetManifest.json';
 import { registerAllAnimations } from '../entities/AnimationRegistry';
 import { getPromoBootTarget } from '../promo/PromoDirector';
+import { getQaBootTarget } from '../qa/QaDirector';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -28,7 +29,8 @@ export class BootScene extends Phaser.Scene {
       label.setText('Ready!');
     });
 
-    // 1. Tilesets (as images for Phaser Tilemaps)
+    // 1. Tilesets (as images for Phaser Tilemaps) & Title Background
+    this.load.image('title_level_bg', 'assets/title/level_selection_background.jpg');
     this.load.image('tileset_grass', 'assets/extras/Tileset_grass (free demo).png');
     this.load.image('tileset_autumn', 'assets/extras/Tileset_autumn (free demo).png');
     this.load.image('tileset_winter', 'assets/extras/Tileset_winter (free demo).png');
@@ -177,6 +179,11 @@ export class BootScene extends Phaser.Scene {
         this.scene.start('HouseTestScene');
         return;
       }
+    }
+    const qa = getQaBootTarget();
+    if (qa) {
+      this.scene.start(qa.scene, qa.data);
+      return;
     }
     const promo = getPromoBootTarget();
     if (promo) {

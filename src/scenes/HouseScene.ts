@@ -10,6 +10,7 @@ import { TILE_PX } from '../data/islands';
 import { dialogueBox } from '../ui/DialogueBox';
 import { HudController } from '../ui/HudController';
 import { CameraRig } from '../vfx/CameraRig';
+import { buildBaseSnapshot, isQaMode, markQaReady, registerQaApi, resetQaReady } from '../qa/QaDirector';
 import { buildHouseLayout, type HouseLayout, type HouseThemeId } from '../world/HouseLayoutBuilder';
 import { DIR_EAST, DIR_NORTH, DIR_SOUTH, DIR_WEST } from '../world/WfcRoomGraph';
 
@@ -112,6 +113,37 @@ export class HouseScene extends Phaser.Scene {
     });
     this.hud.showToast(`${this.layout.houseName} (${this.layout.rooms.length} Rooms)`);
     this.setupInput();
+
+    if (isQaMode()) {
+      registerQaApi({
+        getStateSnapshot: () =>
+          buildBaseSnapshot('HouseScene', {
+            activeModal: this.hud?.activeModal ?? 'none',
+            playerPos: { x: Math.round(this.player.x), y: Math.round(this.player.y) },
+          }),
+        openModal: (modal) => {
+          this.hud.toggleModal(modal as never);
+          return true;
+        },
+        closeModal: () => {
+          this.hud.closeModal();
+          return true;
+        },
+        triggerAction: (action) => {
+          if (action === 'rest_at_bed' && this.bedSpot) {
+            this.player.setPosition(this.bedSpot.x, this.bedSpot.y);
+            return this.tryInteract();
+          }
+          if (action === 'exit_house') {
+            resetQaReady();
+            this.player.setPosition(this.exitDoor.x, this.exitDoor.y);
+            return this.tryInteract();
+          }
+          return false;
+        },
+      });
+      markQaReady();
+    }
   }
 
   private buildInterior(): void {

@@ -43,6 +43,7 @@ import { selectBestAimTarget, type AimCandidate } from '../entities/targeting';
 import { HudController } from '../ui/HudController';
 import { revealSequence } from '../ui/RevealSequence';
 import { createDungeonPromoTimeline, getPromoConfig, markPromoReady, type PromoTimeline } from '../promo/PromoDirector';
+import { buildBaseSnapshot, getQaConfig, isQaMode, markQaReady, registerQaApi } from '../qa/QaDirector';
 
 interface DungeonConfig {
   id: DungeonId;
@@ -401,6 +402,11 @@ export class DungeonScene extends Phaser.Scene {
     );
     this.syncDungeonHud();
     SFX.setMusicPaused(false);
+    SFX.setMusicContext({
+      dungeonId: this.cfg.id,
+      floor: this.voidFloor,
+      isFinalBoss: this.cfg.id === 'void_spire' && this.voidFloor >= 20,
+    });
     SFX.setMusicSituation('dungeon');
 
     this.setupInput();
@@ -429,6 +435,79 @@ export class DungeonScene extends Phaser.Scene {
         setZoom: (zoom) => this.cameras.main.setZoom(zoom),
       });
       markPromoReady();
+    }
+
+    if (isQaMode()) {
+      const qaCfg = getQaConfig();
+      if (qaCfg.scenarioId === 'void_dragon_boss') {
+        this.gateOpen = true;
+        (this.bossGateGroup as Phaser.GameObjects.Group | undefined)?.clear(true, true);
+        this.player.setPosition(22 * TILE_PX + 8, (ROOM_H / 2) * TILE_PX);
+        this.cameras.main.centerOn(this.player.x + 36, this.player.y);
+      }
+
+      registerQaApi({
+        getStateSnapshot: () =>
+          buildBaseSnapshot('DungeonScene', {
+            activeModal: this.hud?.activeModal ?? 'none',
+            playerPos: { x: Math.round(this.player.x), y: Math.round(this.player.y) },
+          }),
+        spawnEntity: (kind, id, offsetTilesX, offsetTilesY) => {
+          if (kind !== 'enemy') return false;
+          const wx = this.player.x + offsetTilesX * TILE_PX;
+          const wy = this.player.y + offsetTilesY * TILE_PX;
+          const e = new Enemy(this, id, wx, wy);
+          this.enemies.push(e);
+          return true;
+        },
+        openModal: (modal) => {
+          this.hud.toggleModal(modal as never);
+          return true;
+        },
+        closeModal: () => {
+          this.hud.closeModal();
+          return true;
+        },
+        triggerAction: (action, payload) => {
+          if (action === 'attack_nearby' || action === 'fire_weapon') {
+            const itemId = payload?.itemId as string | undefined;
+            if (itemId) {
+              const idx = gameState.hotbar.indexOf(itemId);
+              if (idx !== -1) gameState.selectedHotbarIndex = idx;
+              else {
+                gameState.hotbar[0] = itemId;
+                gameState.selectedHotbarIndex = 0;
+              }
+            }
+            const target =
+              (this.boss && this.boss.active ? this.boss : null) ??
+              this.enemies
+                .filter((e) => e.active)
+                .sort(
+                  (a, b) =>
+                    Math.hypot(a.x - this.player.x, a.y - this.player.y) -
+                    Math.hypot(b.x - this.player.x, b.y - this.player.y),
+                )[0];
+            const wx = target ? target.x : this.player.x + 28;
+            const wy = target ? target.y : this.player.y;
+            this.handleAttack(wx, wy);
+            return true;
+          }
+          if (action === 'open_chest') {
+            for (const rm of this.wfcRooms.values()) {
+              if (rm.chest && !rm.chest.chest.opened) {
+                rm.puzzleSolved = true;
+                rm.chest.chest.locked = false;
+                this.player.setPosition(rm.chest.chest.x, rm.chest.chest.y + 12);
+                return this.tryInteractPortal();
+              }
+            }
+            return false;
+          }
+          return false;
+        },
+      });
+      markQaReady();
     }
   }
 
@@ -1383,6 +1462,9 @@ export class DungeonScene extends Phaser.Scene {
           }
         }
         SFX.playBossDefeat();
+        SFX.playStinger(
+          this.cfg.id === 'void_spire' && this.voidFloor >= 20 ? 'grand_victory' : 'dungeon_clear',
+        );
         SFX.setMusicSituation('dungeon');
         gameState.save();
       }
@@ -1709,6 +1791,11 @@ export class DungeonScene extends Phaser.Scene {
       ? this.currentRoomId === this.wfcLayout.bossRoomId
       : this.player.x > 20 * TILE_PX;
     if (this.boss && !this.boss.isDead && inBossRoom) {
+      SFX.setMusicContext({
+        dungeonId: this.cfg.id,
+        floor: this.voidFloor,
+        isFinalBoss: this.cfg.id === 'void_spire' && this.voidFloor >= 20,
+      });
       SFX.setMusicSituation('boss');
       this.hud.setBossBar({
         name: this.bossEnraged ? `${this.boss.def.name} [ENRAGED]` : this.boss.def.name,
@@ -1746,6 +1833,7 @@ export class DungeonScene extends Phaser.Scene {
           if (this.player.takeDamage(dmg, dx, dy, this.isWalkable)) {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${dmg}`, '#ff5e6c');
             if (gameState.hp <= 0) {
+              SFX.playStinger('defeat');
               gameState.hp = Math.round(gameState.getMaxHp() * 0.6);
               this.transitionToOverworld();
             }
@@ -1809,6 +1897,7 @@ export class DungeonScene extends Phaser.Scene {
           if (this.player.takeDamage(p.damage, p.vx / spd, p.vy / spd, this.isWalkable)) {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${p.damage}`, '#ff5e6c');
             if (gameState.hp <= 0) {
+              SFX.playStinger('defeat');
               gameState.hp = Math.round(gameState.getMaxHp() * 0.6);
               this.transitionToOverworld();
               return;
