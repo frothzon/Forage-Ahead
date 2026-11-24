@@ -1430,7 +1430,7 @@ export class DungeonScene extends Phaser.Scene {
       const proj = enemy.def.projectileKey ?? 'monster_projectiles/FireballBig';
       for (let i = 0; i < 10; i++) {
         const ang = (Math.PI * 2 * i) / 10;
-        const spr = this.add.image(enemy.x, enemy.y - 4, proj).setDepth(5000);
+        const spr = this.add.image(enemy.x, enemy.y - 4, proj).setRotation(ang).setDepth(5000);
         this.projectiles.push({
           sprite: spr,
           vx: Math.cos(ang) * 115,
@@ -1930,7 +1930,7 @@ export class DungeonScene extends Phaser.Scene {
           }
         },
         onFireProjectile: (px, py, vx, vy, dmg, texKey) => {
-          const spr = this.add.image(px, py, texKey).setDepth(5000);
+          const spr = this.add.image(px, py, texKey).setRotation(Math.atan2(vy, vx)).setDepth(5000);
           this.projectiles.push({
             sprite: spr,
             vx,

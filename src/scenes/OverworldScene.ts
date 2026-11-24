@@ -1012,6 +1012,11 @@ export class OverworldScene extends Phaser.Scene {
     const container = this.add.container(x, y, [bg, label]).setDepth(8700);
     const redraw = () => {
       bg.clear();
+      if (!label.text || label.text.trim().length === 0) {
+        container.setVisible(false);
+        return;
+      }
+      container.setVisible(true);
       const padX = 5;
       const padY = 2.5;
       const w = Math.max(12, Math.ceil(label.width + padX * 2));
@@ -2378,14 +2383,8 @@ export class OverworldScene extends Phaser.Scene {
     }
     gameState.recordQuestProgress('build', st, 1);
 
-    // Keep placing bridges/roads/floors/walls/fences smoothly while materials last!
-    const multiPlace =
-      st === 'bridge' ||
-      st === 'road_stone' ||
-      st === 'house_floor' ||
-      st === 'house_wall' ||
-      st === 'fence';
-    if (!multiPlace || !gameState.canCraft(rec)) {
+    // Keep placing any crafted object smoothly until the player hits Exit or runs out of materials
+    if (!gameState.canCraft(rec)) {
       gameState.pendingBuildRecipeId = null;
     }
     this.hud.render();
@@ -4987,7 +4986,7 @@ export class OverworldScene extends Phaser.Scene {
             }
           },
           onFireProjectile: (px, py, vx, vy, dmg, texKey) => {
-            const spr = this.add.image(px, py, texKey).setDepth(5000);
+            const spr = this.add.image(px, py, texKey).setRotation(Math.atan2(vy, vx)).setDepth(5000);
             this.projectiles.push({
               sprite: spr,
               vx,

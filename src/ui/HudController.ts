@@ -48,6 +48,30 @@ import { RECIPES, type CraftingStation } from '../data/recipes';
 import { PILLAR_META, SKILLS, type SkillPillar } from '../data/skills';
 import { getFamiliarSpecForClass } from '../data/familiars';
 
+/** Clamps the `#mobile-build-layer` anchor (translate(-50%, -100%)) inside safe viewport bounds. */
+export function clampMobileBuildControlPos(
+  screenX: number,
+  screenY: number,
+  vw: number,
+  vh: number,
+  boxWidth: number,
+  boxHeight: number,
+): { x: number; y: number } {
+  const halfW = Math.ceil((boxWidth || 220) / 2);
+  const boxH = Math.ceil(boxHeight || 40);
+  const edgePadX = 28;
+  const topPad = 76;
+  const bottomPad = 128;
+  const minX = halfW + edgePadX;
+  const maxX = Math.max(minX, vw - halfW - edgePadX);
+  const minY = boxH + topPad;
+  const maxY = Math.max(minY, vh - bottomPad);
+  return {
+    x: Math.max(minX, Math.min(maxX, screenX)),
+    y: Math.max(minY, Math.min(maxY, screenY)),
+  };
+}
+
 export type HudModal = 'none' | 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'progress';
 
 export interface WorldDebugStats {
@@ -859,9 +883,9 @@ export class HudController {
     this.mobileBuildLayer.style.cssText =
       'position:absolute; display:none; padding:5px 8px; z-index:30; border-color:#ffe066; transform:translate(-50%, -100%); align-items:center; gap:6px; white-space:nowrap; box-shadow:0 4px 12px rgba(0,0,0,0.55);';
     this.mobileBuildLayer.innerHTML = `
-      <span id="mobile-build-name" style="font-size:11px; font-weight:700; color:#ffe9a6; margin-right:2px;"></span>
-      <button id="mobile-build-done" class="hud-btn primary" style="padding:4px 10px; font-size:12px;">Done</button>
-      <button id="mobile-build-exit" class="hud-btn" style="padding:4px 9px; font-size:12px; border-color:#ff7a85; color:#ffb4bc;">Exit</button>
+      <span id="mobile-build-name" style="font-size:11px; font-weight:700; color:#ffe9a6; margin-right:2px; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109, 0 1px 2px rgba(0,0,0,0.85);"></span>
+      <button id="mobile-build-done" class="hud-btn primary" style="padding:4px 10px; font-size:12px; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109, 0 1px 2px rgba(0,0,0,0.85);">Place</button>
+      <button id="mobile-build-exit" class="hud-btn" style="padding:4px 9px; font-size:12px; border-color:#ff7a85; color:#ffb4bc; text-shadow:-1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109, 0 1px 2px rgba(0,0,0,0.85);">Exit</button>
     `;
     this.mobileBuildDoneBtn = this.mobileBuildLayer.querySelector<HTMLButtonElement>('#mobile-build-done') ?? undefined;
     this.mobileBuildLabelEl = this.mobileBuildLayer.querySelector<HTMLElement>('#mobile-build-name') ?? undefined;
@@ -2123,14 +2147,20 @@ export class HudController {
   public updateMobileBuildControls(screenX: number, screenY: number, canPlace: boolean, label: string): void {
     const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
     const vh = typeof window !== 'undefined' ? window.innerHeight : 720;
-    const clampedX = Math.max(84, Math.min(vw - 84, screenX));
-    const clampedY = Math.max(46, Math.min(vh - 96, screenY));
     this.mobileBuildLayer.style.display = 'flex';
-    this.mobileBuildLayer.style.left = `${Math.round(clampedX)}px`;
-    this.mobileBuildLayer.style.top = `${Math.round(clampedY)}px`;
     if (this.mobileBuildLabelEl && this.mobileBuildLabelEl.textContent !== label) {
       this.mobileBuildLabelEl.textContent = label;
     }
+    const pos = clampMobileBuildControlPos(
+      screenX,
+      screenY,
+      vw,
+      vh,
+      this.mobileBuildLayer.offsetWidth,
+      this.mobileBuildLayer.offsetHeight,
+    );
+    this.mobileBuildLayer.style.left = `${Math.round(pos.x)}px`;
+    this.mobileBuildLayer.style.top = `${Math.round(pos.y)}px`;
     if (this.mobileBuildDoneBtn) {
       this.mobileBuildDoneBtn.style.opacity = canPlace ? '1' : '0.55';
       this.mobileBuildDoneBtn.style.borderColor = canPlace ? '#7ef29d' : '#ff7a85';

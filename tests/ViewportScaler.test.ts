@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeResponsiveZoom } from '../src/core/ViewportScaler';
+import { clampMobileBuildControlPos } from '../src/ui/HudController';
 
 describe('ViewportScaler.computeResponsiveZoom', () => {
   const WORLD_PX = 2240; // WORLD_TILES (140) * TILE_PX (16)
@@ -39,5 +40,40 @@ describe('ViewportScaler.computeResponsiveZoom', () => {
     expect(3840 / smallRoomZoom).toBeLessThanOrEqual(896 + 1e-6);
     expect(2160 / smallRoomZoom).toBeLessThanOrEqual(640 + 1e-6);
     expect(smallRoomZoom).toBeGreaterThanOrEqual(3840 / 896);
+  });
+});
+
+describe('clampMobileBuildControlPos', () => {
+  const vw = 844;
+  const vh = 390;
+  const boxWidth = 220;
+  const boxHeight = 40;
+  // halfW = 110, edgePadX = 28 => minX = 138, maxX = 844 - 110 - 28 = 706
+  // boxH = 40, topPad = 76, bottomPad = 128 => minY = 116, maxY = 390 - 128 = 262
+
+  it('passes through coordinates comfortably inside safe bounds', () => {
+    expect(clampMobileBuildControlPos(420, 200, vw, vh, boxWidth, boxHeight)).toEqual({
+      x: 420,
+      y: 200,
+    });
+  });
+
+  it('clamps left, right, top, and bottom edges with safe padding', () => {
+    expect(clampMobileBuildControlPos(10, 200, vw, vh, boxWidth, boxHeight)).toEqual({
+      x: 138,
+      y: 200,
+    });
+    expect(clampMobileBuildControlPos(830, 200, vw, vh, boxWidth, boxHeight)).toEqual({
+      x: 706,
+      y: 200,
+    });
+    expect(clampMobileBuildControlPos(420, 20, vw, vh, boxWidth, boxHeight)).toEqual({
+      x: 420,
+      y: 116,
+    });
+    expect(clampMobileBuildControlPos(420, 380, vw, vh, boxWidth, boxHeight)).toEqual({
+      x: 420,
+      y: 262,
+    });
   });
 });

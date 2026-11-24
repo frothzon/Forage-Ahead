@@ -440,7 +440,7 @@ export function createDungeonPromoTimeline(api: PromoDungeonBridge): PromoTimeli
     scene.cameras.main.shake(220, 0.01);
     for (let i = 0; i < 16; i++) {
       const ang = (Math.PI * 2 * i) / 16;
-      const spr = scene.add.image(boss.x, boss.y - 4, 'monster_projectiles/FireballBig').setDepth(5000);
+      const spr = scene.add.image(boss.x, boss.y - 4, 'monster_projectiles/FireballBig').setRotation(ang).setDepth(5000);
       api.projectiles.push({
         sprite: spr,
         vx: Math.cos(ang) * 95,
