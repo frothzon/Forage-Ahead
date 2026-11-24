@@ -22,7 +22,13 @@ import { DungeonProp } from '../entities/DungeonProp';
 import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
 import { FamiliarCompanion, Player } from '../entities/Player';
-import { selectBestAimTarget, type AimCandidate } from '../entities/targeting';
+import {
+  isSwordItem,
+  selectBestAimTarget,
+  SwordAutoTargeter,
+  type AimCandidate,
+  type SwordAutoTargetCandidate,
+} from '../entities/targeting';
 import { dialogueBox } from '../ui/DialogueBox';
 import { HudController } from '../ui/HudController';
 import { revealSequence } from '../ui/RevealSequence';
@@ -80,6 +86,8 @@ export class TutorialDungeonScene extends Phaser.Scene {
   };
 
   private skipBtnEl?: HTMLButtonElement;
+  private swordTargeter = new SwordAutoTargeter<Enemy>();
+  private targetIndicator?: Phaser.GameObjects.Arc;
 
   private keys!: {
     W: Phaser.Input.Keyboard.Key;
@@ -117,6 +125,7 @@ export class TutorialDungeonScene extends Phaser.Scene {
     this.hasVaultKey = false;
     this.exitUnlocked = false;
     this.torchLights = [];
+    this.swordTargeter.clear();
 
     this.buildTutorialMap();
     this.lighting = new LightingSystem(this);
@@ -141,6 +150,20 @@ export class TutorialDungeonScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
     this.cameras.main.roundPixels = false;
     this.cameraRig = new CameraRig(this, { maxLookAheadPx: 10 });
+
+    this.targetIndicator = this.add
+      .circle(0, 0, 9, 0xff6b6b, 0.14)
+      .setStrokeStyle(1.4, 0xff6b6b, 0.9)
+      .setDepth(1)
+      .setVisible(false);
+    this.tweens.add({
+      targets: this.targetIndicator,
+      scale: { from: 0.75, to: 1.0 },
+      duration: 1000,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+    });
 
     const onResize = (gameSize: Phaser.Structs.Size) => {
       this.cameras.main.setSize(gameSize.width, gameSize.height);
@@ -611,19 +634,63 @@ export class TutorialDungeonScene extends Phaser.Scene {
     }
   }
 
+  private getSwordCombatCandidates(): Array<SwordAutoTargetCandidate<Enemy>> {
+    const candidates: Array<SwordAutoTargetCandidate<Enemy>> = [];
+    for (const e of this.enemies) {
+      if (e.active && !e.isDead) {
+        candidates.push({ item: e, x: e.x, y: e.y, priority: 3 });
+      }
+    }
+    return candidates;
+  }
+
+  private hitTutorialEnemy(enemy: Enemy, itemId: string, nx: number, ny: number): void {
+    const dmg = gameState.getWeaponDamage(itemId);
+    const killed = enemy.takeDamage(dmg, nx, ny, this.isWalkable);
+    SFX.playHit();
+    spawnDirectionalSparks(this, enemy.x, enemy.y - 4, Math.atan2(ny, nx), 0xffffff, 5);
+    spawnFloatingText(this, enemy.x, enemy.y - 16, `${dmg}`, '#ffffff', '8px', 'damage');
+    if (killed) {
+      spawnDeathBurst(this, enemy.x, enemy.y, enemy.def.id, false);
+      SFX.playEnemyDeath();
+      gameState.addXp(enemy.def.xp);
+    }
+  }
+
   private handleAttack(wx: number, wy: number): void {
-    if (this.tryInteract()) return;
     const itemId = gameState.hotbar[gameState.selectedHotbarIndex] || gameState.equipment.weapon || 'pickaxe';
     const def = ITEMS[itemId];
+    const swordAuto =
+      def && isSwordItem(itemId)
+        ? this.swordTargeter.resolve(
+            this.player.x,
+            this.player.y,
+            (def.range ?? 40) + 10,
+            this.getSwordCombatCandidates(),
+            false,
+          )
+        : null;
+    if (!swordAuto && this.tryInteract()) return;
     if (!def) return;
     const dx = wx - this.player.x;
     const dy = wy - this.player.y;
     const dist = Math.hypot(dx, dy) || 1;
     const nx = dx / dist;
     const ny = dy / dist;
+    const range = def.range ?? 40;
+
+    if (swordAuto) {
+      const aimNx = swordAuto.dirX ?? nx;
+      const aimNy = swordAuto.dirY ?? ny;
+      if (!this.player.startAction('melee', def.cooldownMs ?? 260, aimNx, aimNy, 170)) return;
+      this.swordTargeter.lock(swordAuto.item);
+      drawSlashArc(this, this.player.x, this.player.y - 4, Math.atan2(aimNy, aimNx), range, getWeaponSlashColor(itemId));
+      SFX.playSwing();
+      this.hitTutorialEnemy(swordAuto.item, itemId, aimNx, aimNy);
+      return;
+    }
 
     if (!this.player.startAction('melee', def.cooldownMs ?? 260, nx, ny, 170)) return;
-    const range = def.range ?? 40;
     drawSlashArc(this, this.player.x, this.player.y - 4, Math.atan2(ny, nx), range, getWeaponSlashColor(itemId));
     SFX.playSwing();
 
@@ -639,16 +706,7 @@ export class TutorialDungeonScene extends Phaser.Scene {
     if (aimed?.item.kind === 'breakable') {
       this.shatterBreakable(aimed.item.bp, nx, ny);
     } else if (aimed?.item.kind === 'enemy') {
-      const dmg = gameState.getWeaponDamage(itemId);
-      const killed = aimed.item.enemy.takeDamage(dmg, nx, ny, this.isWalkable);
-      SFX.playHit();
-      spawnDirectionalSparks(this, aimed.item.enemy.x, aimed.item.enemy.y - 4, Math.atan2(ny, nx), 0xffffff, 5);
-      spawnFloatingText(this, aimed.item.enemy.x, aimed.item.enemy.y - 16, `${dmg}`, '#ffffff', '8px', 'damage');
-      if (killed) {
-        spawnDeathBurst(this, aimed.item.enemy.x, aimed.item.enemy.y, aimed.item.enemy.def.id, false);
-        SFX.playEnemyDeath();
-        gameState.addXp(aimed.item.enemy.def.xp);
-      }
+      this.hitTutorialEnemy(aimed.item.enemy, itemId, nx, ny);
     }
   }
 
@@ -688,6 +746,9 @@ export class TutorialDungeonScene extends Phaser.Scene {
         this.player.tryDash(dir);
       }
       this.player.updatePlayer(dt, dir, this.isWalkable, 1, 0xa8a8b8, 'stone');
+      if (dir.lengthSq() > 0.01 || this.player.isDashing) {
+        this.swordTargeter.onPlayerMoved();
+      }
       this.cameraRig.setLookAhead(dir.x, dir.y, 10);
       this.cameraRig.update(dt);
       if (this.fox) {
@@ -696,6 +757,32 @@ export class TutorialDungeonScene extends Phaser.Scene {
           onBite: () => {},
           onForage: () => {},
         });
+      }
+    }
+
+    const curItem = gameState.hotbar[gameState.selectedHotbarIndex] || gameState.equipment.weapon || 'pickaxe';
+    if (!isSwordItem(curItem)) {
+      this.swordTargeter.clear();
+      this.targetIndicator?.setVisible(false);
+    } else if (this.hud.isBlockingInput()) {
+      this.targetIndicator?.setVisible(false);
+    } else if (this.targetIndicator) {
+      const swordAuto = this.swordTargeter.resolve(
+        this.player.x,
+        this.player.y,
+        (ITEMS[curItem]?.range ?? 40) + 10,
+        this.getSwordCombatCandidates(),
+        false,
+      );
+      if (swordAuto) {
+        this.targetIndicator
+          .setPosition(swordAuto.x, swordAuto.y)
+          .setDepth(swordAuto.item.depth - 0.5)
+          .setStrokeStyle(swordAuto.locked ? 1.8 : 1.4, swordAuto.locked ? 0xff4757 : 0xff6b6b, swordAuto.locked ? 0.95 : 0.9)
+          .setFillStyle(swordAuto.locked ? 0xff4757 : 0xff6b6b, swordAuto.locked ? 0.2 : 0.14)
+          .setVisible(true);
+      } else {
+        this.targetIndicator.setVisible(false);
       }
     }
 

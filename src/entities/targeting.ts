@@ -89,3 +89,110 @@ export function isFacingTarget(
   const [fx, fy] = FACING_VECTORS[facing];
   return (dx / dist) * fx + (dy / dist) * fy >= minDot;
 }
+
+/** Returns true when `itemId` identifies a sword weapon. */
+export function isSwordItem(itemId: string | undefined | null): boolean {
+  return Boolean(itemId && itemId.startsWith('sword'));
+}
+
+export interface SwordAutoTargetCandidate<T> {
+  item: T;
+  x: number;
+  y: number;
+  priority: number;
+  radius?: number;
+}
+
+export interface SwordAutoTargetMatch<T> {
+  item: T;
+  x: number;
+  y: number;
+  dist: number;
+  dirX: number | null;
+  dirY: number | null;
+  locked: boolean;
+}
+
+/**
+ * Resolves 360-degree melee auto-targets for swords and maintains a target lock
+ * until the locked target dies/leaves range, the player moves, or the lock is cleared.
+ */
+export class SwordAutoTargeter<T> {
+  private lockedTarget: T | null = null;
+
+  public getLockedTarget(): T | null {
+    return this.lockedTarget;
+  }
+
+  public clear(): void {
+    this.lockedTarget = null;
+  }
+
+  public onPlayerMoved(): void {
+    this.lockedTarget = null;
+  }
+
+  public lock(target: T | null): void {
+    this.lockedTarget = target;
+  }
+
+  public resolve(
+    px: number,
+    py: number,
+    maxRange: number,
+    candidates: Iterable<SwordAutoTargetCandidate<T>>,
+    lockOnResolve = false,
+  ): SwordAutoTargetMatch<T> | null {
+    type Evaluated = { c: SwordAutoTargetCandidate<T>; dx: number; dy: number; dist: number };
+    let lockedMatch: Evaluated | null = null;
+    let best: Evaluated | null = null;
+
+    for (const c of candidates) {
+      const dx = c.x - px;
+      const dy = c.y - py;
+      const dist = Math.hypot(dx, dy);
+      if (dist > maxRange + (c.radius ?? 0)) continue;
+
+      if (this.lockedTarget !== null && c.item === this.lockedTarget) {
+        lockedMatch = { c, dx, dy, dist };
+      }
+
+      if (
+        !best ||
+        c.priority > best.c.priority ||
+        (c.priority === best.c.priority && dist < best.dist)
+      ) {
+        best = { c, dx, dy, dist };
+      }
+    }
+
+    if (lockedMatch) {
+      return {
+        item: lockedMatch.c.item,
+        x: lockedMatch.c.x,
+        y: lockedMatch.c.y,
+        dist: lockedMatch.dist,
+        dirX: lockedMatch.dist > 1e-4 ? lockedMatch.dx / lockedMatch.dist : null,
+        dirY: lockedMatch.dist > 1e-4 ? lockedMatch.dy / lockedMatch.dist : null,
+        locked: true,
+      };
+    }
+
+    this.lockedTarget = null;
+    if (!best) return null;
+
+    if (lockOnResolve) {
+      this.lockedTarget = best.c.item;
+    }
+
+    return {
+      item: best.c.item,
+      x: best.c.x,
+      y: best.c.y,
+      dist: best.dist,
+      dirX: best.dist > 1e-4 ? best.dx / best.dist : null,
+      dirY: best.dist > 1e-4 ? best.dy / best.dist : null,
+      locked: lockOnResolve,
+    };
+  }
+}

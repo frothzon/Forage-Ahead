@@ -39,7 +39,13 @@ import { LightingSystem, type PointLightSource } from '../world/LightingSystem';
 import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
 import { FamiliarCompanion, Player } from '../entities/Player';
-import { selectBestAimTarget, type AimCandidate } from '../entities/targeting';
+import {
+  isSwordItem,
+  selectBestAimTarget,
+  SwordAutoTargeter,
+  type AimCandidate,
+  type SwordAutoTargetCandidate,
+} from '../entities/targeting';
 import { HudController } from '../ui/HudController';
 import { revealSequence } from '../ui/RevealSequence';
 import { createDungeonPromoTimeline, getPromoConfig, markPromoReady, type PromoTimeline } from '../promo/PromoDirector';
@@ -198,6 +204,8 @@ export class DungeonScene extends Phaser.Scene {
   private gateOpen = false;
   private relicSpawned = false;
   private promoTimeline: PromoTimeline | null = null;
+  private swordTargeter = new SwordAutoTargeter<Enemy>();
+  private targetIndicator?: Phaser.GameObjects.Arc;
 
   // Multi-room WFC dungeon state (null for Void Spire)
   private wfcLayout: DungeonLayout | null = null;
@@ -293,6 +301,7 @@ export class DungeonScene extends Phaser.Scene {
     this.torchLights = [];
     this.torchPositions = [];
     this.torchEmberTimerMs = 0;
+    this.swordTargeter.clear();
 
     if (this.cfg.id === 'void_spire') {
       this.worldTilesW = ROOM_W;
@@ -328,6 +337,20 @@ export class DungeonScene extends Phaser.Scene {
     this.fx = new EffectSequencer(this, {
       cameraRig: this.cameraRig,
       onHitstop: (ms) => this.player.applyHitstop(ms),
+    });
+
+    this.targetIndicator = this.add
+      .circle(0, 0, 9, 0xff6b6b, 0.14)
+      .setStrokeStyle(1.4, 0xff6b6b, 0.9)
+      .setDepth(1)
+      .setVisible(false);
+    this.tweens.add({
+      targets: this.targetIndicator,
+      scale: { from: 0.75, to: 1.0 },
+      duration: 1000,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
     });
 
     const onResize = (gameSize: Phaser.Structs.Size) => {
@@ -1214,10 +1237,30 @@ export class DungeonScene extends Phaser.Scene {
     return false;
   }
 
+  private getSwordCombatCandidates(): Array<SwordAutoTargetCandidate<Enemy>> {
+    const candidates: Array<SwordAutoTargetCandidate<Enemy>> = [];
+    for (const e of this.enemies) {
+      if (e.active && !e.isDead && !(e === this.boss && !this.gateOpen)) {
+        candidates.push({ item: e, x: e.x, y: e.y, priority: 3 });
+      }
+    }
+    return candidates;
+  }
+
   private handleAttack(wx: number, wy: number): void {
-    if (this.tryInteractPortal()) return;
     const itemId = gameState.hotbar[gameState.selectedHotbarIndex] || 'sword';
     const def = ITEMS[itemId];
+    const swordAuto =
+      def && isSwordItem(itemId)
+        ? this.swordTargeter.resolve(
+            this.player.x,
+            this.player.y,
+            (def.range ?? 40) + 10,
+            this.getSwordCombatCandidates(),
+            false,
+          )
+        : null;
+    if (!swordAuto && this.tryInteractPortal()) return;
     if (!def) return;
     const dx = wx - this.player.x;
     const dy = wy - this.player.y;
@@ -1287,8 +1330,26 @@ export class DungeonScene extends Phaser.Scene {
       return;
     }
 
-    if (!this.player.startAction('melee', def.cooldownMs ?? 260, nx, ny, 170)) return;
     const range = def.range ?? 40;
+    if (swordAuto) {
+      const aimNx = swordAuto.dirX ?? nx;
+      const aimNy = swordAuto.dirY ?? ny;
+      if (!this.player.startAction('melee', def.cooldownMs ?? 260, aimNx, aimNy, 170)) return;
+      this.swordTargeter.lock(swordAuto.item);
+      drawSlashArc(this, this.player.x, this.player.y - 4, Math.atan2(aimNy, aimNx), range, getWeaponSlashColor(itemId));
+      SFX.playSwing();
+      for (const rm of this.wfcRooms.values()) {
+        for (const bz of rm.braziers) {
+          if (!bz.lit && Math.hypot(bz.x - this.player.x, bz.y - this.player.y) <= range + 10) {
+            this.igniteBrazier(rm, bz);
+          }
+        }
+      }
+      this.damageEnemy(swordAuto.item, gameState.getWeaponDamage(itemId), aimNx, aimNy);
+      return;
+    }
+
+    if (!this.player.startAction('melee', def.cooldownMs ?? 260, nx, ny, 170)) return;
     drawSlashArc(this, this.player.x, this.player.y - 4, Math.atan2(ny, nx), range, getWeaponSlashColor(itemId));
     SFX.playSwing();
 
@@ -1681,6 +1742,9 @@ export class DungeonScene extends Phaser.Scene {
         }
       }
       this.player.updatePlayer(dt, dir, this.isWalkable, 1, 0xa8a8b8, 'stone');
+      if (dir.lengthSq() > 0.01 || this.player.isDashing) {
+        this.swordTargeter.onPlayerMoved();
+      }
       if (dir.lengthSq() > 0.01) {
         this.cameraRig.setLookAhead(dir.x, dir.y, 12);
       } else {
@@ -1758,6 +1822,32 @@ export class DungeonScene extends Phaser.Scene {
       if (ptr.leftButtonDown() && !(ptr.event && ptr.event.target !== this.game.canvas)) {
         const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
         this.handleAttack(wp.x, wp.y);
+      }
+    }
+
+    const curItem = gameState.hotbar[gameState.selectedHotbarIndex] || 'sword';
+    if (!isSwordItem(curItem)) {
+      this.swordTargeter.clear();
+      this.targetIndicator?.setVisible(false);
+    } else if (this.hud.isBlockingInput()) {
+      this.targetIndicator?.setVisible(false);
+    } else if (this.targetIndicator) {
+      const swordAuto = this.swordTargeter.resolve(
+        this.player.x,
+        this.player.y,
+        (ITEMS[curItem]?.range ?? 40) + 10,
+        this.getSwordCombatCandidates(),
+        false,
+      );
+      if (swordAuto) {
+        this.targetIndicator
+          .setPosition(swordAuto.x, swordAuto.y)
+          .setDepth(swordAuto.item.depth - 0.5)
+          .setStrokeStyle(swordAuto.locked ? 1.8 : 1.4, swordAuto.locked ? 0xff4757 : 0xff6b6b, swordAuto.locked ? 0.95 : 0.9)
+          .setFillStyle(swordAuto.locked ? 0xff4757 : 0xff6b6b, swordAuto.locked ? 0.2 : 0.14)
+          .setVisible(true);
+      } else {
+        this.targetIndicator.setVisible(false);
       }
     }
 

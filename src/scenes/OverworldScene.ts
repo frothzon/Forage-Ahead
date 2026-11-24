@@ -57,7 +57,14 @@ import { FamiliarCompanion, Player } from '../entities/Player';
 import { dialogueBox } from '../ui/DialogueBox';
 import { FishingMinigame, type FishBehavior } from '../ui/FishingMinigame';
 import { tryActivateGadget } from '../entities/GadgetHelper';
-import { isFacingTarget, selectBestAimTarget, type AimCandidate } from '../entities/targeting';
+import {
+  isFacingTarget,
+  isSwordItem,
+  selectBestAimTarget,
+  SwordAutoTargeter,
+  type AimCandidate,
+  type SwordAutoTargetCandidate,
+} from '../entities/targeting';
 import { HudController, type QueuedStationType } from '../ui/HudController';
 import { revealSequence } from '../ui/RevealSequence';
 import { getBlueprintsForMonster, getBlueprintsForNode, tryUnlockBlueprintFromPool } from '../data/blueprints';
@@ -269,6 +276,7 @@ export class OverworldScene extends Phaser.Scene {
   private stokeCooldownMs = 0;
   private buildCursor!: Phaser.GameObjects.Rectangle;
   private targetIndicator!: Phaser.GameObjects.Arc;
+  private swordTargeter = new SwordAutoTargeter<Enemy | OverworldScene['animals'][number]>();
   private mobilePlaceActive = false;
   private mobilePlaceTx = 0;
   private mobilePlaceTy = 0;
@@ -329,6 +337,7 @@ export class OverworldScene extends Phaser.Scene {
     this.ranchEntities = [];
     this.animals = [];
     this.dungeonPortals = [];
+    this.swordTargeter.clear();
     this.buildPreviewSprite = undefined;
     this.buildGizmoGfx = undefined;
     this.bridgeSprites.clear();
@@ -2423,8 +2432,17 @@ export class OverworldScene extends Phaser.Scene {
     const dx = wx - this.player.x;
     const dy = wy - this.player.y;
     const dLen = Math.hypot(dx, dy) || 1;
+    const swordAuto = isSwordItem(itemId)
+      ? this.swordTargeter.resolve(
+          this.player.x,
+          this.player.y,
+          (def.range ?? 36) + 10,
+          this.getSwordCombatCandidates(),
+          false,
+        )
+      : null;
     const preAimed =
-      def.category === 'tool' || def.category === 'weapon'
+      !swordAuto && (def.category === 'tool' || def.category === 'weapon')
         ? this.findAimedTarget(itemId, dx / dLen, dy / dLen, def.range ?? 36)
         : null;
 
@@ -2432,7 +2450,9 @@ export class OverworldScene extends Phaser.Scene {
     if (!fromHold) {
       // Enemies always take highest priority over nearby interactables; any aimed target also beats NPCs (lowest priority)
       const skipInteract =
-        preAimed?.kind === 'enemy' || (preAimed !== null && this.findInteractableTarget()?.kind === 'npc');
+        preAimed?.kind === 'enemy' ||
+        swordAuto?.item instanceof Enemy ||
+        ((preAimed !== null || swordAuto !== null) && this.findInteractableTarget()?.kind === 'npc');
       if (!skipInteract && this.handleInteractKey(true)) return;
     }
 
@@ -2739,9 +2759,42 @@ export class OverworldScene extends Phaser.Scene {
         : itemId === 'fishing_rod'
           ? 'fishing_cast'
           : 'melee';
+    const range = def.range ?? 36;
+
+    if (isSwordItem(itemId) && swordAuto) {
+      const aimNx = swordAuto.dirX ?? nx;
+      const aimNy = swordAuto.dirY ?? ny;
+      if (!this.player.startAction(anim, def.cooldownMs ?? 280, aimNx, aimNy, 175)) return;
+      this.swordTargeter.lock(swordAuto.item);
+
+      const angle = Math.atan2(aimNy, aimNx);
+      drawSlashArc(this, this.player.x, this.player.y - 4, angle, range, getWeaponSlashColor(itemId));
+      SFX.playSwing();
+
+      // Check Ripe or Withered Crops
+      for (const b of [...this.buildings]) {
+        if (!b.active) continue;
+        if (b.isCropWithered() && Math.hypot(b.x - this.player.x, b.y - this.player.y) <= range + 8) {
+          this.cullWitheredCrop(b);
+          continue;
+        }
+        if (!b.isCropRipe()) continue;
+        if (Math.hypot(b.x - this.player.x, b.y - this.player.y) <= range + 8) {
+          if (!this.consumeToolEnergy(1.5)) break;
+          this.handleCropHarvest(b);
+        }
+      }
+
+      if (swordAuto.item instanceof Enemy) {
+        this.damageEnemy(swordAuto.item, gameState.getWeaponDamage(itemId), aimNx, aimNy);
+      } else {
+        this.damageAnimal(swordAuto.item, itemId, angle);
+      }
+      return;
+    }
+
     if (!this.player.startAction(anim, def.cooldownMs ?? 280, nx, ny, 175)) return;
 
-    const range = def.range ?? 36;
     const angle = Math.atan2(ny, nx);
     drawSlashArc(this, this.player.x, this.player.y - 4, angle, range, getWeaponSlashColor(itemId));
     SFX.playSwing();
@@ -2775,26 +2828,42 @@ export class OverworldScene extends Phaser.Scene {
         this.damageEnemy(aimed.enemy, wDmg, nx, ny);
       }
     } else if (aimed?.kind === 'animal' && itemId.startsWith('sword')) {
-      const a = aimed.animal;
-      const wDmg = gameState.getWeaponDamage(itemId);
-      a.hp -= wDmg;
-      SFX.playHit();
-      spawnDirectionalSparks(this, a.x, a.y - 4, angle, 0xff8a8a, 6);
-      spawnFloatingText(this, a.x, a.y - 14, `${wDmg}`, '#ffffff');
-      a.sprite.setTintFill(0xff6b6b);
-      this.time.delayedCall(110, () => {
-        if (a.sprite.active) a.sprite.clearTint();
-      });
-      if (a.hp <= 0) {
-        SFX.playEnemyDeath();
-        spawnDeathBurst(this, a.x, a.y, a.kind, false);
-        this.spawnLoot(a.x, a.y, 'raw_meat', Phaser.Math.Between(1, 2));
-        a.sprite.destroy();
-        a.shadow.destroy();
-        const idx = this.animals.indexOf(a);
-        if (idx >= 0) this.animals.splice(idx, 1);
+      this.damageAnimal(aimed.animal, itemId, angle);
+    }
+  }
+
+  private damageAnimal(a: OverworldScene['animals'][number], itemId: string, angle: number): void {
+    const wDmg = gameState.getWeaponDamage(itemId);
+    a.hp -= wDmg;
+    SFX.playHit();
+    spawnDirectionalSparks(this, a.x, a.y - 4, angle, 0xff8a8a, 6);
+    spawnFloatingText(this, a.x, a.y - 14, `${wDmg}`, '#ffffff');
+    a.sprite.setTintFill(0xff6b6b);
+    this.time.delayedCall(110, () => {
+      if (a.sprite.active) a.sprite.clearTint();
+    });
+    if (a.hp <= 0) {
+      SFX.playEnemyDeath();
+      spawnDeathBurst(this, a.x, a.y, a.kind, false);
+      this.spawnLoot(a.x, a.y, 'raw_meat', Phaser.Math.Between(1, 2));
+      a.sprite.destroy();
+      a.shadow.destroy();
+      const idx = this.animals.indexOf(a);
+      if (idx >= 0) this.animals.splice(idx, 1);
+    }
+  }
+
+  private getSwordCombatCandidates(): Array<SwordAutoTargetCandidate<Enemy | OverworldScene['animals'][number]>> {
+    const candidates: Array<SwordAutoTargetCandidate<Enemy | OverworldScene['animals'][number]>> = [];
+    for (const e of this.enemies) {
+      if (e.active && !e.isDead) {
+        candidates.push({ item: e, x: e.x, y: e.y, priority: 3 });
       }
     }
+    for (const a of this.animals) {
+      candidates.push({ item: a, x: a.x, y: a.y, priority: 2 });
+    }
+    return candidates;
   }
 
   private triggerPlayerExhausted(): void {
@@ -3624,6 +3693,29 @@ export class OverworldScene extends Phaser.Scene {
     }
     const itemId = gameState.hotbar[gameState.selectedHotbarIndex];
     const def = itemId ? ITEMS[itemId] : undefined;
+    if (isSwordItem(itemId) && def) {
+      const swordAuto = this.swordTargeter.resolve(
+        this.player.x,
+        this.player.y,
+        (def.range ?? 36) + 10,
+        this.getSwordCombatCandidates(),
+        false,
+      );
+      if (swordAuto) {
+        const depth = swordAuto.item instanceof Enemy ? swordAuto.item.depth : swordAuto.item.sprite.depth;
+        if (swordAuto.item instanceof Enemy) {
+          this.hud.setTouchActionHint(null);
+          this.updateCropStatusLabel();
+        }
+        this.targetIndicator
+          .setPosition(swordAuto.x, swordAuto.y)
+          .setDepth(depth - 0.5)
+          .setStrokeStyle(swordAuto.locked ? 1.8 : 1.4, swordAuto.locked ? 0xff4757 : 0xff6b6b, swordAuto.locked ? 0.95 : 0.9)
+          .setFillStyle(swordAuto.locked ? 0xff4757 : 0xff6b6b, swordAuto.locked ? 0.2 : 0.14)
+          .setVisible(true);
+        return;
+      }
+    }
     let aimed: ReturnType<OverworldScene['findAimedTarget']> = null;
     if (itemId && def && (def.category === 'tool' || def.category === 'weapon')) {
       const f = this.player.facing;
@@ -4419,6 +4511,12 @@ export class OverworldScene extends Phaser.Scene {
       );
       if (this.fishingIdle && dir.lengthSq() > 0.01) {
         this.cancelIdleFishing();
+      }
+      if (dir.lengthSq() > 0.01 || this.player.isDashing) {
+        this.swordTargeter.onPlayerMoved();
+      }
+      if (!isSwordItem(gameState.hotbar[gameState.selectedHotbarIndex])) {
+        this.swordTargeter.clear();
       }
       if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
         if (this.player.tryDash(dir)) {
