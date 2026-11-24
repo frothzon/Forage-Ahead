@@ -13,6 +13,7 @@ import { addSproutNineSlice, createSproutButton } from '../ui/PhaserNineSlice';
 import { getFamiliarSpecForClass } from '../data/familiars';
 import { buildBaseSnapshot, isQaMode, markQaReady, registerQaApi, resetQaReady } from '../qa/QaDirector';
 import { applyGoldGleamShader, type GoldGleamPipeline } from '../vfx/GoldGleamShader';
+import { TitleDiorama } from '../vfx/TitleDiorama';
 
 interface ClassMeta {
   id: HeroClassId;
@@ -90,57 +91,12 @@ interface DustPuff {
   startAlpha: number;
 }
 
-interface SkyBird {
-  sprite: Phaser.GameObjects.Sprite;
-  u: number;
-  vBase: number;
-  v: number;
-  speedU: number;
-  dir: 1 | -1;
-  sizeScale: number;
-  flapPhase: number;
-  flapSpeed: number;
-}
-
-interface ClearingSlime {
-  sprite: Phaser.GameObjects.Sprite;
-  shadow: Phaser.GameObjects.Ellipse;
-  u: number;
-  v: number;
-  startU: number;
-  startV: number;
-  targetU: number;
-  targetV: number;
-  state: 'idle' | 'wander' | 'crouch' | 'hop' | 'land';
-  timer: number;
-  duration: number;
-  hopPeak: number;
-  hopZ: number;
-  breathPhase: number;
-  squashX: number;
-  squashY: number;
-}
-
-const SLIME_CLEARING = {
-  centerU: 0.19,
-  centerV: 0.745,
-  radiusU: 0.045,
-  radiusV: 0.03,
-} as const;
-
 export class TitleScene extends Phaser.Scene {
   private selected: HeroClassId = 'Beastmaster';
   private menuContainer?: Phaser.GameObjects.Container;
   private rubbleContainer?: Phaser.GameObjects.Container;
-  private bgLayer?: Phaser.GameObjects.Layer;
-  private levelBgImg?: Phaser.GameObjects.Image;
+  private diorama?: TitleDiorama;
   private levelBgScrim?: Phaser.GameObjects.Rectangle;
-  private levelBgBlurFx?: Phaser.FX.Blur;
-  private ambientLifeStarted = false;
-  private birdSpawnTimer?: Phaser.Time.TimerEvent;
-  private skyBirds: SkyBird[] = [];
-  private clearingSlime?: ClearingSlime;
-  private levelBgBaseScale = 1;
   private horizonRect?: Phaser.GameObjects.Rectangle;
   private horizonLine?: Phaser.GameObjects.Rectangle;
   private introStars: Phaser.GameObjects.Arc[] = [];
@@ -165,15 +121,8 @@ export class TitleScene extends Phaser.Scene {
     this.shards = [];
     this.dustPuffs = [];
     this.introStars = [];
-    this.bgLayer = undefined;
-    this.levelBgImg = undefined;
+    this.diorama = undefined;
     this.levelBgScrim = undefined;
-    this.levelBgBlurFx = undefined;
-    this.ambientLifeStarted = false;
-    this.birdSpawnTimer = undefined;
-    this.skyBirds = [];
-    this.clearingSlime = undefined;
-    this.levelBgBaseScale = 1;
     this.copySourceSlot = null;
     this.splashSkipped = false;
 
@@ -210,7 +159,8 @@ export class TitleScene extends Phaser.Scene {
       bgRect.setPosition(w / 2, h / 2).setSize(w, h);
       this.horizonRect?.setPosition(w / 2, this.groundY + (h - this.groundY) / 2).setSize(w, h - this.groundY);
       this.horizonLine?.setPosition(w / 2, this.groundY).setSize(w, 2);
-      this.layoutLevelSelectBg(w, h);
+      this.diorama?.resize(w, h);
+      this.levelBgScrim?.setPosition(w / 2, h / 2).setSize(w, h);
       if (this.splashSkipped) {
         this.showFileSelectMenu('instant');
       }
@@ -218,6 +168,8 @@ export class TitleScene extends Phaser.Scene {
     this.scale.on('resize', onResize);
     this.events.once('shutdown', () => {
       this.scale.off('resize', onResize);
+      this.diorama?.destroy();
+      this.diorama = undefined;
     });
 
     if (data?.promoOutro) {
@@ -309,10 +261,7 @@ export class TitleScene extends Phaser.Scene {
 
   update(_time: number, dtMs: number): void {
     const dt = Math.min(0.05, dtMs / 1000);
-    if (this.ambientLifeStarted) {
-      this.updateSkyBirds(dt);
-      this.updateClearingSlime(dt);
-    }
+    this.diorama?.update(dt);
 
     for (let i = this.dustPuffs.length - 1; i >= 0; i--) {
       const p = this.dustPuffs[i];
@@ -1071,29 +1020,17 @@ export class TitleScene extends Phaser.Scene {
         },
       });
 
-      // 2. Fade in bgLayer (level_selection_background + ambient life) with gentle settle scale
+      // 2. Fade in TitleDiorama (in-game pixel-art archipelago)
       this.ensureLevelSelectBg();
-      this.startAmbientLife(false);
       const startBlurAndMenu = () => {
         if (this.splashSkipped) return;
 
-        // 3. Slowly blur the unified bgLayer + fade in readability scrim
-        if (this.bgLayer && !this.levelBgBlurFx) {
-          this.levelBgBlurFx = this.bgLayer.postFX?.addBlur(0, 1.0, 1.0, 0);
-        }
-        if (this.levelBgBlurFx) {
-          this.levelBgBlurFx.strength = 0;
-          this.tweens.add({
-            targets: this.levelBgBlurFx,
-            strength: 0.55,
-            duration: 950,
-            ease: 'Sine.InOut',
-          });
-        }
+        // 3. Slowly blur the entire diorama (sky + clouds + birds + 3D world) + fade in soft readability scrim
+        this.diorama?.tweenBlur(0.55, 950);
         if (this.levelBgScrim) {
           this.tweens.add({
             targets: this.levelBgScrim,
-            alpha: 0.24,
+            alpha: 0.2,
             duration: 950,
             ease: 'Sine.InOut',
           });
@@ -1109,21 +1046,11 @@ export class TitleScene extends Phaser.Scene {
         });
       };
 
-      if (this.bgLayer) {
-        this.bgLayer.setAlpha(0);
+      if (this.diorama) {
+        this.diorama.setAlpha(0);
         this.tweens.add({
-          targets: this.bgLayer,
+          targets: [this.diorama.skyLayer, this.diorama.groundLayer, this.diorama.propLayer],
           alpha: 1,
-          duration: 750,
-          ease: 'Sine.InOut',
-        });
-      }
-
-      if (this.levelBgImg) {
-        this.levelBgImg.setScale(this.levelBgBaseScale * 1.05).setAlpha(1);
-        this.tweens.add({
-          targets: this.levelBgImg,
-          scale: this.levelBgBaseScale,
           duration: 750,
           ease: 'Sine.InOut',
           onComplete: startBlurAndMenu,
@@ -1136,16 +1063,8 @@ export class TitleScene extends Phaser.Scene {
 
   private ensureLevelSelectBg(): void {
     const { width, height } = this.scale;
-    if (!this.bgLayer) {
-      this.bgLayer = this.add.layer().setDepth(8).setAlpha(0);
-    }
-    if (!this.levelBgImg && this.textures.exists('title_level_bg')) {
-      this.levelBgImg = this.add
-        .image(width / 2, height / 2, 'title_level_bg')
-        .setOrigin(0.5, 0.5)
-        .setDepth(0)
-        .setAlpha(1);
-      this.bgLayer.add(this.levelBgImg);
+    if (!this.diorama) {
+      this.diorama = new TitleDiorama(this, 8);
     }
     if (!this.levelBgScrim) {
       this.levelBgScrim = this.add
@@ -1153,36 +1072,8 @@ export class TitleScene extends Phaser.Scene {
         .setDepth(9)
         .setAlpha(0);
     }
-    this.layoutLevelSelectBg(width, height);
-  }
-
-  private bgUvToScreen(u: number, v: number): { x: number; y: number; scale: number } {
-    if (this.levelBgImg) {
-      return {
-        x: this.levelBgImg.x + (u - 0.5) * this.levelBgImg.displayWidth,
-        y: this.levelBgImg.y + (v - 0.5) * this.levelBgImg.displayHeight,
-        scale: this.levelBgImg.scaleX,
-      };
-    }
-    const { width, height } = this.scale;
-    return { x: u * width, y: v * height, scale: 1 };
-  }
-
-  private layoutLevelSelectBg(w: number, h: number): void {
-    if (this.levelBgImg) {
-      const frame = this.levelBgImg.frame;
-      const texW = Math.max(1, frame.realWidth || this.levelBgImg.width);
-      const texH = Math.max(1, frame.realHeight || this.levelBgImg.height);
-      this.levelBgBaseScale = Math.max(w / texW, h / texH);
-      this.levelBgImg.setPosition(w / 2, h / 2).setScale(this.levelBgBaseScale);
-    }
-    if (this.levelBgScrim) {
-      this.levelBgScrim.setPosition(w / 2, h / 2).setSize(w, h);
-    }
-    if (this.ambientLifeStarted) {
-      this.updateSkyBirds(0);
-      this.updateClearingSlime(0);
-    }
+    this.diorama.resize(width, height);
+    this.levelBgScrim.setPosition(width / 2, height / 2).setSize(width, height);
   }
 
   private hideIntroElementsImmediate(): void {
@@ -1206,302 +1097,9 @@ export class TitleScene extends Phaser.Scene {
   private showLevelSelectBgImmediate(): void {
     this.hideIntroElementsImmediate();
     this.ensureLevelSelectBg();
-    this.levelBgImg?.setAlpha(1).setScale(this.levelBgBaseScale);
-    if (this.bgLayer) {
-      this.bgLayer.setAlpha(1);
-      if (!this.levelBgBlurFx) {
-        this.levelBgBlurFx = this.bgLayer.postFX?.addBlur(0, 1.0, 1.0, 0.55);
-      } else {
-        this.levelBgBlurFx.strength = 0.55;
-      }
-    }
-    this.levelBgScrim?.setAlpha(0.24);
-    this.startAmbientLife(true);
-  }
-
-  private startAmbientLife(immediate: boolean): void {
-    if (!this.bgLayer) return;
-    if (!this.ambientLifeStarted) {
-      this.ambientLifeStarted = true;
-      this.spawnClearingSlime();
-      this.time.delayedCall(immediate ? 150 : 400, () => {
-        if (this.bgLayer?.active) {
-          this.spawnBirdFlock();
-        }
-      });
-    }
-    this.scheduleNextBirdFlock();
-  }
-
-  private scheduleNextBirdFlock(): void {
-    this.birdSpawnTimer?.remove(false);
-    this.birdSpawnTimer = this.time.delayedCall(Phaser.Math.Between(3500, 7000), () => {
-      if (!this.bgLayer?.active) return;
-      this.spawnBirdFlock();
-      this.scheduleNextBirdFlock();
-    });
-  }
-
-  private ensureBirdTextures(): void {
-    if (this.textures.exists('title_bird_0')) return;
-    // 3 crisp pixel-art V-wing gull silhouettes (upstroke, midstroke, downstroke)
-    const frames: string[][] = [
-      [
-        '11............11',
-        '..11........11..',
-        '....11....11....',
-        '......1111......',
-      ],
-      [
-        '................',
-        '111..........111',
-        '...1111111111...',
-        '......1111......',
-      ],
-      [
-        '......1111......',
-        '....11....11....',
-        '..11........11..',
-        '11............11',
-      ],
-    ];
-    frames.forEach((rows, idx) => {
-      const tex = this.textures.createCanvas(`title_bird_${idx}`, 16, 6);
-      if (!tex) return;
-      const ctx = tex.getContext();
-      ctx.fillStyle = '#ffffff';
-      for (let y = 0; y < rows.length; y++) {
-        for (let x = 0; x < rows[y].length; x++) {
-          if (rows[y][x] === '1') {
-            ctx.fillRect(x, y + 1, 1, 1);
-          }
-        }
-      }
-      tex.refresh();
-    });
-  }
-
-  private spawnBirdFlock(): void {
-    if (!this.bgLayer) return;
-    this.ensureBirdTextures();
-    if (!this.textures.exists('title_bird_0')) return;
-
-    const count = Phaser.Math.Between(2, 4);
-    const dir: 1 | -1 = Math.random() < 0.78 ? 1 : -1;
-    const flockV = Phaser.Math.FloatBetween(0.11, 0.31);
-    const palette = [0x4e3d56, 0x634d66, 0x3f344d];
-
-    for (let i = 0; i < count; i++) {
-      const sprite = this.add
-        .sprite(0, 0, 'title_bird_0')
-        .setDepth(1)
-        .setTint(Phaser.Utils.Array.GetRandom(palette))
-        .setAlpha(0.88);
-      this.bgLayer.add(sprite);
-
-      const uOffset = i * Phaser.Math.FloatBetween(0.018, 0.036);
-      const vBase = Phaser.Math.Clamp(flockV + Phaser.Math.FloatBetween(-0.028, 0.028), 0.1, 0.34);
-      const bird: SkyBird = {
-        sprite,
-        u: dir === 1 ? -0.04 - uOffset : 1.04 + uOffset,
-        vBase,
-        v: vBase,
-        speedU: Phaser.Math.FloatBetween(0.038, 0.062),
-        dir,
-        sizeScale: Phaser.Math.FloatBetween(0.85, 1.35),
-        flapPhase: Phaser.Math.FloatBetween(0, Math.PI * 2),
-        flapSpeed: Phaser.Math.FloatBetween(6.5, 9.5),
-      };
-      this.skyBirds.push(bird);
-    }
-    this.updateSkyBirds(0);
-  }
-
-  private updateSkyBirds(dt: number): void {
-    for (let i = this.skyBirds.length - 1; i >= 0; i--) {
-      const b = this.skyBirds[i];
-      b.u += b.dir * b.speedU * dt;
-      b.flapPhase += b.flapSpeed * dt;
-      b.v = b.vBase + Math.sin(b.flapPhase * 0.45) * 0.007;
-
-      if ((b.dir === 1 && b.u > 1.06) || (b.dir === -1 && b.u < -0.06)) {
-        b.sprite.destroy();
-        this.skyBirds.splice(i, 1);
-        continue;
-      }
-
-      const pos = this.bgUvToScreen(b.u, b.v);
-      const s = b.sizeScale * Math.max(0.65, pos.scale);
-      const wave = Math.sin(b.flapPhase);
-      const frameIdx = wave > 0.35 ? 0 : wave < -0.35 ? 2 : 1;
-      const frameKey = `title_bird_${frameIdx}`;
-      if (b.sprite.texture.key !== frameKey && this.textures.exists(frameKey)) {
-        b.sprite.setTexture(frameKey);
-      }
-      b.sprite.setPosition(pos.x, pos.y).setScale(s);
-    }
-  }
-
-  private randomClearingPoint(): { u: number; v: number } {
-    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-    const r = Math.sqrt(Math.random());
-    return {
-      u: SLIME_CLEARING.centerU + Math.cos(angle) * r * SLIME_CLEARING.radiusU,
-      v: SLIME_CLEARING.centerV + Math.sin(angle) * r * SLIME_CLEARING.radiusV,
-    };
-  }
-
-  private spawnClearingSlime(): void {
-    if (!this.bgLayer || this.clearingSlime) return;
-    if (!this.textures.exists('monsters/Slime/Slime_idle')) return;
-
-    const shadow = this.add.ellipse(0, 0, 22, 9, 0x2a1c0e, 0.34).setDepth(1);
-    const sprite = this.add.sprite(0, 0, 'monsters/Slime/Slime_idle', 0).setOrigin(0.5, 0.72).setDepth(2);
-    if (this.anims.exists('mon_Slime_idle_down')) {
-      sprite.play('mon_Slime_idle_down');
-    }
-    this.bgLayer.add([shadow, sprite]);
-
-    this.clearingSlime = {
-      sprite,
-      shadow,
-      u: 0.195,
-      v: SLIME_CLEARING.centerV,
-      startU: 0.195,
-      startV: SLIME_CLEARING.centerV,
-      targetU: 0.195,
-      targetV: SLIME_CLEARING.centerV,
-      state: 'idle',
-      timer: 0,
-      duration: Phaser.Math.FloatBetween(0.9, 1.8),
-      hopPeak: 18,
-      hopZ: 0,
-      breathPhase: 0,
-      squashX: 1,
-      squashY: 1,
-    };
-    this.updateClearingSlime(0);
-  }
-
-  private updateClearingSlime(dt: number): void {
-    const slime = this.clearingSlime;
-    if (!slime) return;
-
-    slime.timer += dt;
-    slime.breathPhase += dt * 4.2;
-
-    if (slime.state === 'idle') {
-      slime.hopZ = 0;
-      slime.squashX = 1 + Math.sin(slime.breathPhase) * 0.06;
-      slime.squashY = 1 - Math.sin(slime.breathPhase) * 0.05;
-      if (slime.timer >= slime.duration) {
-        slime.timer = 0;
-        if (Math.random() < 0.45) {
-          slime.state = 'crouch';
-          slime.duration = 0.14;
-          const pt = this.randomClearingPoint();
-          slime.startU = slime.u;
-          slime.startV = slime.v;
-          slime.targetU = pt.u;
-          slime.targetV = pt.v;
-          slime.hopPeak = Phaser.Math.FloatBetween(16, 24);
-        } else {
-          slime.state = 'wander';
-          slime.duration = Phaser.Math.FloatBetween(0.9, 1.8);
-          const pt = this.randomClearingPoint();
-          slime.startU = slime.u;
-          slime.startV = slime.v;
-          slime.targetU = pt.u;
-          slime.targetV = pt.v;
-          const dirAnim = slime.targetU < slime.u ? 'mon_Slime_walk_left' : 'mon_Slime_walk_right';
-          if (this.anims.exists(dirAnim)) {
-            slime.sprite.play(dirAnim, true);
-          }
-        }
-      }
-    } else if (slime.state === 'wander') {
-      const p = Math.min(1, slime.timer / Math.max(0.01, slime.duration));
-      slime.u = Phaser.Math.Linear(slime.startU, slime.targetU, p);
-      slime.v = Phaser.Math.Linear(slime.startV, slime.targetV, p);
-      slime.hopZ = 0;
-      slime.squashX = 1 + Math.sin(slime.breathPhase * 1.8) * 0.05;
-      slime.squashY = 1 - Math.sin(slime.breathPhase * 1.8) * 0.05;
-      if (p >= 1) {
-        slime.timer = 0;
-        if (Math.random() < 0.42) {
-          slime.state = 'crouch';
-          slime.duration = 0.14;
-          const pt = this.randomClearingPoint();
-          slime.startU = slime.u;
-          slime.startV = slime.v;
-          slime.targetU = pt.u;
-          slime.targetV = pt.v;
-          slime.hopPeak = Phaser.Math.FloatBetween(16, 24);
-        } else {
-          slime.state = 'idle';
-          slime.duration = Phaser.Math.FloatBetween(0.8, 2.0);
-          if (this.anims.exists('mon_Slime_idle_down')) {
-            slime.sprite.play('mon_Slime_idle_down', true);
-          }
-        }
-      }
-    } else if (slime.state === 'crouch') {
-      const p = Math.min(1, slime.timer / slime.duration);
-      slime.hopZ = 0;
-      slime.squashX = Phaser.Math.Linear(1, 1.22, p);
-      slime.squashY = Phaser.Math.Linear(1, 0.78, p);
-      if (p >= 1) {
-        slime.state = 'hop';
-        slime.timer = 0;
-        slime.duration = 0.48;
-        const dirAnim = slime.targetU < slime.u ? 'mon_Slime_walk_left' : 'mon_Slime_walk_right';
-        if (this.anims.exists(dirAnim)) {
-          slime.sprite.play(dirAnim, true);
-        }
-      }
-    } else if (slime.state === 'hop') {
-      const p = Math.min(1, slime.timer / slime.duration);
-      slime.u = Phaser.Math.Linear(slime.startU, slime.targetU, p);
-      slime.v = Phaser.Math.Linear(slime.startV, slime.targetV, p);
-      slime.hopZ = 4 * slime.hopPeak * p * (1 - p);
-      slime.squashX = 0.86;
-      slime.squashY = 1.16;
-      if (p >= 1) {
-        slime.state = 'land';
-        slime.timer = 0;
-        slime.duration = 0.18;
-        slime.hopZ = 0;
-      }
-    } else if (slime.state === 'land') {
-      const p = Math.min(1, slime.timer / slime.duration);
-      slime.hopZ = 0;
-      slime.squashX = Phaser.Math.Linear(1.24, 1, p);
-      slime.squashY = Phaser.Math.Linear(0.76, 1, p);
-      if (p >= 1) {
-        slime.state = 'idle';
-        slime.timer = 0;
-        slime.duration = Phaser.Math.FloatBetween(0.9, 2.0);
-        slime.squashX = 1;
-        slime.squashY = 1;
-        if (this.anims.exists('mon_Slime_idle_down')) {
-          slime.sprite.play('mon_Slime_idle_down', true);
-        }
-      }
-    }
-
-    const pos = this.bgUvToScreen(slime.u, slime.v);
-    const baseScale = 1.28 * Math.max(0.65, pos.scale);
-    const hopPx = slime.hopZ * Math.max(0.65, pos.scale);
-    const airRatio = slime.hopPeak > 0 ? Math.min(1, slime.hopZ / slime.hopPeak) : 0;
-
-    slime.shadow
-      .setPosition(pos.x, pos.y + 3 * Math.max(0.65, pos.scale))
-      .setScale(baseScale * (1 - 0.35 * airRatio));
-    slime.shadow.setAlpha(0.34 * (1 - 0.35 * airRatio));
-
-    slime.sprite
-      .setPosition(pos.x, pos.y - hopPx)
-      .setScale(baseScale * slime.squashX, baseScale * slime.squashY);
+    this.diorama?.setAlpha(1);
+    this.diorama?.setBlurStrength(0.55);
+    this.levelBgScrim?.setAlpha(0.2);
   }
 
   private showFileSelectMenu(entrance: 'instant' | 'fade' | 'drop' = 'fade'): void {

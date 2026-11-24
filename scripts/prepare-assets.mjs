@@ -1,9 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { execFileSync } from 'node:child_process';
 import AdmZip from 'adm-zip';
-import ffmpegPath from 'ffmpeg-static';
 import { encodePng, generatePixelArtIcons } from './pixelArtIcons.mjs';
 import { extractSproutLandsUi } from './sproutUiExtractor.mjs';
 
@@ -315,7 +313,6 @@ function main() {
     decodePngRgba,
     readPngDimensions,
   });
-  prepareTitleBackground();
 
   fs.writeFileSync(MANIFEST_OUT, JSON.stringify(manifest, null, 2));
   console.log(
@@ -823,23 +820,6 @@ function extractCuteRpgFamiliars(manifest) {
       height: fh,
     };
   }
-}
-
-function prepareTitleBackground() {
-  const v2 = path.join(ROOT, 'level_selection_background_v2.jfif');
-  const v1 = path.join(ROOT, 'level_selection_background.jfif');
-  const src = fs.existsSync(v2) ? v2 : v1;
-  if (!fs.existsSync(src) || !ffmpegPath) return;
-  const dest = path.join(OUT_DIR, 'title', 'level_selection_background.jpg');
-  ensureDir(path.dirname(dest));
-  if (fs.existsSync(dest) && fs.statSync(dest).mtimeMs >= fs.statSync(src).mtimeMs) {
-    return;
-  }
-  execFileSync(
-    ffmpegPath,
-    ['-y', '-i', src, '-vf', 'scale=min(1920\\,iw):-2', '-q:v', '3', '-frames:v', '1', '-update', '1', dest],
-    { stdio: 'ignore' },
-  );
 }
 
 main();

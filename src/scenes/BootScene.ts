@@ -29,8 +29,7 @@ export class BootScene extends Phaser.Scene {
       label.setText('Ready!');
     });
 
-    // 1. Tilesets (as images for Phaser Tilemaps) & Title Background
-    this.load.image('title_level_bg', 'assets/title/level_selection_background.jpg');
+    // 1. Tilesets (as images for Phaser Tilemaps)
     this.load.image('tileset_grass', 'assets/extras/Tileset_grass (free demo).png');
     this.load.image('tileset_autumn', 'assets/extras/Tileset_autumn (free demo).png');
     this.load.image('tileset_winter', 'assets/extras/Tileset_winter (free demo).png');
