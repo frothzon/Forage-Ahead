@@ -4,6 +4,7 @@ import { SFX } from '../core/SoundFX';
 import { ISLAND_CELL_TILES, TILE_PX, type BiomeKind } from '../data/islands';
 import type { StructureType } from '../data/recipes';
 import {
+  getProjectileRotation,
   spawnBurstParticles,
   spawnFloatingText,
   spawnShockwaveRing,
@@ -440,11 +441,16 @@ export function createDungeonPromoTimeline(api: PromoDungeonBridge): PromoTimeli
     scene.cameras.main.shake(220, 0.01);
     for (let i = 0; i < 16; i++) {
       const ang = (Math.PI * 2 * i) / 16;
-      const spr = scene.add.image(boss.x, boss.y - 4, 'monster_projectiles/FireballBig').setRotation(ang).setDepth(5000);
+      const vx = Math.cos(ang) * 95;
+      const vy = Math.sin(ang) * 95;
+      const spr = scene.add
+        .image(boss.x, boss.y - 4, 'monster_projectiles/FireballBig')
+        .setRotation(getProjectileRotation(vx, vy))
+        .setDepth(5000);
       api.projectiles.push({
         sprite: spr,
-        vx: Math.cos(ang) * 95,
-        vy: Math.sin(ang) * 95,
+        vx,
+        vy,
         damage: 12,
         fromPlayer: false,
         lifeMs: 2500,

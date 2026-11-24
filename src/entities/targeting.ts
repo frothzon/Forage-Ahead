@@ -95,6 +95,14 @@ export function isSwordItem(itemId: string | undefined | null): boolean {
   return Boolean(itemId && itemId.startsWith('sword'));
 }
 
+/**
+ * Computes the sprite rotation in radians from a projectile's velocity vector,
+ * returning `0` when velocity magnitude is effectively zero.
+ */
+export function getProjectileRotation(vx: number, vy: number): number {
+  return Math.hypot(vx, vy) > 1e-6 ? Math.atan2(vy, vx) : 0;
+}
+
 export interface SwordAutoTargetCandidate<T> {
   item: T;
   x: number;

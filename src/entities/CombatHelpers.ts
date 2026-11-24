@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+export { getProjectileRotation } from './targeting';
 
 export interface ActiveProjectile {
   sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Arc;

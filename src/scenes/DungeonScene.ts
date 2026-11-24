@@ -40,6 +40,7 @@ import { Enemy } from '../entities/Enemy';
 import { LootDrop } from '../entities/LootDrop';
 import { FamiliarCompanion, Player } from '../entities/Player';
 import {
+  getProjectileRotation,
   isSwordItem,
   selectBestAimTarget,
   SwordAutoTargeter,
@@ -1316,7 +1317,7 @@ export class DungeonScene extends Phaser.Scene {
       const pInfo = texMap[itemId] ?? texMap.bow;
       const spr = this.add
         .image(this.player.x + nx * 8, this.player.y - 4 + ny * 8, pInfo.tex)
-        .setRotation(Math.atan2(ny, nx))
+        .setRotation(getProjectileRotation(nx * 195, ny * 195))
         .setDepth(5000);
       this.projectiles.push({
         sprite: spr,
@@ -1430,11 +1431,13 @@ export class DungeonScene extends Phaser.Scene {
       const proj = enemy.def.projectileKey ?? 'monster_projectiles/FireballBig';
       for (let i = 0; i < 10; i++) {
         const ang = (Math.PI * 2 * i) / 10;
-        const spr = this.add.image(enemy.x, enemy.y - 4, proj).setRotation(ang).setDepth(5000);
+        const vx = Math.cos(ang) * 115;
+        const vy = Math.sin(ang) * 115;
+        const spr = this.add.image(enemy.x, enemy.y - 4, proj).setRotation(getProjectileRotation(vx, vy)).setDepth(5000);
         this.projectiles.push({
           sprite: spr,
-          vx: Math.cos(ang) * 115,
-          vy: Math.sin(ang) * 115,
+          vx,
+          vy,
           damage: Math.round(enemy.def.damage * 1.15),
           fromPlayer: false,
           lifeMs: 2000,
@@ -1799,16 +1802,18 @@ export class DungeonScene extends Phaser.Scene {
             for (let i = 0; i < count; i++) {
               const offset = count === 1 ? 0 : (i - (count - 1) / 2) * spread;
               const ang = baseAng + offset;
+              const vx = Math.cos(ang) * speed;
+              const vy = Math.sin(ang) * speed;
               const spr = this.add
                 .image(fromX, fromY, tex)
-                .setRotation(ang)
+                .setRotation(getProjectileRotation(vx, vy))
                 .setTint(meta.tint)
                 .setScale(meta.isNova ? 1.35 : 0.9)
                 .setDepth(5000);
               this.projectiles.push({
                 sprite: spr,
-                vx: Math.cos(ang) * speed,
-                vy: Math.sin(ang) * speed,
+                vx,
+                vy,
                 damage: meta.damage,
                 fromPlayer: true,
                 lifeMs: 1100,
@@ -1930,7 +1935,7 @@ export class DungeonScene extends Phaser.Scene {
           }
         },
         onFireProjectile: (px, py, vx, vy, dmg, texKey) => {
-          const spr = this.add.image(px, py, texKey).setRotation(Math.atan2(vy, vx)).setDepth(5000);
+          const spr = this.add.image(px, py, texKey).setRotation(getProjectileRotation(vx, vy)).setDepth(5000);
           this.projectiles.push({
             sprite: spr,
             vx,
@@ -1956,6 +1961,7 @@ export class DungeonScene extends Phaser.Scene {
       p.lifeMs -= dt;
       p.sprite.x += p.vx * dtSec;
       p.sprite.y += p.vy * dtSec;
+      p.sprite.setRotation(getProjectileRotation(p.vx, p.vy));
       let hit = !this.isWalkable(p.sprite.x, p.sprite.y);
 
       if (!hit && p.fromPlayer) {

@@ -58,6 +58,7 @@ import { dialogueBox } from '../ui/DialogueBox';
 import { FishingMinigame, type FishBehavior } from '../ui/FishingMinigame';
 import { tryActivateGadget } from '../entities/GadgetHelper';
 import {
+  getProjectileRotation,
   isFacingTarget,
   isSwordItem,
   selectBestAimTarget,
@@ -2536,7 +2537,7 @@ export class OverworldScene extends Phaser.Scene {
       const pInfo = texMap[itemId] ?? texMap.bow;
       const spr = this.add
         .image(this.player.x + nx * 8, this.player.y - 4 + ny * 8, pInfo.tex)
-        .setRotation(Math.atan2(ny, nx))
+        .setRotation(getProjectileRotation(nx * projSpeed, ny * projSpeed))
         .setDepth(5000);
       this.projectiles.push({
         sprite: spr,
@@ -4713,16 +4714,18 @@ export class OverworldScene extends Phaser.Scene {
           for (let i = 0; i < count; i++) {
             const offset = count === 1 ? 0 : (i - (count - 1) / 2) * spread;
             const ang = baseAng + offset;
+            const vx = Math.cos(ang) * speed;
+            const vy = Math.sin(ang) * speed;
             const spr = this.add
               .image(fromX, fromY, tex)
-              .setRotation(ang)
+              .setRotation(getProjectileRotation(vx, vy))
               .setTint(meta.tint)
               .setScale(meta.isNova ? 1.35 : 0.9)
               .setDepth(5000);
             this.projectiles.push({
               sprite: spr,
-              vx: Math.cos(ang) * speed,
-              vy: Math.sin(ang) * speed,
+              vx,
+              vy,
               damage: meta.damage,
               fromPlayer: true,
               lifeMs: 1100,
@@ -4986,7 +4989,7 @@ export class OverworldScene extends Phaser.Scene {
             }
           },
           onFireProjectile: (px, py, vx, vy, dmg, texKey) => {
-            const spr = this.add.image(px, py, texKey).setRotation(Math.atan2(vy, vx)).setDepth(5000);
+            const spr = this.add.image(px, py, texKey).setRotation(getProjectileRotation(vx, vy)).setDepth(5000);
             this.projectiles.push({
               sprite: spr,
               vx,
@@ -5405,6 +5408,7 @@ export class OverworldScene extends Phaser.Scene {
       p.lifeMs -= dtMs;
       p.sprite.x += p.vx * dt;
       p.sprite.y += p.vy * dt;
+      p.sprite.setRotation(getProjectileRotation(p.vx, p.vy));
       if (Math.random() < 0.45) spawnProjectileTrail(this, p.sprite.x, p.sprite.y, p.kind);
 
       let hit = false;

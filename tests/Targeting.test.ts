@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getProjectileRotation,
   isFacingTarget,
   isSwordItem,
   selectBestAimTarget,
@@ -198,5 +199,24 @@ describe('SwordAutoTargeter', () => {
       { item: enemy, x: 38, y: 0, priority: 3 },
     ]);
     expect(match?.item).toBe(enemy);
+  });
+});
+
+describe('getProjectileRotation', () => {
+  it('returns cardinal angles for axis-aligned velocities', () => {
+    expect(getProjectileRotation(100, 0)).toBeCloseTo(0);
+    expect(getProjectileRotation(0, 100)).toBeCloseTo(Math.PI / 2);
+    expect(getProjectileRotation(-100, 0)).toBeCloseTo(Math.PI);
+    expect(getProjectileRotation(0, -100)).toBeCloseTo(-Math.PI / 2);
+  });
+
+  it('returns diagonal angles for diagonal velocities', () => {
+    expect(getProjectileRotation(50, 50)).toBeCloseTo(Math.PI / 4);
+    expect(getProjectileRotation(50, -50)).toBeCloseTo(-Math.PI / 4);
+  });
+
+  it('falls back to 0 when velocity is zero or near-zero', () => {
+    expect(getProjectileRotation(0, 0)).toBe(0);
+    expect(getProjectileRotation(1e-8, -1e-8)).toBe(0);
   });
 });
