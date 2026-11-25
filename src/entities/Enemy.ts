@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { gameState } from '../core/GameState';
+import { ELITE_SCALE_MULT, computeEliteStats } from '../data/eliteLoot';
 import { HALF_ISLAND_AGGRO_PX, MONSTERS, type MonsterDef } from '../data/monsters';
 import { vectorToDirection, type Direction } from './AnimationRegistry';
 import { applySafeKnockback } from './knockback';
@@ -21,6 +22,9 @@ export class Enemy extends Phaser.GameObjects.Container {
   public static readonly FEAR_DURATION_MS = FEAR_DURATION_MS;
 
   public readonly def: MonsterDef;
+  public readonly isElite: boolean;
+  public readonly effectiveDamage: number;
+  public readonly effectiveSpeed: number;
   public readonly homeX: number;
   public readonly homeY: number;
   public hp: number;
@@ -55,15 +59,25 @@ export class Enemy extends Phaser.GameObjects.Container {
   private detourTimerMs = 0;
   private stuckFearState: StuckFearState;
 
-  constructor(scene: Phaser.Scene, monsterId: string, x: number, y: number) {
+  constructor(
+    scene: Phaser.Scene,
+    monsterId: string,
+    x: number,
+    y: number,
+    opts?: { isElite?: boolean },
+  ) {
     super(scene, x, y);
     this.stuckFearState = createStuckFearState(x, y);
     const def = MONSTERS[monsterId] ?? MONSTERS.Slime;
     this.def = def;
+    this.isElite = Boolean(opts?.isElite) && !def.isBoss;
     this.homeX = x;
     this.homeY = y;
-    this.maxHp = def.maxHp;
-    this.hp = def.maxHp;
+    const eliteStats = this.isElite ? computeEliteStats(def) : null;
+    this.maxHp = eliteStats ? eliteStats.maxHp : def.maxHp;
+    this.hp = this.maxHp;
+    this.effectiveDamage = eliteStats ? eliteStats.damage : def.damage;
+    this.effectiveSpeed = eliteStats ? eliteStats.speed : def.speed;
 
     const mSpec = (
       manifest.monsters as Record<
@@ -77,32 +91,37 @@ export class Enemy extends Phaser.GameObjects.Container {
       >
     )[def.id];
 
-    const scale = def.id === 'Adult Red Dragon' ? 0.75 : 1;
+    const scale = (def.id === 'Adult Red Dragon' ? 0.75 : 1) * (this.isElite ? ELITE_SCALE_MULT : 1);
     this.baseScale = scale;
     const feetOffset = (mSpec?.feetOffset ?? 8) * scale;
-    const shadowW = def.isBoss ? 26 : 12;
-    const shadowH = def.isBoss ? 8 : 5;
+    const shadowW = (def.isBoss ? 26 : 12) * (this.isElite ? 1.35 : 1);
+    const shadowH = (def.isBoss ? 8 : 5) * (this.isElite ? 1.35 : 1);
     // Shadow centered slightly above y=0 so it overlaps the bottom half of the monster's feet
     const shadow = scene.add.ellipse(0, -1.5, shadowW, shadowH, 0x000000, 0.4);
+    const eliteAura = this.isElite
+      ? scene.add
+          .ellipse(0, -2, shadowW * 1.45, shadowH * 1.65, 0xffb703, 0.25)
+          .setStrokeStyle(1.2, 0xffd166, 0.85)
+      : null;
 
     const idleKey = mSpec?.anims?.idle?.key ?? 'monsters/Slime/Slime_idle';
     this.sprite = scene.add.sprite(0, -feetOffset, idleKey, 0).setScale(scale);
 
-    const barW = def.isBoss ? 40 : 20;
-    const barH = def.isBoss ? 4.5 : 3.5;
-    const barY = def.isBoss ? -36 : -20;
+    const barW = def.isBoss ? 40 : this.isElite ? 28 : 20;
+    const barH = def.isBoss ? 4.5 : this.isElite ? 4 : 3.5;
+    const barY = def.isBoss ? -36 : this.isElite ? -26 : -20;
     this.hpBarBorder = scene.add.rectangle(0, barY, barW + 2, barH + 2, 0x070a0f).setOrigin(0.5);
     this.hpBarBg = scene.add.rectangle(0, barY, barW, barH, 0x1b141a).setOrigin(0.5);
     this.hpBarTrail = scene.add
       .rectangle(-barW / 2 + 0.5, barY, barW - 1, barH - 1, 0xffd166)
       .setOrigin(0, 0.5);
     this.hpBarFill = scene.add
-      .rectangle(-barW / 2 + 0.5, barY, barW - 1, barH - 1, def.isBoss ? 0xff4757 : 0xe85d5d)
+      .rectangle(-barW / 2 + 0.5, barY, barW - 1, barH - 1, def.isBoss ? 0xff4757 : this.isElite ? 0xffb703 : 0xe85d5d)
       .setOrigin(0, 0.5);
     this.hpBarHighlight = scene.add
       .rectangle(-barW / 2 + 0.5, barY - (barH - 1) * 0.28, barW - 1, 0.9, 0xffffff, 0.35)
       .setOrigin(0, 0.5);
-    if (!def.isBoss) {
+    if (!def.isBoss && !this.isElite) {
       this.hpBarBorder.setVisible(false);
       this.hpBarBg.setVisible(false);
       this.hpBarTrail.setVisible(false);
@@ -110,10 +129,10 @@ export class Enemy extends Phaser.GameObjects.Container {
       this.hpBarHighlight.setVisible(false);
     }
     this.levelLabel = scene.add
-      .text(0, barY - 7, `Lv.${def.level}`, {
+      .text(0, barY - 7, this.isElite ? `★ Lv.${def.level} Elite` : `Lv.${def.level}`, {
         fontSize: '7px',
         fontStyle: 'bold',
-        color: '#ffe066',
+        color: this.isElite ? '#ffd166' : '#ffe066',
         stroke: '#000000',
         strokeThickness: 2,
         resolution: 4,
@@ -121,6 +140,7 @@ export class Enemy extends Phaser.GameObjects.Container {
       .setOrigin(0.5);
 
     this.add([
+      ...(eliteAura ? [eliteAura] : []),
       shadow,
       this.sprite,
       this.hpBarBorder,
@@ -327,11 +347,11 @@ export class Enemy extends Phaser.GameObjects.Container {
           this.attackCooldownMs = this.def.isBoss ? 1400 : 1800;
           this.playMonAnim('attack', true);
           const proj = this.def.projectileKey ?? 'monster_projectiles/EnergyBall';
-          actions.onFireProjectile(this.x, this.y - 4, nx * 110, ny * 110, this.def.damage, proj);
+          actions.onFireProjectile(this.x, this.y - 4, nx * 110, ny * 110, this.effectiveDamage, proj);
         } else if (this.pendingAttackType === 'melee' && dist <= this.def.attackRange + 8) {
           this.attackCooldownMs = 1100;
           this.playMonAnim('attack', true);
-          actions.onMeleeHitPlayer(this.def.damage, nx, ny);
+          actions.onMeleeHitPlayer(this.effectiveDamage, nx, ny);
         }
         this.pendingAttackType = null;
       }
@@ -351,7 +371,7 @@ export class Enemy extends Phaser.GameObjects.Container {
         const awayX = dist > 0.01 ? -dx / dist : 0;
         const awayY = dist > 0.01 ? -dy / dist : -1;
         this.facing = vectorToDirection(awayX, awayY, this.facing);
-        const fleeSpeed = this.def.speed * 1.15 * speedMult * dt;
+        const fleeSpeed = this.effectiveSpeed * 1.15 * speedMult * dt;
         const moved = this.steerAroundObstacles(awayX * fleeSpeed, awayY * fleeSpeed, isWalkable);
         this.playMonAnim(moved ? 'walk' : 'idle');
         this.setDepth(this.y);
@@ -448,7 +468,7 @@ export class Enemy extends Phaser.GameObjects.Container {
 
       if (this.def.ai === 'ranged' || (this.def.isBoss && dist > 65)) {
         if (dist > this.def.attackRange * 0.85) {
-          this.steerAroundObstacles(nx * this.def.speed * speedMult * dt, ny * this.def.speed * speedMult * dt, isWalkable);
+          this.steerAroundObstacles(nx * this.effectiveSpeed * speedMult * dt, ny * this.effectiveSpeed * speedMult * dt, isWalkable);
           this.playMonAnim('walk');
         } else {
           this.playMonAnim('idle');
@@ -459,7 +479,7 @@ export class Enemy extends Phaser.GameObjects.Container {
         }
       } else {
         if (dist > this.def.attackRange * 0.78) {
-          this.steerAroundObstacles(nx * this.def.speed * speedMult * dt, ny * this.def.speed * speedMult * dt, isWalkable);
+          this.steerAroundObstacles(nx * this.effectiveSpeed * speedMult * dt, ny * this.effectiveSpeed * speedMult * dt, isWalkable);
           this.playMonAnim('walk');
         } else if (this.attackCooldownMs <= 0) {
           this.telegraphMs = 250;
@@ -481,8 +501,8 @@ export class Enemy extends Phaser.GameObjects.Container {
         }
       }
       if (this.wanderVec.lengthSq() > 0.01) {
-        const stepX = this.wanderVec.x * (this.def.speed * 0.45) * dt;
-        const stepY = this.wanderVec.y * (this.def.speed * 0.45) * dt;
+        const stepX = this.wanderVec.x * (this.effectiveSpeed * 0.45) * dt;
+        const stepY = this.wanderVec.y * (this.effectiveSpeed * 0.45) * dt;
         if (Math.hypot(this.x + stepX - this.homeX, this.y + stepY - this.homeY) < 48) {
           const moved = this.steerAroundObstacles(stepX, stepY, isWalkable);
           if (!moved) {

@@ -14,7 +14,8 @@ import {
 
 export type { MarketQuote, MarketTrend };
 import { ISLANDS, STORY_CHAPTERS, getBiomeChapter, type DungeonId } from '../data/islands';
-import { getQuestById, getQuestsForNpc, type QuestDef, type QuestObjective } from '../data/quests';
+import { MONSTERS } from '../data/monsters';
+import { QUESTS, getQuestById, getQuestsForNpc, type QuestDef, type QuestObjective } from '../data/quests';
 import { RECIPES, type RecipeDef, type StructureType } from '../data/recipes';
 import { SKILLS } from '../data/skills';
 import {
@@ -169,6 +170,37 @@ export interface SaveData {
   solvedDungeonPuzzles?: string[];
   openedDungeonChests?: string[];
   settings?: GameSettingsData;
+  stats?: PlayerStatsData;
+}
+
+export interface PlayerStatsData {
+  killsByMonster: Record<string, number>;
+  elitesKilled: number;
+  bossesKilled: number;
+  totalKills: number;
+  resourcesGathered: number;
+  fishCaught: number;
+  itemsCrafted: number;
+  structuresBuilt: number;
+  deaths: number;
+  damageDealt: number;
+  playTimeMs: number;
+}
+
+export function createDefaultPlayerStats(): PlayerStatsData {
+  return {
+    killsByMonster: {},
+    elitesKilled: 0,
+    bossesKilled: 0,
+    totalKills: 0,
+    resourcesGathered: 0,
+    fishCaught: 0,
+    itemsCrafted: 0,
+    structuresBuilt: 0,
+    deaths: 0,
+    damageDealt: 0,
+    playTimeMs: 0,
+  };
 }
 
 export type SaveSlotIndex = 0 | 1 | 2;
@@ -218,6 +250,7 @@ export class GameState {
   public completedQuests = new Set<string>();
   public activeQuests: Record<string, Record<string, number>> = {};
   public trackedQuestId: string | null = null;
+  public stats: PlayerStatsData = createDefaultPlayerStats();
 
   public bagSlots: Array<BagSlot | null> = Array.from({ length: BAG_SIZE }, () => null);
   public gearInstances: Record<string, GearInstance> = {};
@@ -472,6 +505,7 @@ export class GameState {
     this.marketLastDecayDay = 1;
     this.spawnPoint = null;
     this.pendingToast = null;
+    this.stats = createDefaultPlayerStats();
     this.dungeonSeeds = this.createInitialDungeonSeeds();
     this.lootedOverworldChests.clear();
     this.solvedDungeonPuzzles.clear();
@@ -1661,6 +1695,58 @@ export class GameState {
     return def;
   }
 
+  public recordMonsterKill(
+    monsterId: string,
+    opts?: { isBoss?: boolean; isElite?: boolean },
+  ): void {
+    this.stats.totalKills += 1;
+    this.stats.killsByMonster[monsterId] = (this.stats.killsByMonster[monsterId] ?? 0) + 1;
+    if (opts?.isBoss) this.stats.bossesKilled += 1;
+    if (opts?.isElite) this.stats.elitesKilled += 1;
+  }
+
+  public recordDamageDealt(amount: number): void {
+    if (amount > 0 && Number.isFinite(amount)) {
+      this.stats.damageDealt += Math.round(amount);
+    }
+  }
+
+  public recordStat(
+    key: 'resourcesGathered' | 'fishCaught' | 'itemsCrafted' | 'structuresBuilt' | 'deaths',
+    amount = 1,
+  ): void {
+    if (amount > 0 && Number.isFinite(amount)) {
+      this.stats[key] += amount;
+    }
+  }
+
+  public addPlayTime(dtMs: number): void {
+    if (dtMs > 0 && Number.isFinite(dtMs)) {
+      this.stats.playTimeMs += dtMs;
+    }
+  }
+
+  public getCompletionPercent(): number {
+    const islandRatio = ISLANDS.length > 0 ? Math.min(1, this.ownedIslands.size / ISLANDS.length) : 0;
+    const dungeonRatio = Math.min(1, this.clearedDungeons.size / 4);
+    const finalBossRatio = this.finalBossDefeated ? 1 : 0;
+    const skillRatio = SKILLS.length > 0 ? Math.min(1, this.unlockedSkills.size / SKILLS.length) : 0;
+    const questRatio = QUESTS.length > 0 ? Math.min(1, this.completedQuests.size / QUESTS.length) : 0;
+    const monsterKeys = Object.keys(MONSTERS);
+    const discoveredMonsters = monsterKeys.filter((id) => (this.stats.killsByMonster[id] ?? 0) > 0).length;
+    const bestiaryRatio = monsterKeys.length > 0 ? Math.min(1, discoveredMonsters / monsterKeys.length) : 0;
+
+    const pct =
+      (islandRatio * 0.25 +
+        dungeonRatio * 0.2 +
+        finalBossRatio * 0.1 +
+        skillRatio * 0.15 +
+        questRatio * 0.15 +
+        bestiaryRatio * 0.15) *
+      100;
+    return Math.max(0, Math.min(100, Math.round(pct * 10) / 10));
+  }
+
   public addRanchCreature(speciesId: string, x: number, y: number, layIntervalMs: number): RanchCreatureSave {
     const rec: RanchCreatureSave = {
       id: `ranch_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
@@ -1761,6 +1847,10 @@ export class GameState {
       solvedDungeonPuzzles: Array.from(this.solvedDungeonPuzzles),
       openedDungeonChests: Array.from(this.openedDungeonChests),
       settings: cloneSettings(settingsStore.get()),
+      stats: {
+        ...this.stats,
+        killsByMonster: { ...this.stats.killsByMonster },
+      },
     };
     const key = this.getSlotKey(slot);
     const serialized = JSON.stringify(data);
@@ -1963,6 +2053,28 @@ export class GameState {
             ? ALL_MENU_TABS
             : [],
       );
+      const defStats = createDefaultPlayerStats();
+      const s = data.stats;
+      this.stats = s && typeof s === 'object'
+        ? {
+            killsByMonster:
+              s.killsByMonster && typeof s.killsByMonster === 'object' ? { ...s.killsByMonster } : {},
+            elitesKilled: typeof s.elitesKilled === 'number' && Number.isFinite(s.elitesKilled) ? s.elitesKilled : 0,
+            bossesKilled: typeof s.bossesKilled === 'number' && Number.isFinite(s.bossesKilled) ? s.bossesKilled : 0,
+            totalKills: typeof s.totalKills === 'number' && Number.isFinite(s.totalKills) ? s.totalKills : 0,
+            resourcesGathered:
+              typeof s.resourcesGathered === 'number' && Number.isFinite(s.resourcesGathered)
+                ? s.resourcesGathered
+                : 0,
+            fishCaught: typeof s.fishCaught === 'number' && Number.isFinite(s.fishCaught) ? s.fishCaught : 0,
+            itemsCrafted: typeof s.itemsCrafted === 'number' && Number.isFinite(s.itemsCrafted) ? s.itemsCrafted : 0,
+            structuresBuilt:
+              typeof s.structuresBuilt === 'number' && Number.isFinite(s.structuresBuilt) ? s.structuresBuilt : 0,
+            deaths: typeof s.deaths === 'number' && Number.isFinite(s.deaths) ? s.deaths : 0,
+            damageDealt: typeof s.damageDealt === 'number' && Number.isFinite(s.damageDealt) ? s.damageDealt : 0,
+            playTimeMs: typeof s.playTimeMs === 'number' && Number.isFinite(s.playTimeMs) ? s.playTimeMs : 0,
+          }
+        : defStats;
       this.playerPos = data.playerPos;
       this.stokeCount =
         typeof data.stokeCount === 'number' && data.stokeCount >= 0 ? Math.floor(data.stokeCount) : 0;

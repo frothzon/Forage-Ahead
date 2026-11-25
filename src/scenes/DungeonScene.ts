@@ -16,6 +16,7 @@ import {
 import { getBombSpec, isBombItem, type BombSpec } from '../world/bombRules';
 import { DIR_EAST, DIR_NORTH, DIR_SOUTH, DIR_WEST } from '../world/WfcRoomGraph';
 import { ITEMS } from '../data/items';
+import { ELITE_SPAWN_CHANCE, computeEliteStats, rollEliteDrops } from '../data/eliteLoot';
 import { DUNGEON_THEME_VISUALS } from '../data/dungeonTilesets';
 import { tryActivateGadget } from '../entities/GadgetHelper';
 import { getBlueprintsForMonster, tryUnlockBlueprintFromPool } from '../data/blueprints';
@@ -1110,7 +1111,7 @@ export class DungeonScene extends Phaser.Scene {
         for (let i = 0; i < r.enemyCount; i++) {
           const [dx, dy] = offsets[i % offsets.length];
           const mId = this.cfg.minions[i % this.cfg.minions.length];
-          const en = new Enemy(this, mId, cx + dx, cy + dy);
+          const en = new Enemy(this, mId, cx + dx, cy + dy, { isElite: Math.random() < ELITE_SPAWN_CHANCE });
           this.enemies.push(en);
           rt.enemies.push(en);
         }
@@ -1757,6 +1758,7 @@ export class DungeonScene extends Phaser.Scene {
     );
     spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, crit ? 8 : 5);
 
+    gameState.recordDamageDealt(dmg);
     const killed = enemy.takeDamage(dmg, dirX, dirY, this.isWalkable);
     const stopMs = killed ? 70 : crit ? 55 : 35;
     this.player.applyHitstop(stopMs);
@@ -1792,22 +1794,35 @@ export class DungeonScene extends Phaser.Scene {
     if (killed) {
       spawnDeathBurst(this, enemy.x, enemy.y, enemy.def.id, enemy === this.boss);
       if (enemy !== this.boss) SFX.playEnemyDeath();
+      gameState.recordMonsterKill(enemy.def.id, {
+        isBoss: enemy === this.boss || enemy.def.isBoss,
+        isElite: enemy.isElite,
+      });
       gameState.recordQuestProgress('kill', enemy.def.id, 1);
       const bpName = tryUnlockBlueprintFromPool(
         getBlueprintsForMonster(enemy.def.id, enemy === this.boss),
-        enemy === this.boss ? 1.0 : 0.22,
+        enemy === this.boss ? 1.0 : enemy.isElite ? 0.45 : 0.22,
       );
       if (bpName) {
         this.hud.showToast(`BLUEPRINT UNLOCKED: ${bpName}!`);
       }
-      this.spawnDrop(enemy.x, enemy.y, 'coin', Phaser.Math.Between(enemy.def.coins[0], enemy.def.coins[1]), true);
+      const eliteStats = enemy.isElite ? computeEliteStats(enemy.def) : null;
+      const coinRange = eliteStats ? eliteStats.coins : enemy.def.coins;
+      this.spawnDrop(enemy.x, enemy.y, 'coin', Phaser.Math.Between(coinRange[0], coinRange[1]), true);
       for (const d of enemy.def.drops) {
         if (Math.random() <= d.chance) {
           this.spawnDrop(enemy.x, enemy.y, d.itemId, d.count, false);
         }
       }
-      spawnFloatingText(this, this.player.x, this.player.y - 18, `+${enemy.def.xp} XP`, '#7ef5ff', '8px', 'xp');
-      gameState.addXp(enemy.def.xp);
+      if (enemy.isElite) {
+        for (const ed of rollEliteDrops(enemy.def.level)) {
+          this.spawnDrop(enemy.x, enemy.y, ed.itemId, ed.count, false);
+        }
+        spawnFloatingText(this, enemy.x, enemy.y - 22, 'ELITE SLAIN!', '#ffd166', '9px');
+      }
+      const xpGain = eliteStats ? eliteStats.xp : enemy.def.xp;
+      spawnFloatingText(this, this.player.x, this.player.y - 18, `+${xpGain} XP`, '#7ef5ff', '8px', 'xp');
+      gameState.addXp(xpGain);
 
       if (enemy === this.boss && !this.relicSpawned) {
         this.relicSpawned = true;

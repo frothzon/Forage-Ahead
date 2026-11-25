@@ -29,6 +29,7 @@ import {
   type IslandSpec,
 } from '../data/islands';
 import { RECIPES, type CraftingStation, type StructureType } from '../data/recipes';
+import { ELITE_SPAWN_CHANCE, computeEliteStats, rollEliteDrops } from '../data/eliteLoot';
 import {
   MAX_FISH_SPOTS_PER_ISLAND,
   MAX_NODES_PER_ISLAND,
@@ -1603,7 +1604,8 @@ export class OverworldScene extends Phaser.Scene {
       const wy = mty * TILE_PX + 8;
       if (this.player && Math.hypot(wx - this.player.x, wy - this.player.y) < 56) continue;
       const monId = Phaser.Utils.Array.GetRandom(spec.monsterPool);
-      this.enemies.push(new Enemy(this, monId, wx, wy));
+      const isElite = Math.random() < ELITE_SPAWN_CHANCE;
+      this.enemies.push(new Enemy(this, monId, wx, wy, { isElite }));
       return true;
     }
     return false;
@@ -4450,6 +4452,7 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     this.awardXp(node.xpReward);
+    gameState.recordStat(node.kind === 'fish_spot' ? 'fishCaught' : 'resourcesGathered', 1);
     const bpName = tryUnlockBlueprintFromPool(getBlueprintsForNode(node.kind, node.biome), 0.18);
     if (bpName) {
       SFX.playLevelUp();
@@ -4506,6 +4509,7 @@ export class OverworldScene extends Phaser.Scene {
     );
     spawnBurstParticles(this, enemy.x, enemy.y - 4, 0xff6b6b, crit ? 8 : 5);
 
+    gameState.recordDamageDealt(dmg);
     const killed = enemy.takeDamage(dmg, dirX, dirY, (nx, ny) => this.isWalkable(nx, ny));
     const stopMs = killed ? 70 : crit ? 55 : 35;
     this.player.applyHitstop(stopMs);
@@ -4514,8 +4518,12 @@ export class OverworldScene extends Phaser.Scene {
     if (killed) {
       SFX.playEnemyDeath();
       spawnDeathBurst(this, enemy.x, enemy.y, enemy.def.id, false);
+      gameState.recordMonsterKill(enemy.def.id, { isBoss: enemy.def.isBoss, isElite: enemy.isElite });
       gameState.recordQuestProgress('kill', enemy.def.id, 1);
-      const bpName = tryUnlockBlueprintFromPool(getBlueprintsForMonster(enemy.def.id, false), 0.22);
+      const bpName = tryUnlockBlueprintFromPool(
+        getBlueprintsForMonster(enemy.def.id, false),
+        enemy.isElite ? 0.45 : 0.22,
+      );
       if (bpName) {
         SFX.playLevelUp();
         this.hud.showToast(`BLUEPRINT UNLOCKED: ${bpName}!`);
@@ -4526,8 +4534,10 @@ export class OverworldScene extends Phaser.Scene {
           accentColor: '#7ac7ff',
         });
       }
+      const eliteStats = enemy.isElite ? computeEliteStats(enemy.def) : null;
       const mult = this.getLighthouseMultiplier(enemy.x, enemy.y);
-      const coinRoll = Phaser.Math.Between(enemy.def.coins[0], enemy.def.coins[1]);
+      const coinRange = eliteStats ? eliteStats.coins : enemy.def.coins;
+      const coinRoll = Phaser.Math.Between(coinRange[0], coinRange[1]);
       const finalCoins = Math.round(coinRoll * mult * (gameState.hasSkill('economy_coinage') ? 1.4 : 1));
       this.spawnCoin(enemy.x, enemy.y, finalCoins);
       for (const d of enemy.def.drops) {
@@ -4535,7 +4545,13 @@ export class OverworldScene extends Phaser.Scene {
           this.spawnLoot(enemy.x, enemy.y, d.itemId, Math.max(1, Math.round(d.count * mult)));
         }
       }
-      this.awardXp(enemy.def.xp);
+      if (enemy.isElite) {
+        for (const ed of rollEliteDrops(enemy.def.level)) {
+          this.spawnLoot(enemy.x, enemy.y, ed.itemId, ed.count);
+        }
+        spawnFloatingText(this, enemy.x, enemy.y - 22, 'ELITE SLAIN!', '#ffd166', '9px');
+      }
+      this.awardXp(eliteStats ? eliteStats.xp : enemy.def.xp);
     }
   }
 
@@ -5806,12 +5822,19 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     // Enemies (half-island leash & reduced aggro range in Sandstorms; pacified during modals/dialogue/level-up)
+    gameState.addPlayTime(dt);
     const aggroMult = this.weather.weather === 'sandstorm' ? 0.8 : 1;
     const isViewBlocked =
       this.hud.isBlockingInput() || this.fishingMinigame.isActive() || this.lockpickMinigame.isActive();
+    const eliteDespawnDist = ISLAND_CELL_TILES * TILE_PX * 1.15;
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       if (!e.active) {
+        this.enemies.splice(i, 1);
+        continue;
+      }
+      if (e.isElite && Math.hypot(this.player.x - e.homeX, this.player.y - e.homeY) > eliteDespawnDist) {
+        e.destroy();
         this.enemies.splice(i, 1);
         continue;
       }

@@ -2850,27 +2850,64 @@ export class HudController {
         { label: 'Gear Max HP', val: `+${eqStats.maxHp}`, color: '#ff8a93' },
         { label: 'Gear Max EN', val: `+${eqStats.maxEnergy}`, color: '#8ef5a7' },
       ];
+      const completionPct = gameState.getCompletionPercent();
+      const s = gameState.stats;
+      const playSec = Math.floor(s.playTimeMs / 1000);
+      const playHrs = Math.floor(playSec / 3600);
+      const playMins = Math.floor((playSec % 3600) / 60);
+      const playTimeStr = playHrs > 0 ? `${playHrs}h ${playMins}m` : `${playMins}m ${playSec % 60}s`;
+      const monsterList = Object.values(MONSTERS).sort((a, b) => a.level - b.level);
+      const monsterRowsHtml = monsterList
+        .map((m) => {
+          const kills = s.killsByMonster[m.id] ?? 0;
+          const badge = m.isBoss ? '👑 ' : '';
+          return `<div style="display:flex; justify-content:space-between; font-size:10px; opacity:${kills > 0 ? 1 : 0.45};"><span>${badge}${m.name}</span><strong style="color:${kills > 0 ? '#ffe066' : '#8ea3b8'};">${formatCompactNumber(kills)}</strong></div>`;
+        })
+        .join('');
       return `
-        <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; flex-direction:column; gap:8px;">
           <div style="display:flex; align-items:center; gap:10px;">
             <div class="sl-frame-wood" style="width:54px; height:54px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
               <img src="${portrait}" class="px-icon" style="width:38px; height:38px;" />
             </div>
-            <div>
+            <div style="flex:1; min-width:0;">
               <div class="sl-pixel-text" style="font-size:14px; font-weight:800; color:#ffe066;">LV.${gameState.level} ${heroClass.toUpperCase()}</div>
               <div style="font-size:11px; color:#c8daeb;">Power Level: <strong style="color:#ffd242;">${gameState.getPowerLevel()}</strong></div>
+              <div style="margin-top:3px;">
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#8ef5a7;">
+                  <span>Completion</span><strong>${completionPct.toFixed(1)}%</strong>
+                </div>
+                <div style="height:5px; background:#0d1624; border-radius:3px; overflow:hidden; margin-top:2px;">
+                  <div style="width:${completionPct}%; height:100%; background:linear-gradient(90deg, #4fa8ff, #6ce08a);"></div>
+                </div>
+              </div>
             </div>
           </div>
-          <div style="padding:7px 9px; background:#131f30; border-radius:4px; display:flex; flex-direction:column; gap:4px;">
+          <div style="padding:7px 9px; background:#131f30; border-radius:4px; display:flex; flex-direction:column; gap:3px;">
             <div style="font-size:11px; font-weight:800; color:#ffe066; margin-bottom:2px;">Equipped Gear Bonuses</div>
             ${statRows
               .map(
                 (r) =>
-                  `<div style="display:flex; justify-content:space-between; font-size:11px;"><span style="color:#c8daeb;">${r.label}</span><strong style="color:${r.color};">${r.val}</strong></div>`,
+                  `<div style="display:flex; justify-content:space-between; font-size:10px;"><span style="color:#c8daeb;">${r.label}</span><strong style="color:${r.color};">${r.val}</strong></div>`,
               )
               .join('')}
           </div>
-          <div style="color:#9db6cf; font-size:11px; line-height:1.35;">
+          <div style="padding:7px 9px; background:#131f30; border-radius:4px; display:flex; flex-direction:column; gap:3px;">
+            <div style="font-size:11px; font-weight:800; color:#8cc8ff; margin-bottom:2px;">Game &amp; Combat Stats</div>
+            <div style="display:flex; justify-content:space-between; font-size:10px;"><span style="color:#c8daeb;">Monsters Slayed</span><strong style="color:#ff9b85;">${formatCompactNumber(s.totalKills)}</strong></div>
+            <div style="display:flex; justify-content:space-between; font-size:10px;"><span style="color:#c8daeb;">Elites Killed</span><strong style="color:#ffd166;">${formatCompactNumber(s.elitesKilled)}</strong></div>
+            <div style="display:flex; justify-content:space-between; font-size:10px;"><span style="color:#c8daeb;">Bosses Slayed</span><strong style="color:#ff6b81;">${formatCompactNumber(s.bossesKilled)}</strong></div>
+            <div style="display:flex; justify-content:space-between; font-size:10px;"><span style="color:#c8daeb;">Damage Dealt</span><strong style="color:#ffe066;">${formatCompactNumber(s.damageDealt)}</strong></div>
+            <div style="display:flex; justify-content:space-between; font-size:10px;"><span style="color:#c8daeb;">Resources Gathered</span><strong style="color:#8ef5a7;">${formatCompactNumber(s.resourcesGathered)}</strong></div>
+            <div style="display:flex; justify-content:space-between; font-size:10px;"><span style="color:#c8daeb;">Fish Caught</span><strong style="color:#7ef5ff;">${formatCompactNumber(s.fishCaught)}</strong></div>
+            <div style="display:flex; justify-content:space-between; font-size:10px;"><span style="color:#c8daeb;">Islands / Quests</span><strong>${gameState.ownedIslands.size}/${ISLANDS.length} • ${gameState.completedQuests.size}/${QUESTS.length}</strong></div>
+            <div style="display:flex; justify-content:space-between; font-size:10px;"><span style="color:#c8daeb;">Play Time</span><strong>${playTimeStr}</strong></div>
+          </div>
+          <div style="padding:7px 9px; background:#131f30; border-radius:4px; display:flex; flex-direction:column; gap:3px;">
+            <div style="font-size:11px; font-weight:800; color:#ffd166; margin-bottom:2px;">Monsters Slayed by Name</div>
+            ${monsterRowsHtml}
+          </div>
+          <div style="color:#9db6cf; font-size:10px; line-height:1.35;">
             Select any bag or equipment slot to inspect item stats, compare upgrades, equip, or assign to Hotbar 1–9.
           </div>
         </div>
