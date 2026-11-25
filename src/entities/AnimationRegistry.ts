@@ -142,6 +142,10 @@ export function registerAllAnimations(scene: Phaser.Scene): void {
     if (scene.textures.exists(idleKey)) {
       registerDirectionalAnim(scene, `npc_${npc}_idle`, idleKey, 4, 4, 5, -1);
     }
+    const walkKey = `npcs/Medieval Townsfolk pack (bonus)/${npc}_walk`;
+    if (scene.textures.exists(walkKey)) {
+      registerDirectionalAnim(scene, `npc_${npc}_walk`, walkKey, 4, 4, 8, -1);
+    }
   }
 
   // 4. Wildlife

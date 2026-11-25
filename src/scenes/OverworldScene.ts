@@ -52,6 +52,7 @@ import { CameraRig } from '../vfx/CameraRig';
 import { EffectSequencer } from '../vfx/EffectSequencer';
 import { showWorldEmote } from '../vfx/WorldEmote';
 import { Enemy } from '../entities/Enemy';
+import { vectorToDirection, type Direction } from '../entities/AnimationRegistry';
 import { LootDrop } from '../entities/LootDrop';
 import { FamiliarCompanion, Player } from '../entities/Player';
 import { dialogueBox } from '../ui/DialogueBox';
@@ -124,6 +125,9 @@ interface IslandPurchaseMarker {
 
 interface NpcEntity {
   spec: NonNullable<IslandSpec['npc']>;
+  npcBaseName: string;
+  facing: Direction;
+  curAnimKey: string;
   sprite: Phaser.GameObjects.Sprite;
   shadow: Phaser.GameObjects.Ellipse;
   promptBox: Phaser.GameObjects.Container;
@@ -142,6 +146,7 @@ interface NpcEntity {
   zzzTimerMs: number;
   path: Array<{ x: number; y: number }>;
   pathIdx: number;
+  blanketOverlay?: Phaser.GameObjects.Image;
 }
 
 interface RanchEntity {
@@ -1332,7 +1337,8 @@ export class OverworldScene extends Phaser.Scene {
       const spr = this.add
         .sprite(nx, ny - 6, spec.npc.spriteKey, 0)
         .setDepth(ny);
-      const animKey = `npc_${spec.npc.spriteKey.split('/').pop()!.replace('_idle', '')}_idle_down`;
+      const npcBaseName = spec.npc.spriteKey.split('/').pop()!.replace('_idle', '');
+      const animKey = `npc_${npcBaseName}_idle_down`;
       if (this.anims.exists(animKey)) spr.play(animKey);
       const promptBox = this.createWorldLabelBox(
         spr.x,
@@ -1352,6 +1358,9 @@ export class OverworldScene extends Phaser.Scene {
       });
       const npc: NpcEntity = {
         spec: spec.npc,
+        npcBaseName,
+        facing: 'down',
+        curAnimKey: animKey,
         sprite: spr,
         shadow,
         promptBox: promptBox.container,
@@ -2544,6 +2553,66 @@ export class OverworldScene extends Phaser.Scene {
               )[0];
             if (!lockedDoor) return false;
             this.startLockpickForDoor(lockedDoor);
+            return true;
+          }
+          if (action === 'audit_house_npc_state') {
+            const npc = this.npcs.find((n) => n.spec.id === 'farmer');
+            if (!npc) return false;
+            return {
+              ok: true,
+              npc: {
+                x: Math.round(npc.x),
+                y: Math.round(npc.y),
+                state: npc.state,
+                facing: npc.facing,
+                curAnimKey: npc.curAnimKey,
+                angle: npc.sprite.angle,
+                promptVisible: npc.promptBox.visible,
+                insideHouse: this.isPlayerInsideHouseGroup(npc.x, npc.y) !== 0,
+                pathLen: npc.path.length,
+              },
+              player: {
+                x: Math.round(this.player.x),
+                y: Math.round(this.player.y),
+                insideHouse: this.activeHouseGroupId !== 0,
+              },
+              fox: {
+                x: Math.round(this.fox.x),
+                y: Math.round(this.fox.y),
+                insideHouse: this.isPlayerInsideHouseGroup(this.fox.x, this.fox.y) !== 0,
+              },
+              bed: { x: Math.round(npc.bedX ?? 0), y: Math.round(npc.bedY ?? 0) },
+              door: { x: Math.round(npc.doorX ?? 0), y: Math.round(npc.doorY ?? 0) },
+              home: { x: Math.round(npc.homeX), y: Math.round(npc.homeY) },
+            } as unknown as boolean;
+          }
+          if (action === 'set_time_night') {
+            this.lighting.timeOfDay = 0.86;
+            return true;
+          }
+          if (action === 'set_time_day') {
+            this.lighting.timeOfDay = 0.25;
+            return true;
+          }
+          if (action === 'teleport_player_outside_farmer_house') {
+            const npc = this.npcs.find((n) => n.spec.id === 'farmer');
+            if (!npc || npc.doorX === undefined || npc.doorY === undefined) return false;
+            const tx = npc.doorX + 40;
+            const ty = npc.doorY + 26;
+            this.player.setPosition(tx, ty);
+            this.activeHouseGroupId = this.isPlayerInsideHouseGroup(tx, ty);
+            this.cameras.main.centerOn(tx, ty);
+            return true;
+          }
+          if (action === 'teleport_player_inside_farmer_house_with_fox') {
+            const npc = this.npcs.find((n) => n.spec.id === 'farmer');
+            if (!npc || npc.doorX === undefined || npc.doorY === undefined) return false;
+            const tx = npc.doorX;
+            const ty = npc.doorY - 22;
+            this.player.setPosition(tx, ty);
+            this.fox.setPosition(tx, ty);
+            this.activeHouseGroupId = this.isPlayerInsideHouseGroup(tx, ty);
+            this.cameras.main.centerOn(tx, ty);
             return true;
           }
           return false;
@@ -5195,7 +5264,8 @@ export class OverworldScene extends Phaser.Scene {
           }
         }
       }
-      this.fox.updateCompanion(dt, this.player.x, this.player.y, {
+      const petTarget = this.getPetFollowTarget();
+      this.fox.updateCompanion(dt, petTarget.x, petTarget.y, {
         findTarget: () => {
           if (
             this.activeHouseGroupId !== 0 ||
@@ -5690,11 +5760,12 @@ export class OverworldScene extends Phaser.Scene {
           (npc.state === 'walking_home' || npc.state === 'walking_out') &&
           Math.hypot(b.x - npc.x, b.y - npc.y) <= 22,
       );
+      const foxAtDoor = !b.isLocked && Math.hypot(b.x - this.fox.x, b.y - this.fox.y) <= 28;
       const playerAutoOpen = !b.isLocked && !this.lockpickMinigame.isActive() && dist <= 22;
-      if (!b.isOpen && (playerAutoOpen || npcAtDoor)) {
+      if (!b.isOpen && (playerAutoOpen || npcAtDoor || foxAtDoor)) {
         this.setDoorOpenForNpc(b, true);
         SFX.playChop();
-      } else if (b.isOpen && !npcAtDoor && (b.isLocked ? dist > 14 : dist > 34)) {
+      } else if (b.isOpen && !npcAtDoor && !foxAtDoor && (b.isLocked ? dist > 14 : dist > 34)) {
         this.setDoorOpenForNpc(b, false);
       }
     }
@@ -5789,6 +5860,58 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  private getPetFollowTarget(): { x: number; y: number } {
+    const foxInside = this.isPlayerInsideHouseGroup(this.fox.x, this.fox.y) !== 0;
+    const playerInside = this.activeHouseGroupId !== 0;
+    const separated =
+      foxInside !== playerInside ||
+      this.hasHouseWallBetween(this.fox.x, this.fox.y, this.player.x, this.player.y);
+    if (!separated) {
+      return { x: this.player.x, y: this.player.y };
+    }
+
+    const foxTx = Math.floor(this.fox.x / TILE_PX);
+    const foxTy = Math.floor(this.fox.y / TILE_PX);
+    const playerTx = Math.floor(this.player.x / TILE_PX);
+    const playerTy = Math.floor(this.player.y / TILE_PX);
+
+    const isPetTilePassable = (tx: number, ty: number): boolean => {
+      if (tx < 0 || tx >= WORLD_TILES || ty < 0 || ty >= WORLD_TILES) return false;
+      const bucket = this.buildingsByTile.get((ty << 10) | tx);
+      if (bucket) {
+        let hasDoor = false;
+        for (const b of bucket) {
+          if (!b.active) continue;
+          if (b.structureType === 'house_door') {
+            if (b.isLocked) return false;
+            hasDoor = true;
+            break;
+          }
+        }
+        if (!hasDoor) {
+          for (const b of bucket) {
+            if (!b.active) continue;
+            if (b.structureType === 'house_wall' || b.solid) {
+              return false;
+            }
+          }
+        }
+      }
+      if (this.hasNodeAt(tx, ty)) return false;
+      return true;
+    };
+
+    const path = computeTilePath(foxTx, foxTy, playerTx, playerTy, isPetTilePassable, 400);
+    if (path.length === 0) {
+      return { x: this.player.x, y: this.player.y };
+    }
+    const nextTile = path[Math.min(1, path.length - 1)];
+    const wpX = nextTile.tx * TILE_PX + 8;
+    const wpY = nextTile.ty * TILE_PX + 8;
+    // Offset so updateCompanion's restX = targetX - 16, restY = targetY + 6 lands directly on (wpX, wpY)
+    return { x: wpX + 16, y: wpY - 6 };
+  }
+
   private buildNpcPath(fromX: number, fromY: number, toX: number, toY: number): Array<{ x: number; y: number }> {
     const startTx = Math.floor(fromX / TILE_PX);
     const startTy = Math.floor(fromY / TILE_PX);
@@ -5834,6 +5957,20 @@ export class OverworldScene extends Phaser.Scene {
     return waypoints;
   }
 
+  private playNpcAnim(npc: NpcEntity, mode: 'idle' | 'walk', dir: Direction): void {
+    const key = `npc_${npc.npcBaseName}_${mode}_${dir}`;
+    if (key !== npc.curAnimKey && this.anims.exists(key)) {
+      npc.curAnimKey = key;
+      npc.sprite.play(key, true);
+    }
+  }
+
+  private canSeeNpcText(npc: NpcEntity): boolean {
+    const npcHouseGroup = this.isPlayerInsideHouseGroup(npc.x, npc.y);
+    if (npcHouseGroup === 0) return true;
+    return this.activeHouseGroupId !== 0 && this.activeHouseGroupId === npcHouseGroup;
+  }
+
   private updateNpcs(dt: number): void {
     const { nightFactor } = this.lighting.getAmbientColor();
     const isNight = nightFactor >= 0.45;
@@ -5852,6 +5989,10 @@ export class OverworldScene extends Phaser.Scene {
       const dx = tx - npc.x;
       const dy = ty - npc.y;
       const dist = Math.hypot(dx, dy);
+      if (dist > 0.001) {
+        npc.facing = vectorToDirection(dx, dy, npc.facing);
+        this.playNpcAnim(npc, 'walk', npc.facing);
+      }
       if (dist <= step || dist < 0.001) {
         npc.x = tx;
         npc.y = ty;
@@ -5908,6 +6049,7 @@ export class OverworldScene extends Phaser.Scene {
         if (!isNight) {
           npc.state = 'walking_out';
           npc.sprite.setAngle(0);
+          npc.sprite.anims.resume();
           npc.shadow.setVisible(true);
           npc.path = this.buildNpcPath(npc.x, npc.y, npc.homeX, npc.homeY);
           npc.pathIdx = 0;
@@ -5918,10 +6060,22 @@ export class OverworldScene extends Phaser.Scene {
           npc.x = npc.bedX;
           npc.y = npc.bedY;
           npc.state = 'sleeping';
+          npc.facing = 'down';
+          this.playNpcAnim(npc, 'idle', 'down');
+          npc.sprite.anims.pause(npc.sprite.anims.currentAnim?.frames[0]);
           npc.zzzTimerMs = 1200;
           npc.path = [];
           npc.pathIdx = 0;
-          npc.sprite.setPosition(npc.bedX, npc.bedY - 4).setAngle(90).setDepth(npc.bedY + 1);
+          npc.sprite.setPosition(npc.bedX, npc.bedY - 6).setAngle(0).setDepth(npc.bedY + 8).setCrop(0, 0, 16, 15);
+          if (!npc.blanketOverlay) {
+            npc.blanketOverlay = this.add
+              .image(npc.bedX, npc.bedY + 2, 'sprout/furniture', 18)
+              .setOrigin(0.5, 0.75)
+              .setCrop(0, 7, 16, 9)
+              .setDepth(npc.bedY + 9);
+          } else {
+            npc.blanketOverlay.setPosition(npc.bedX, npc.bedY + 2).setDepth(npc.bedY + 9).setVisible(true);
+          }
           npc.shadow.setVisible(false);
           npc.promptBox.setPosition(npc.bedX, npc.bedY - 18);
         } else {
@@ -5933,7 +6087,9 @@ export class OverworldScene extends Phaser.Scene {
       if (npc.state === 'sleeping') {
         if (!isNight) {
           npc.state = 'walking_out';
-          npc.sprite.setAngle(0);
+          npc.sprite.setAngle(0).setCrop();
+          npc.blanketOverlay?.setVisible(false);
+          npc.sprite.anims.resume();
           npc.shadow.setVisible(true);
           npc.path = this.buildNpcPath(npc.x, npc.y, npc.homeX, npc.homeY);
           npc.pathIdx = 0;
@@ -5942,7 +6098,11 @@ export class OverworldScene extends Phaser.Scene {
           npc.zzzTimerMs -= dt;
           if (npc.zzzTimerMs <= 0) {
             npc.zzzTimerMs = 2400;
-            if (this.player && Math.hypot(this.player.x - npc.bedX, this.player.y - npc.bedY) <= 140) {
+            if (
+              this.canSeeNpcText(npc) &&
+              this.player &&
+              Math.hypot(this.player.x - npc.bedX, this.player.y - npc.bedY) <= 140
+            ) {
               spawnFloatingText(this, npc.bedX + 4, npc.bedY - 12, 'Zzz', '#c8dcff', '7px');
             }
           }
@@ -5962,6 +6122,8 @@ export class OverworldScene extends Phaser.Scene {
           npc.x = npc.homeX;
           npc.y = npc.homeY;
           npc.state = 'day_outside';
+          npc.facing = 'down';
+          this.playNpcAnim(npc, 'idle', 'down');
           npc.path = [];
           npc.pathIdx = 0;
           syncNpcVisuals(npc);
@@ -5998,17 +6160,19 @@ export class OverworldScene extends Phaser.Scene {
     for (const npc of this.npcs) {
       const inRange = this.player ? Math.hypot(npc.x - this.player.x, npc.y - this.player.y) <= 34 : false;
       const nextTxt = this.getNpcPromptText(npc.spec.id, npc.spec.name, inRange, npc.state === 'sleeping');
+      const visible = this.canSeeNpcText(npc);
       if (npc.prompt.text !== nextTxt) {
         const wasInRange = npc.prompt.getData('inRange') === true;
         npc.prompt.setData('inRange', inRange);
         npc.prompt.setText(nextTxt);
         npc.redrawPrompt();
-        if (inRange && !wasInRange && npc.state !== 'sleeping') {
+        if (visible && inRange && !wasInRange && npc.state !== 'sleeping') {
           const q = gameState.getNextQuestForNpc(npc.spec.id);
           const emote = q ? 'portraits/Emote_question' : 'portraits/Emote_talking';
           showWorldEmote(this, npc.x, npc.y - 22, emote, { durationMs: 950, scale: 0.68 });
         }
       }
+      npc.promptBox.setVisible(visible && nextTxt.length > 0);
     }
   }
 
