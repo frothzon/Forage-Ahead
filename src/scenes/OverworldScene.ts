@@ -95,6 +95,7 @@ import { ensureCleanTilesets } from '../world/TilesetCleaner';
 import { WeatherSystem, type WeatherKind } from '../world/WeatherSystem';
 import { periodicPerlinFbm2D } from '../world/weatherRules';
 import { computeTargetSoilWetness, computeWetSoilTint, stepSoilWetness } from '../world/soilWetness';
+import { computeTilePath } from '../world/npcPathfinding';
 import { playSpawnGrowAndJello } from '../vfx/SpawnJuice';
 
 interface ActiveBomb {
@@ -139,6 +140,8 @@ interface NpcEntity {
   bedY?: number;
   state: 'day_outside' | 'walking_home' | 'sleeping' | 'walking_out';
   zzzTimerMs: number;
+  path: Array<{ x: number; y: number }>;
+  pathIdx: number;
 }
 
 interface RanchEntity {
@@ -1361,6 +1364,8 @@ export class OverworldScene extends Phaser.Scene {
         homeY: ny,
         state: 'day_outside',
         zzzTimerMs: 0,
+        path: [],
+        pathIdx: 0,
       };
       this.npcs.push(npc);
 
@@ -1932,7 +1937,11 @@ export class OverworldScene extends Phaser.Scene {
         });
       },
       onTouchAction: () => {
-        if (this.fishingMinigame.isActive() || this.lockpickMinigame.isActive()) return;
+        if (this.lockpickMinigame.isActive()) {
+          this.lockpickMinigame.triggerPick();
+          return;
+        }
+        if (this.fishingMinigame.isActive()) return;
         if (this.hud.isBlockingInput()) return;
         const f = this.player.facing;
         const dx = f === 'left' ? -28 : f === 'right' ? 28 : 0;
@@ -4041,7 +4050,7 @@ export class OverworldScene extends Phaser.Scene {
     if (!this.targetIndicator || this.hud.isBlockingInput() || this.lockpickMinigame.isActive()) {
       this.targetIndicator?.setVisible(false);
       this.updateCropStatusLabel();
-      this.hud.setTouchActionHint(null);
+      this.hud.setTouchActionHint(this.lockpickMinigame.isActive() ? 'Pick Pin' : null);
       return;
     }
     const itemId = gameState.hotbar[gameState.selectedHotbarIndex];
@@ -4431,8 +4440,10 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private startLockpickForDoor(door: BuildingEntity): void {
+    this.hud.setTouchActionHint('Pick Pin');
     this.lockpickMinigame.start(
       (unlocked) => {
+        this.hud.setTouchActionHint(null);
         if (unlocked) {
           door.unlockDoor();
           spawnSparklers(this, door.x, door.y - 4, 12);
@@ -5778,23 +5789,61 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
+  private buildNpcPath(fromX: number, fromY: number, toX: number, toY: number): Array<{ x: number; y: number }> {
+    const startTx = Math.floor(fromX / TILE_PX);
+    const startTy = Math.floor(fromY / TILE_PX);
+    const goalTx = Math.floor(toX / TILE_PX);
+    const goalTy = Math.floor(toY / TILE_PX);
+
+    const isNpcTilePassable = (tx: number, ty: number): boolean => {
+      if (tx < 0 || tx >= WORLD_TILES || ty < 0 || ty >= WORLD_TILES) return false;
+      if (!isLand(this.terrainGrid[ty]?.[tx])) return false;
+      const bucket = this.buildingsByTile.get((ty << 10) | tx);
+      if (bucket) {
+        let hasDoor = false;
+        for (const b of bucket) {
+          if (!b.active) continue;
+          if (b.structureType === 'house_door') {
+            hasDoor = true;
+            break;
+          }
+        }
+        if (!hasDoor) {
+          for (const b of bucket) {
+            if (!b.active) continue;
+            if (
+              b.structureType === 'house_wall' ||
+              b.structureType === 'fence' ||
+              (b.solid && b.structureType !== 'house_door' && b.structureType !== 'furniture_bed')
+            ) {
+              return false;
+            }
+          }
+        }
+      }
+      if (this.hasNodeAt(tx, ty)) return false;
+      return true;
+    };
+
+    const gridPath = computeTilePath(startTx, startTy, goalTx, goalTy, isNpcTilePassable, 900);
+    if (gridPath.length === 0) {
+      return [{ x: toX, y: toY }];
+    }
+    const waypoints = gridPath.map((p) => ({ x: p.tx * TILE_PX + 8, y: p.ty * TILE_PX + 8 }));
+    waypoints[waypoints.length - 1] = { x: toX, y: toY };
+    return waypoints;
+  }
+
   private updateNpcs(dt: number): void {
     const { nightFactor } = this.lighting.getAmbientColor();
     const isNight = nightFactor >= 0.45;
     const step = (44 * dt) / 1000;
 
-    const setDoorOpen = (doorX: number, doorY: number, wantOpen: boolean) => {
+    const openNearbyDoors = (npc: NpcEntity) => {
       for (const d of this.houseDoors) {
         if (!d.active) continue;
-        if (Math.hypot(d.x - doorX, d.y - doorY) <= 14) {
-          if (wantOpen && !d.isOpen) {
-            this.setDoorOpenForNpc(d, true);
-          } else if (!wantOpen && d.isOpen) {
-            const playerInDoorway = this.player && Math.hypot(d.x - this.player.x, d.y - this.player.y) <= 34;
-            if (!playerInDoorway) {
-              this.setDoorOpenForNpc(d, false);
-            }
-          }
+        if (Math.hypot(d.x - npc.x, d.y - npc.y) <= 22) {
+          this.setDoorOpenForNpc(d, true);
         }
       }
     };
@@ -5813,6 +5862,28 @@ export class OverworldScene extends Phaser.Scene {
       return false;
     };
 
+    const advanceAlongPath = (npc: NpcEntity): boolean => {
+      while (
+        npc.pathIdx < npc.path.length &&
+        Math.hypot(npc.path[npc.pathIdx].x - npc.x, npc.path[npc.pathIdx].y - npc.y) < 0.001
+      ) {
+        npc.pathIdx++;
+      }
+      if (npc.pathIdx < npc.path.length) {
+        const wp = npc.path[npc.pathIdx];
+        if (moveToward(npc, wp.x, wp.y)) {
+          npc.pathIdx++;
+        }
+      }
+      return npc.pathIdx >= npc.path.length;
+    };
+
+    const syncNpcVisuals = (npc: NpcEntity) => {
+      npc.sprite.setPosition(npc.x, npc.y - 6).setDepth(npc.y);
+      npc.shadow.setPosition(npc.x, npc.y - 1).setDepth(npc.y - 1);
+      npc.promptBox.setPosition(npc.x, npc.y - 22);
+    };
+
     for (const npc of this.npcs) {
       if (
         npc.bedX === undefined ||
@@ -5826,6 +5897,8 @@ export class OverworldScene extends Phaser.Scene {
       if (npc.state === 'day_outside') {
         if (isNight) {
           npc.state = 'walking_home';
+          npc.path = this.buildNpcPath(npc.x, npc.y, npc.bedX, npc.bedY);
+          npc.pathIdx = 0;
           this.tweens.killTweensOf(npc.promptBox);
         }
         continue;
@@ -5834,28 +5907,25 @@ export class OverworldScene extends Phaser.Scene {
       if (npc.state === 'walking_home') {
         if (!isNight) {
           npc.state = 'walking_out';
+          npc.sprite.setAngle(0);
+          npc.shadow.setVisible(true);
+          npc.path = this.buildNpcPath(npc.x, npc.y, npc.homeX, npc.homeY);
+          npc.pathIdx = 0;
           continue;
         }
-        if (Math.hypot(npc.x - npc.doorX, npc.y - npc.doorY) <= 18) {
-          setDoorOpen(npc.doorX, npc.doorY, true);
-        }
-        const targetX = npc.y > npc.doorY + 4 ? npc.doorX : npc.bedX;
-        const targetY = npc.y > npc.doorY + 4 ? npc.doorY : npc.bedY;
-        moveToward(npc, targetX, targetY);
-
-        if (Math.hypot(npc.x - npc.bedX, npc.y - npc.bedY) <= 4) {
+        openNearbyDoors(npc);
+        if (advanceAlongPath(npc)) {
           npc.x = npc.bedX;
           npc.y = npc.bedY;
           npc.state = 'sleeping';
           npc.zzzTimerMs = 1200;
+          npc.path = [];
+          npc.pathIdx = 0;
           npc.sprite.setPosition(npc.bedX, npc.bedY - 4).setAngle(90).setDepth(npc.bedY + 1);
           npc.shadow.setVisible(false);
           npc.promptBox.setPosition(npc.bedX, npc.bedY - 18);
-          setDoorOpen(npc.doorX, npc.doorY, false);
         } else {
-          npc.sprite.setPosition(npc.x, npc.y - 6).setDepth(npc.y);
-          npc.shadow.setPosition(npc.x, npc.y - 1).setDepth(npc.y - 1);
-          npc.promptBox.setPosition(npc.x, npc.y - 22);
+          syncNpcVisuals(npc);
         }
         continue;
       }
@@ -5865,9 +5935,9 @@ export class OverworldScene extends Phaser.Scene {
           npc.state = 'walking_out';
           npc.sprite.setAngle(0);
           npc.shadow.setVisible(true);
-          npc.sprite.setPosition(npc.x, npc.y - 6).setDepth(npc.y);
-          npc.shadow.setPosition(npc.x, npc.y - 1).setDepth(npc.y - 1);
-          npc.promptBox.setPosition(npc.x, npc.y - 22);
+          npc.path = this.buildNpcPath(npc.x, npc.y, npc.homeX, npc.homeY);
+          npc.pathIdx = 0;
+          syncNpcVisuals(npc);
         } else {
           npc.zzzTimerMs -= dt;
           if (npc.zzzTimerMs <= 0) {
@@ -5883,22 +5953,18 @@ export class OverworldScene extends Phaser.Scene {
       if (npc.state === 'walking_out') {
         if (isNight) {
           npc.state = 'walking_home';
+          npc.path = this.buildNpcPath(npc.x, npc.y, npc.bedX, npc.bedY);
+          npc.pathIdx = 0;
           continue;
         }
-        if (Math.hypot(npc.x - npc.doorX, npc.y - npc.doorY) <= 18) {
-          setDoorOpen(npc.doorX, npc.doorY, true);
-        }
-        const targetX = npc.y < npc.doorY + 6 ? npc.doorX : npc.homeX;
-        const targetY = npc.y < npc.doorY + 6 ? npc.doorY + 10 : npc.homeY;
-        moveToward(npc, targetX, targetY);
-
-        if (Math.hypot(npc.x - npc.homeX, npc.y - npc.homeY) <= 4) {
+        openNearbyDoors(npc);
+        if (advanceAlongPath(npc)) {
           npc.x = npc.homeX;
           npc.y = npc.homeY;
           npc.state = 'day_outside';
-          npc.sprite.setPosition(npc.x, npc.y - 6).setDepth(npc.y);
-          npc.shadow.setPosition(npc.x, npc.y - 1).setDepth(npc.y - 1);
-          npc.promptBox.setPosition(npc.x, npc.y - 22);
+          npc.path = [];
+          npc.pathIdx = 0;
+          syncNpcVisuals(npc);
           this.tweens.killTweensOf(npc.promptBox);
           this.tweens.add({
             targets: npc.promptBox,
@@ -5908,11 +5974,8 @@ export class OverworldScene extends Phaser.Scene {
             repeat: -1,
             ease: 'Sine.InOut',
           });
-          setDoorOpen(npc.doorX, npc.doorY, false);
         } else {
-          npc.sprite.setPosition(npc.x, npc.y - 6).setDepth(npc.y);
-          npc.shadow.setPosition(npc.x, npc.y - 1).setDepth(npc.y - 1);
-          npc.promptBox.setPosition(npc.x, npc.y - 22);
+          syncNpcVisuals(npc);
         }
       }
     }

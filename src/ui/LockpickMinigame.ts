@@ -1,4 +1,5 @@
 import { Haptics } from '../core/Haptics';
+import { isMobileTouchDevice } from '../core/Platform';
 import { SFX } from '../core/SoundFX';
 import {
   LOCKPICK_MAX_ATTEMPTS,
@@ -105,6 +106,13 @@ export class LockpickMinigame {
         gap: 9px;
         touch-action: manipulation;
         animation: lockpickEnterPop 180ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      @media (max-width: 900px) {
+        .lockpick-overlay {
+          left: 41%;
+          top: 46%;
+          width: min(296px, calc(100vw - 128px));
+        }
       }
 
       .lockpick-padlock {
@@ -535,17 +543,18 @@ export class LockpickMinigame {
     const controls = document.createElement('div');
     controls.className = 'lockpick-controls';
 
+    const isTouch = isMobileTouchDevice();
     const pickBtn = document.createElement('button');
     pickBtn.id = 'lockpick-pick-btn';
     pickBtn.type = 'button';
     pickBtn.className = 'hud-btn primary lockpick-pick-btn';
-    pickBtn.textContent = '🔑 PICK PIN [SPACE]';
+    pickBtn.textContent = isTouch ? '🔑 PICK PIN (ACT)' : '🔑 PICK PIN [SPACE]';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.id = 'lockpick-cancel-btn';
     cancelBtn.type = 'button';
     cancelBtn.className = 'hud-btn danger lockpick-cancel-btn';
-    cancelBtn.textContent = 'Cancel [Esc]';
+    cancelBtn.textContent = isTouch ? 'Cancel' : 'Cancel [Esc]';
 
     pickBtn.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
