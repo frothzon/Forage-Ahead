@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { gamepadManager } from '../core/GamepadManager';
+import { onSettingsChange, settingsStore } from '../core/GameSettings';
 import { gameState, type RanchCreatureSave } from '../core/GameState';
 import { computeResponsiveZoom } from '../core/ViewportScaler';
 import { getSpeciesByEgg, getSpeciesById, RANCH_SPECIES } from '../data/ranchCreatures';
@@ -28,6 +30,7 @@ import {
 } from '../data/islands';
 import { RECIPES, type CraftingStation, type StructureType } from '../data/recipes';
 import {
+  MAX_FISH_SPOTS_PER_ISLAND,
   MAX_NODES_PER_ISLAND,
   NODE_RESPAWN_INTERVAL_MS,
   STARTER_ISLAND_NODES,
@@ -98,10 +101,37 @@ import { periodicPerlinFbm2D } from '../world/weatherRules';
 import { computeTargetSoilWetness, computeWetSoilTint, stepSoilWetness } from '../world/soilWetness';
 import { computeTilePath } from '../world/npcPathfinding';
 import { playSpawnGrowAndJello } from '../vfx/SpawnJuice';
+import {
+  attachProjectileGlow,
+  computeChainLightningDamage,
+  drawLightningArc,
+  sampleTransientLights,
+  spawnFuseSparks,
+  spawnMaxBombExplosionJuice,
+  spawnRodImpactJuice,
+  spawnRodMuzzleJuice,
+  spawnRodTrailParticle,
+  type RodVfxKind,
+} from '../vfx/RodAndBombJuice';
+import { getBombSpec, isBombItem, type BombSpec } from '../world/bombRules';
+
+interface SceneProjectile extends ActiveProjectile {
+  glow?: Phaser.GameObjects.Image;
+}
+
+const ROD_LIGHT_COLORS: Record<string, number> = {
+  fire: 0xff7a33,
+  ice: 0x6ce5ff,
+  necro: 0xa855f7,
+  void: 0xc77dff,
+  thunder: 0x6ce5ff,
+};
 
 interface ActiveBomb {
   sprite: Phaser.GameObjects.Image;
+  ring: Phaser.GameObjects.Arc;
   fuseMs: number;
+  spec: BombSpec;
 }
 
 interface FogCloudPuff {
@@ -241,6 +271,13 @@ export class OverworldScene extends Phaser.Scene {
   private cachedMinimapBridgeCount = -1;
   private readonly moveDir = new Phaser.Math.Vector2();
   private readonly pointLightsBuf: PointLightSource[] = [];
+  private readonly transientLightsBuf: Array<{
+    x: number;
+    y: number;
+    radius: number;
+    color: number;
+    intensity: number;
+  }> = [];
   private readonly spotLightsBuf: SpotLightSource[] = [];
   private buildingTickCallbacks?: Parameters<BuildingEntity['updateBuilding']>[1];
   private soilStateMap = new Map<
@@ -258,7 +295,8 @@ export class OverworldScene extends Phaser.Scene {
   };
   private enemies: Enemy[] = [];
   private drops: LootDrop[] = [];
-  private projectiles: ActiveProjectile[] = [];
+  private projectiles: SceneProjectile[] = [];
+  private projectileHitSets = new WeakMap<ActiveProjectile, Set<Enemy>>();
   private bombs: ActiveBomb[] = [];
   private purchaseMarkers: IslandPurchaseMarker[] = [];
   private npcs: NpcEntity[] = [];
@@ -437,7 +475,10 @@ export class OverworldScene extends Phaser.Scene {
       }),
     );
     this.cameras.main.startFollow(this.player, true, 0.14, 0.14);
-    this.cameras.main.roundPixels = false;
+    this.cameras.main.setRoundPixels(settingsStore.get().graphics.roundPixels);
+    const unsubSettings = onSettingsChange((s) => {
+      this.cameras.main?.setRoundPixels(s.graphics.roundPixels);
+    });
 
     const onResize = (gameSize: Phaser.Structs.Size) => {
       this.cameras.main.setSize(gameSize.width, gameSize.height);
@@ -477,6 +518,7 @@ export class OverworldScene extends Phaser.Scene {
 
     this.events.once('shutdown', () => {
       this.scale.off('resize', onResize);
+      unsubSettings();
       this.fishingMinigame.finish(false);
       this.lockpickMinigame.stop();
       this.lighting.destroy();
@@ -730,7 +772,14 @@ export class OverworldScene extends Phaser.Scene {
       this.populateIslandContent(gx, gy, !hasSavedNodes);
     }
     if (hasSavedNodes && gameState.savedNodes) {
+      const restoredFishByIsland = new Map<string, number>();
       for (const sn of gameState.savedNodes) {
+        if (sn.kind === 'fish_spot') {
+          const ikey = `${Math.floor(sn.tx / ISLAND_CELL_TILES)},${Math.floor(sn.ty / ISLAND_CELL_TILES)}`;
+          const count = restoredFishByIsland.get(ikey) ?? 0;
+          if (count >= MAX_FISH_SPOTS_PER_ISLAND) continue;
+          restoredFishByIsland.set(ikey, count + 1);
+        }
         const node = new ResourceNode(this, sn.tx, sn.ty, sn.kind as NodeKind, sn.biome as BiomeKind);
         node.hp = Math.max(1, Math.min(node.maxHp, sn.hp));
         this.nodes.push(node);
@@ -1250,8 +1299,6 @@ export class OverworldScene extends Phaser.Scene {
     const spec = getIslandAt(gx, gy);
     if (!spec) return;
 
-    const ox = gx * ISLAND_CELL_TILES;
-    const oy = gy * ISLAND_CELL_TILES;
     const half = Math.floor(ISLAND_CELL_TILES / 2);
     const centerTile = this.findNearestLandTileOnIsland(gx, gy, half, half);
     const centerTx = centerTile.tx;
@@ -1407,6 +1454,10 @@ export class OverworldScene extends Phaser.Scene {
             if (pl.orientation) bld.setDoorOrientation(pl.orientation);
             if (pl.locked) bld.setLocked(true);
             if (pl.isBedroomChest) bld.isBedroomChest = true;
+            if (pl.type === 'chest' && gameState.isOverworldChestLooted(id)) {
+              bld.looted = true;
+              bld.playChestOpen();
+            }
             this.registerBuilding(bld);
           }
           const doorX = (plot.ox + stamp.doorLx) * TILE_PX + 8;
@@ -1520,12 +1571,8 @@ export class OverworldScene extends Phaser.Scene {
         this.trySpawnNodeOnIsland(gx, gy, centerTx, centerTy);
       }
 
-      for (let f = 0; f < 5; f++) {
-        const fx = ox + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
-        const fy = oy + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
-        if (this.terrainGrid[fy][fx] === 'water' && !this.hasNodeAt(fx, fy)) {
-          this.nodes.push(new ResourceNode(this, fx, fy, 'fish_spot', spec.biome));
-        }
+      for (let f = 0; f < MAX_FISH_SPOTS_PER_ISLAND; f++) {
+        this.trySpawnFishSpotOnIsland(gx, gy);
       }
     }
 
@@ -1562,6 +1609,22 @@ export class OverworldScene extends Phaser.Scene {
     return false;
   }
 
+  private trySpawnFishSpotOnIsland(gx: number, gy: number): boolean {
+    const spec = getIslandAt(gx, gy);
+    if (!spec) return false;
+    const ox = gx * ISLAND_CELL_TILES;
+    const oy = gy * ISLAND_CELL_TILES;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const fx = ox + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
+      const fy = oy + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
+      if (this.terrainGrid[fy]?.[fx] === 'water' && !this.hasNodeAt(fx, fy) && !this.hasBuildingAt(fx, fy)) {
+        this.nodes.push(new ResourceNode(this, fx, fy, 'fish_spot', spec.biome));
+        return true;
+      }
+    }
+    return false;
+  }
+
   private trySpawnNodeOnIsland(
     gx: number,
     gy: number,
@@ -1572,18 +1635,6 @@ export class OverworldScene extends Phaser.Scene {
     if (!spec) return false;
     const ox = gx * ISLAND_CELL_TILES;
     const oy = gy * ISLAND_CELL_TILES;
-
-    // Periodic respawns (when avoidTx < 0) can also spawn a water whirlpool (fish_spot)
-    if (avoidTx < 0 && Math.random() < 0.2) {
-      for (let attempt = 0; attempt < 12; attempt++) {
-        const fx = ox + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
-        const fy = oy + Phaser.Math.Between(0, ISLAND_CELL_TILES - 1);
-        if (this.terrainGrid[fy]?.[fx] === 'water' && !this.hasNodeAt(fx, fy) && !this.hasBuildingAt(fx, fy)) {
-          this.nodes.push(new ResourceNode(this, fx, fy, 'fish_spot', spec.biome));
-          return true;
-        }
-      }
-    }
 
     for (let attempt = 0; attempt < 16; attempt++) {
       const tx = ox + Phaser.Math.Between(1, ISLAND_CELL_TILES - 2);
@@ -2131,6 +2182,7 @@ export class OverworldScene extends Phaser.Scene {
     kb.on('keydown-M', () => this.hud.toggleModal('map'));
     kb.on('keydown-I', () => this.hud.toggleModal('inventory'));
     kb.on('keydown-P', () => this.hud.toggleModal('progress'));
+    kb.on('keydown-O', () => this.hud.toggleModal('settings' as never));
     kb.on('keydown-N', () => this.hud.toggleMinimap());
     kb.on('keydown-ESC', () => {
       if (gameState.pendingBuildRecipeId) {
@@ -2814,8 +2866,9 @@ export class OverworldScene extends Phaser.Scene {
 
     // When holding mouse button, only allow continuous tool/weapon swings (no 60fps interact/pet spam)
     if (!fromHold) {
-      // Enemies always take highest priority over nearby interactables; any aimed target also beats NPCs (lowest priority)
+      // Enemies always take highest priority over nearby interactables; Salvage Hammer always salvages instead of opening stations; any aimed target also beats NPCs (lowest priority)
       const skipInteract =
+        itemId === 'salvage_hammer' ||
         preAimed?.kind === 'enemy' ||
         swordAuto?.item instanceof Enemy ||
         ((preAimed !== null || swordAuto !== null) && this.findInteractableTarget()?.kind === 'npc');
@@ -2859,13 +2912,28 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    if (itemId === 'bomb') {
-      if ((gameState.inventory.bomb ?? 0) <= 0) return;
+    if (isBombItem(itemId)) {
+      if ((gameState.inventory[itemId] ?? 0) <= 0) return;
       if (!this.player.startAction('melee', 240, dx, dy, 160)) return;
-      gameState.removeItem('bomb', 1);
+      const spec = getBombSpec(itemId);
+      gameState.removeItem(itemId, 1);
       const bombSpr = this.add.image(this.player.x, this.player.y, 'projectiles/Bomb').setDepth(this.player.y);
+      if (spec.tint !== 0xffffff) bombSpr.setTint(spec.tint);
       this.tweens.add({ targets: bombSpr, scale: { from: 1, to: 1.35 }, duration: 220, yoyo: true, repeat: -1 });
-      this.bombs.push({ sprite: bombSpr, fuseMs: 1100 });
+      const ringColor = spec.tint !== 0xffffff ? spec.tint : 0xff5a36;
+      const ring = this.add
+        .circle(this.player.x, this.player.y, spec.radius, ringColor, 0.08)
+        .setStrokeStyle(1.2, ringColor, 0.55)
+        .setDepth(this.player.y - 1);
+      this.tweens.add({
+        targets: ring,
+        scale: { from: 0.9, to: 1.04 },
+        alpha: { from: 0.45, to: 0.85 },
+        duration: 240,
+        yoyo: true,
+        repeat: -1,
+      });
+      this.bombs.push({ sprite: bombSpr, ring, fuseMs: spec.fuseMs, spec });
       return;
     }
     const dist = Math.hypot(dx, dy) || 1;
@@ -2891,28 +2959,123 @@ export class OverworldScene extends Phaser.Scene {
       }
       if (itemId === 'bow') SFX.playBowShoot();
       else SFX.playCast();
-      const projSpeed = 190;
       const dmg = gameState.getWeaponDamage(itemId);
-      const texMap: Record<string, { tex: string; kind: ActiveProjectile['kind'] }> = {
+
+      if (itemId === 'thunder_rod') {
+        this.cameraRig.kick(nx, ny, 2.6, 80);
+        this.cameraRig.addTrauma(0.22);
+        spawnRodMuzzleJuice(this, this.player.x + nx * 8, this.player.y - 4 + ny * 8, 'thunder', Math.atan2(ny, nx));
+
+        let primaryAimed: Enemy | null = null;
+        let primaryAimedDist = Infinity;
+        let primaryLoose: Enemy | null = null;
+        let primaryLooseDist = Infinity;
+        for (const e of this.enemies) {
+          if (!e.active || e.isDead) continue;
+          const edx = e.x - this.player.x;
+          const edy = e.y - this.player.y;
+          const d = Math.hypot(edx, edy);
+          if (d > 165) continue;
+          if (this.hasHouseWallBetween(this.player.x, this.player.y, e.x, e.y)) continue;
+          const dot = d > 1e-4 ? (edx * nx + edy * ny) / d : 1;
+          if (dot >= 0.45 && d < primaryAimedDist) {
+            primaryAimed = e;
+            primaryAimedDist = d;
+          }
+          if (d <= 145 && d < primaryLooseDist) {
+            primaryLoose = e;
+            primaryLooseDist = d;
+          }
+        }
+        const primary = primaryAimed ?? primaryLoose;
+        const startX = this.player.x + nx * 6;
+        const startY = this.player.y - 6 + ny * 6;
+        if (primary) {
+          drawLightningArc(this, startX, startY, primary.x, primary.y - 4, {
+            color: 0x6ce5ff,
+            coreColor: 0xffffff,
+            width: 2.2,
+            durationMs: 240,
+            branches: 3,
+          });
+          spawnRodImpactJuice(this, primary.x, primary.y - 4, 'thunder');
+          const pdx = primary.x - this.player.x;
+          const pdy = primary.y - this.player.y;
+          const pLen = Math.hypot(pdx, pdy) || 1;
+          this.damageEnemy(primary, dmg, pdx / pLen, pdy / pLen);
+
+          const chainDmg = computeChainLightningDamage(dmg);
+          for (const e of this.enemies) {
+            if (e === primary || !e.active || e.isDead) continue;
+            if (Math.hypot(e.x - primary.x, e.y - primary.y) > 96) continue;
+            if (this.hasHouseWallBetween(primary.x, primary.y, e.x, e.y)) continue;
+            drawLightningArc(this, primary.x, primary.y - 4, e.x, e.y - 4, {
+              color: 0xffe066,
+              coreColor: 0xffffff,
+              width: 1.5,
+              durationMs: 220,
+              branches: 1,
+            });
+            spawnRodImpactJuice(this, e.x, e.y - 4, 'thunder');
+            const cdx = e.x - primary.x;
+            const cdy = e.y - primary.y;
+            const cLen = Math.hypot(cdx, cdy) || 1;
+            this.damageEnemy(e, chainDmg, cdx / cLen, cdy / cLen);
+          }
+        } else {
+          const endX = this.player.x + nx * 130;
+          const endY = this.player.y - 4 + ny * 130;
+          drawLightningArc(this, startX, startY, endX, endY, {
+            color: 0x6ce5ff,
+            coreColor: 0xffffff,
+            width: 2.2,
+            durationMs: 240,
+            branches: 3,
+          });
+          spawnRodImpactJuice(this, endX, endY, 'thunder');
+        }
+        return;
+      }
+
+      const projSpeed = 190;
+      const texMap: Record<string, { tex: string; kind: ActiveProjectile['kind'] | 'void' }> = {
         bow: { tex: 'projectiles/Arrow', kind: 'arrow' },
         necro_rod: { tex: 'monster_projectiles/DeathCoil', kind: 'necro' },
         thunder_rod: { tex: 'projectiles/LightningBolt', kind: 'thunder' },
         ice_rod: { tex: 'projectiles/IceShard', kind: 'ice' },
         fire_rod: { tex: 'projectiles/Fireball', kind: 'fire' },
+        void_rod: { tex: 'monster_projectiles/DeathCoil', kind: 'void' },
       };
       const pInfo = texMap[itemId] ?? texMap.bow;
+      if (itemId !== 'bow') {
+        this.cameraRig.kick(nx, ny, itemId === 'void_rod' ? 2.8 : 2.0, 75);
+        spawnRodMuzzleJuice(
+          this,
+          this.player.x + nx * 8,
+          this.player.y - 4 + ny * 8,
+          pInfo.kind as RodVfxKind,
+          Math.atan2(ny, nx),
+        );
+      }
       const spr = this.add
         .image(this.player.x + nx * 8, this.player.y - 4 + ny * 8, pInfo.tex)
         .setRotation(getProjectileRotation(nx * projSpeed, ny * projSpeed))
         .setDepth(5000);
+      if (itemId === 'void_rod') {
+        spr.setTint(0xc77dff).setScale(1.25);
+      }
+      const glow =
+        pInfo.kind !== 'arrow' ? attachProjectileGlow(this, spr, pInfo.kind as RodVfxKind) : undefined;
       this.projectiles.push({
         sprite: spr,
+        glow,
         vx: nx * projSpeed,
         vy: ny * projSpeed,
         damage: dmg,
         fromPlayer: true,
         lifeMs: 1200,
-        kind: pInfo.kind,
+        kind: pInfo.kind as ActiveProjectile['kind'],
+        pierce: itemId === 'void_rod',
       });
       return;
     }
@@ -4758,6 +4921,7 @@ export class OverworldScene extends Phaser.Scene {
           b.playChestOpen();
           if (b.readOnly && !b.looted) {
             b.looted = true;
+            gameState.markOverworldChestLooted(b.id);
             const nightHeist = this.npcs.some(
               (npc) => npc.state === 'sleeping' && Math.hypot(npc.x - b.x, npc.y - b.y) <= 160,
             );
@@ -4990,10 +5154,43 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
+    gamepadManager.poll();
+    if (dialogueBox.isActive()) {
+      if (gamepadManager.isJustPressed('primaryAction')) {
+        dialogueBox.advance();
+      } else if (gamepadManager.isJustPressed('dash') || gamepadManager.isJustPressed('menu')) {
+        dialogueBox.close(true);
+      }
+    } else if (this.hud.activeModal !== 'none') {
+      if (gamepadManager.isJustPressed('menu') || gamepadManager.isJustPressed('dash')) {
+        this.hud.closeModal();
+      }
+    } else if (!this.fishingMinigame.isActive() && !this.lockpickMinigame.isActive()) {
+      if (gamepadManager.isJustPressed('menu')) {
+        if (gameState.pendingBuildRecipeId) {
+          gameState.pendingBuildRecipeId = null;
+          this.hud.render();
+        } else {
+          this.hud.toggleModal('settings' as never);
+        }
+      } else if (gamepadManager.isJustPressed('inventory')) {
+        this.hud.toggleModal('inventory');
+      } else if (gamepadManager.isJustPressed('craft')) {
+        this.hud.toggleModal('craft');
+      } else if (gamepadManager.isJustPressed('quests')) {
+        this.hud.toggleModal('quests');
+      } else if (gamepadManager.isJustPressed('map')) {
+        this.hud.toggleModal('map');
+      } else if (gamepadManager.isJustPressed('minimap')) {
+        this.hud.toggleMinimap();
+      }
+    }
+
     if (
       !this.fishingMinigame.isActive() &&
       !this.lockpickMinigame.isActive() &&
-      Phaser.Input.Keyboard.JustDown(this.keys.E)
+      (Phaser.Input.Keyboard.JustDown(this.keys.E) ||
+        (!this.hud.isBlockingInput() && gamepadManager.isJustPressed('interact')))
     ) {
       this.handleInteractKey();
     }
@@ -5095,15 +5292,28 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     if (!this.hud.isBlockingInput() && !this.fishingMinigame.isActive() && !this.lockpickMinigame.isActive()) {
+      if (gamepadManager.isJustPressed('hotbarPrev')) {
+        gameState.selectedHotbarIndex = (gameState.selectedHotbarIndex + 8) % 9;
+        SFX.playHotbarSelect();
+        this.hud.render();
+      } else if (gamepadManager.isJustPressed('hotbarNext')) {
+        gameState.selectedHotbarIndex = (gameState.selectedHotbarIndex + 1) % 9;
+        SFX.playHotbarSelect();
+        this.hud.render();
+      }
       const tv = this.hud.getTouchMoveVector();
+      const gp = gamepadManager.getMoveVector();
       const dir = this.moveDir.set(
         (this.keys.D.isDown || this.keys.RIGHT.isDown ? 1 : 0) -
           (this.keys.A.isDown || this.keys.LEFT.isDown ? 1 : 0) +
-          tv.x,
+          tv.x +
+          gp.x,
         (this.keys.S.isDown || this.keys.DOWN.isDown ? 1 : 0) -
           (this.keys.W.isDown || this.keys.UP.isDown ? 1 : 0) +
-          tv.y,
+          tv.y +
+          gp.y,
       );
+      if (dir.lengthSq() > 1) dir.normalize();
       if (this.fishingIdle && dir.lengthSq() > 0.01) {
         this.cancelIdleFishing();
       }
@@ -5113,7 +5323,7 @@ export class OverworldScene extends Phaser.Scene {
       if (!isSwordItem(gameState.hotbar[gameState.selectedHotbarIndex])) {
         this.swordTargeter.clear();
       }
-      if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
+      if (Phaser.Input.Keyboard.JustDown(this.keys.SPACE) || gamepadManager.isJustPressed('dash')) {
         if (this.player.tryDash(dir)) {
           const dodgedThreat = this.enemies.some(
             (e) =>
@@ -5124,6 +5334,25 @@ export class OverworldScene extends Phaser.Scene {
           if (dodgedThreat) {
             this.player.grantDodgeMomentum(2200);
             spawnFloatingText(this, this.player.x, this.player.y - 18, 'DODGE CRIT!', '#ffe57f', '8px');
+          }
+        }
+      }
+      // Gamepad primary action (facing direction)
+      const gpPrimaryJust = gamepadManager.isJustPressed('primaryAction');
+      const gpPrimaryDown = gamepadManager.isDown('primaryAction');
+      if (gpPrimaryJust || gpPrimaryDown) {
+        const curItem = gameState.hotbar[gameState.selectedHotbarIndex] || 'pickaxe';
+        const fromHold = !gpPrimaryJust;
+        if (!fromHold || curItem !== 'fishing_rod') {
+          const f = this.player.facing;
+          const fx = f === 'left' ? -1 : f === 'right' ? 1 : 0;
+          const fy = f === 'up' ? -1 : f === 'down' ? 1 : 0;
+          const tx = this.player.x + fx * 20;
+          const ty = this.player.y + fy * 20;
+          if (gameState.pendingBuildRecipeId) {
+            if (!fromHold) this.tryPlaceBuilding(tx, ty);
+          } else {
+            this.handlePrimaryAction(tx, ty, fromHold);
           }
         }
       }
@@ -5627,9 +5856,18 @@ export class OverworldScene extends Phaser.Scene {
       if (b.fuseMs <= 0) {
         const bx = b.sprite.x;
         const by = b.sprite.y;
+        const spec = b.spec;
         b.sprite.destroy();
+        b.ring.destroy();
         this.bombs.splice(i, 1);
-        this.detonateBomb(bx, by);
+        this.detonateBomb(bx, by, spec);
+      } else {
+        if (Math.random() < 0.35) {
+          spawnFuseSparks(this, b.sprite.x, b.sprite.y, b.spec.tint);
+        }
+        if (b.fuseMs <= 350) {
+          b.sprite.setTint(Math.floor(b.fuseMs / 50) % 2 === 0 ? 0xffffff : b.spec.tint);
+        }
       }
     }
 
@@ -5646,11 +5884,16 @@ export class OverworldScene extends Phaser.Scene {
       this.respawnTimerMs = 0;
       const { nightFactor: curNight } = this.lighting.getAmbientColor();
       const isNight = curNight >= 0.45;
-      const countsByIsland = new Map<string, number>();
+      const landCountsByIsland = new Map<string, number>();
+      const fishCountsByIsland = new Map<string, number>();
       for (const n of this.nodes) {
         if (!n.active) continue;
         const key = `${Math.floor(n.tx / ISLAND_CELL_TILES)},${Math.floor(n.ty / ISLAND_CELL_TILES)}`;
-        countsByIsland.set(key, (countsByIsland.get(key) ?? 0) + 1);
+        if (n.kind === 'fish_spot') {
+          fishCountsByIsland.set(key, (fishCountsByIsland.get(key) ?? 0) + 1);
+        } else {
+          landCountsByIsland.set(key, (landCountsByIsland.get(key) ?? 0) + 1);
+        }
       }
       const enemiesByIsland = new Map<string, number>();
       for (const e of this.enemies) {
@@ -5661,7 +5904,8 @@ export class OverworldScene extends Phaser.Scene {
       for (const key of gameState.ownedIslands) {
         const [gx, gy] = key.split(',').map(Number);
         const spec = getIslandAt(gx, gy);
-        const curNodes = countsByIsland.get(key) ?? 0;
+        const curLandNodes = landCountsByIsland.get(key) ?? 0;
+        const curFishSpots = fishCountsByIsland.get(key) ?? 0;
         const curMonsters = enemiesByIsland.get(key) ?? 0;
         const maxMon = (spec?.maxMonsters ?? 2) + (isNight ? 2 : 0);
 
@@ -5669,16 +5913,19 @@ export class OverworldScene extends Phaser.Scene {
           // Skew heavily toward spawning monsters at night instead of plants/rocks
           if (curMonsters < maxMon && Math.random() < 0.78) {
             this.trySpawnMonsterOnIsland(gx, gy);
-          } else if (curNodes < MAX_NODES_PER_ISLAND && Math.random() < 0.55) {
+          } else if (curLandNodes < MAX_NODES_PER_ISLAND && Math.random() < 0.55) {
             this.trySpawnNodeOnIsland(gx, gy);
           }
         } else {
-          if (curNodes < MAX_NODES_PER_ISLAND) {
+          if (curLandNodes < MAX_NODES_PER_ISLAND) {
             this.trySpawnNodeOnIsland(gx, gy);
           }
           if (curMonsters < maxMon && Math.random() < 0.25) {
             this.trySpawnMonsterOnIsland(gx, gy);
           }
+        }
+        if (curFishSpots < MAX_FISH_SPOTS_PER_ISLAND && Math.random() < 0.2) {
+          this.trySpawnFishSpotOnIsland(gx, gy);
         }
       }
     }
@@ -6280,6 +6527,26 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
+    for (const p of this.projectiles) {
+      if (!p.fromPlayer || p.kind === 'arrow' || p.kind === 'enemy' || !p.sprite.active) continue;
+      const color = ROD_LIGHT_COLORS[p.kind as string];
+      if (color === undefined) continue;
+      pointLights.push({
+        x: p.sprite.x,
+        y: p.sprite.y,
+        radius: (p.kind as string) === 'fire' ? 58 : 48,
+        color,
+        intensity: 0.85,
+      });
+    }
+
+    const transientLights = this.transientLightsBuf;
+    transientLights.length = 0;
+    sampleTransientLights(this, dtMs, transientLights);
+    for (const tl of transientLights) {
+      pointLights.push(tl);
+    }
+
     const dayWrapped = this.lighting.update(
       dtMs,
       pointLights,
@@ -6296,24 +6563,56 @@ export class OverworldScene extends Phaser.Scene {
     );
   }
 
-  private detonateBomb(bx: number, by: number): void {
+  private detonateBomb(bx: number, by: number, spec: BombSpec = getBombSpec('bomb')): void {
+    this.triggerBlastAt(bx, by, spec.damage, spec.radius, spec.tint, spec.slowsMs, true, spec);
+    if (spec.clusterCount > 0) {
+      const miniDmg = Math.max(18, Math.round(spec.damage * 0.45));
+      const miniRadius = Math.max(22, Math.round(spec.radius * 0.55));
+      for (let c = 0; c < spec.clusterCount; c++) {
+        const ang = (Math.PI * 2 * c) / spec.clusterCount + Math.random() * 0.4;
+        const dist = 16 + Math.random() * (spec.radius * 0.55);
+        const cx = bx + Math.cos(ang) * dist;
+        const cy = by + Math.sin(ang) * dist;
+        this.time.delayedCall(120 + c * 75, () => {
+          if (!this.sys?.isActive()) return;
+          this.triggerBlastAt(cx, cy, miniDmg, miniRadius, spec.tint, spec.slowsMs, false, spec);
+        });
+      }
+    }
+  }
+
+  private triggerBlastAt(
+    bx: number,
+    by: number,
+    damage: number,
+    radius: number,
+    tint: number,
+    slowsMs: number,
+    _isPrimary: boolean,
+    spec?: BombSpec,
+  ): void {
     SFX.playExplosion();
-    this.cameraRig.addTrauma(0.65);
-    const fx = this.add.sprite(bx, by, 'projectiles/Bomb_impact').setScale(3.5).setDepth(6000);
+    spawnMaxBombExplosionJuice(this, bx, by, radius, tint, spec?.id ?? 'bomb', this.cameraRig);
+    const fxScale = Math.max(2.0, (radius / 44) * 3.5);
+    const fx = this.add
+      .sprite(bx, by, 'projectiles/Bomb_impact')
+      .setScale(fxScale)
+      .setDepth(6000)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    if (tint !== 0xffffff) fx.setTint(tint);
     fx.play('fx_bomb_impact');
     fx.once('animationcomplete', () => fx.destroy());
-    spawnBurstParticles(this, bx, by, 0xff8c42, 12);
 
-    const radius = 44;
     for (const b of [...this.buildings]) {
       if (b.active && b.isCropWithered() && Math.hypot(b.x - bx, b.y - by) <= radius) {
         this.cullWitheredCrop(b);
       }
     }
+    const nodeDmg = Math.max(40, Math.round(damage * 1.1));
     for (let i = this.nodes.length - 1; i >= 0; i--) {
       const n = this.nodes[i];
       if (n.active && Math.hypot(n.x - bx, n.y - by) <= radius) {
-        this.hitResourceNode(n, 60);
+        this.hitResourceNode(n, nodeDmg);
       }
     }
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -6321,7 +6620,8 @@ export class OverworldScene extends Phaser.Scene {
       if (e.active && !e.isDead && Math.hypot(e.x - bx, e.y - by) <= radius) {
         const dx = (e.x - bx) / (Math.hypot(e.x - bx, e.y - by) || 1);
         const dy = (e.y - by) / (Math.hypot(e.x - bx, e.y - by) || 1);
-        this.damageEnemy(e, 55, dx, dy);
+        if (slowsMs > 0) e.applySlow(slowsMs);
+        this.damageEnemy(e, damage, dx, dy);
       }
     }
   }
@@ -6334,24 +6634,72 @@ export class OverworldScene extends Phaser.Scene {
       p.sprite.x += p.vx * dt;
       p.sprite.y += p.vy * dt;
       p.sprite.setRotation(getProjectileRotation(p.vx, p.vy));
-      if (Math.random() < 0.45) spawnProjectileTrail(this, p.sprite.x, p.sprite.y, p.kind);
+      p.glow?.setPosition(p.sprite.x, p.sprite.y);
+      const isRod = p.fromPlayer && p.kind !== 'arrow' && p.kind !== 'enemy';
+      if (isRod) {
+        spawnRodTrailParticle(this, p.sprite.x, p.sprite.y, p.kind as RodVfxKind);
+      } else if (Math.random() < 0.45) {
+        spawnProjectileTrail(this, p.sprite.x, p.sprite.y, p.kind);
+      }
 
       let hit = this.isBlockedByHouseWall(p.sprite.x, p.sprite.y, 1.5);
+      let impactedEnemy = false;
       if (!hit && p.fromPlayer) {
         for (const e of this.enemies) {
           if (e.active && !e.isDead && Math.hypot(e.x - p.sprite.x, e.y - p.sprite.y) <= 13) {
+            if (p.pierce) {
+              let hitSet = this.projectileHitSets.get(p);
+              if (hitSet?.has(e)) continue;
+              if (!hitSet) {
+                hitSet = new Set<Enemy>();
+                this.projectileHitSets.set(p, hitSet);
+              }
+              hitSet.add(e);
+            }
             const spd = Math.hypot(p.vx, p.vy) || 1;
-            if (p.kind === 'ice') e.applySlow(2600);
-            if (p.kind === 'necro') {
+            const kindStr = p.kind as string;
+            if (isRod) {
+              spawnRodImpactJuice(this, p.sprite.x, p.sprite.y, p.kind as RodVfxKind, {
+                x: this.player.x,
+                y: this.player.y,
+              });
+              impactedEnemy = true;
+            }
+            if (kindStr === 'ice') {
+              for (const other of this.enemies) {
+                if (other.active && !other.isDead && Math.hypot(other.x - p.sprite.x, other.y - p.sprite.y) <= 44) {
+                  other.applySlow(2800);
+                }
+              }
+            }
+            if (kindStr === 'necro') {
               gameState.hp = Math.min(gameState.getMaxHp(), gameState.hp + 4);
               gameState.emit();
             }
             this.damageEnemy(e, p.damage, p.vx / spd, p.vy / spd);
-            if (p.kind === 'fire') {
-              spawnBurstParticles(this, p.sprite.x, p.sprite.y, 0xff7b29, 8);
+            if (kindStr === 'fire') {
+              const splashDmg = Math.max(1, Math.round(p.damage * 0.25));
+              for (const other of this.enemies) {
+                if (
+                  other !== e &&
+                  other.active &&
+                  !other.isDead &&
+                  Math.hypot(other.x - p.sprite.x, other.y - p.sprite.y) <= 38
+                ) {
+                  const sdx = other.x - p.sprite.x;
+                  const sdy = other.y - p.sprite.y;
+                  const sLen = Math.hypot(sdx, sdy) || 1;
+                  this.damageEnemy(other, splashDmg, sdx / sLen, sdy / sLen);
+                }
+              }
             }
-            hit = true;
-            break;
+            if (kindStr === 'void') {
+              this.cameraRig.addTrauma(0.18);
+            }
+            if (!p.pierce) {
+              hit = true;
+              break;
+            }
           }
         }
         if (!hit) {
@@ -6377,10 +6725,18 @@ export class OverworldScene extends Phaser.Scene {
       }
 
       if (hit || p.lifeMs <= 0) {
-        if (hit) {
-          spawnProjectileImpact(this, p.sprite.x, p.sprite.y, p.kind);
+        if (hit && !impactedEnemy) {
+          if (isRod) {
+            spawnRodImpactJuice(this, p.sprite.x, p.sprite.y, p.kind as RodVfxKind, {
+              x: this.player.x,
+              y: this.player.y,
+            });
+          } else {
+            spawnProjectileImpact(this, p.sprite.x, p.sprite.y, p.kind);
+          }
         }
         p.sprite.destroy();
+        p.glow?.destroy();
         this.projectiles.splice(i, 1);
       }
     }

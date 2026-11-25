@@ -27,9 +27,11 @@ export interface StationQueueView {
   craftQueue: CraftQueueJob[];
 }
 import { SFX } from '../core/SoundFX';
+import { type ControllerAction } from '../core/GameSettings';
 import { transitionManager } from '../core/TransitionManager';
 import { dialogueBox } from './DialogueBox';
 import { revealSequence } from './RevealSequence';
+import { bindSettingsPanelEvents, renderSettingsPanelHtml } from './SettingsPanel';
 import { SPROUT_UI_CSS } from './SproutUiTheme';
 import { ITEMS, RARITY_COLOR } from '../data/items';
 import {
@@ -91,7 +93,7 @@ export function getMaxCraftableCount(
   return Math.max(0, maxCount);
 }
 
-export type HudModal = 'none' | 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'progress';
+export type HudModal = 'none' | 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'progress' | 'settings';
 
 export interface WorldDebugStats {
   scene: string;
@@ -172,6 +174,8 @@ export class HudController {
   private unsubChange?: () => void;
   private unsubVitals?: () => void;
   private unsubFeed?: () => void;
+  private settingsCleanup?: () => void;
+  private capturingControllerAction: ControllerAction | null = null;
   private chromeBuilt = false;
   private minimapVisible = false;
   private minimapCanvas?: HTMLCanvasElement;
@@ -495,6 +499,9 @@ export class HudController {
     }
     dialogueBox.close(false);
     revealSequence.forceClose();
+    this.settingsCleanup?.();
+    this.settingsCleanup = undefined;
+    this.capturingControllerAction = null;
     this.unsubChange?.();
     this.unsubVitals?.();
     this.unsubFeed?.();
@@ -548,6 +555,9 @@ export class HudController {
 
   public closeModal(): void {
     if (this.activeModal === 'none') return;
+    this.settingsCleanup?.();
+    this.settingsCleanup = undefined;
+    this.capturingControllerAction = null;
     this.activeModal = 'none';
     this.moveSourceBagIdx = null;
     SFX.playUiClose();
@@ -2192,6 +2202,7 @@ export class HudController {
           <button class="hud-btn gold" data-nav="menu" id="hud-menu-btn"><img src="assets/hud_icons/menu.png" class="px-icon" style="width:14px; height:14px;" /><span>Menu${showKeys ? '<span class="nav-key"> [I/Tab]</span>' : ''}</span></button>
           <button class="hud-btn tan" data-action="save" title="Save to File ${gameState.activeSlotIndex + 1}"><img src="assets/hud_icons/save.png" class="px-icon" style="width:14px; height:14px;" /><span>Save #${gameState.activeSlotIndex + 1}</span></button>
           <button class="hud-btn" data-action="files" id="hud-files-btn" style="${this.callbacks.onExitToTitle ? '' : 'display:none;'}" title="Save & Return to File Select"><img src="assets/sprout_ui/icons/brown_outline_dark/logout.png" class="px-icon" style="width:14px; height:14px;" /><span>Files</span></button>
+          <button class="hud-btn" data-nav="settings" id="hud-settings-btn" title="Settings${showKeys ? ' [O]' : ''}"><span>⚙</span></button>
           <button class="sl-icon-btn" data-action="music" id="hud-music-btn" title="Toggle Music" style="background-image:url('assets/sprout_ui/buttons/ic_btn_music_off_normal.png');"></button>
           <button class="sl-icon-btn" data-action="mute" id="hud-mute-btn" title="Toggle SFX" style="background-image:url('assets/sprout_ui/buttons/ic_btn_sfx_on_normal.png');"></button>
         </div>
@@ -2646,11 +2657,19 @@ export class HudController {
   }
 
   private renderModal(): void {
+    this.settingsCleanup?.();
+    this.settingsCleanup = undefined;
+
     if (this.activeModal === 'none') {
+      this.capturingControllerAction = null;
       this.wasModalOpen = false;
       this.lastModalTab = 'none';
       this.modalLayer.innerHTML = '';
       return;
+    }
+
+    if (this.activeModal !== 'settings') {
+      this.capturingControllerAction = null;
     }
 
     const justOpened = !this.wasModalOpen;
@@ -2667,6 +2686,7 @@ export class HudController {
       { id: 'quests' as const, label: `Quests${showKeys ? ' [Q]' : ''}${activeCount > 0 ? ` (${activeCount})` : ''}` },
       { id: 'map' as const, label: `Map${showKeys ? ' [M]' : ''} (${gameState.ownedIslands.size}/25)` },
       { id: 'progress' as const, label: `${gameState.debugMode ? 'Progress & Debug' : 'Progress'}${showKeys ? ' [P]' : ''}` },
+      { id: 'settings' as const, label: `Settings${showKeys ? ' [O]' : ''}` },
     ].filter((t) => gameState.isMenuTabUnlocked(t.id));
 
     let bodyHtml = '';
@@ -2676,6 +2696,7 @@ export class HudController {
     else if (this.activeModal === 'quests') bodyHtml = this.renderQuestsTab();
     else if (this.activeModal === 'map') bodyHtml = this.renderMapTab();
     else if (this.activeModal === 'progress') bodyHtml = this.renderProgressTab();
+    else if (this.activeModal === 'settings') bodyHtml = renderSettingsPanelHtml(this.capturingControllerAction);
 
     const maxHp = gameState.getMaxHp();
     const maxEn = gameState.getMaxEnergy();
@@ -3660,6 +3681,24 @@ export class HudController {
       SFX.setMuted(!SFX.muted);
       this.render();
     });
+
+    if (this.activeModal === 'settings') {
+      const ledgerBody = this.modalLayer.querySelector<HTMLElement>('.ledger-body');
+      if (ledgerBody) {
+        this.settingsCleanup = bindSettingsPanelEvents(ledgerBody, {
+          onRerender: () => {
+            if (this.activeModal === 'settings') {
+              this.renderModal();
+            }
+          },
+          onCapturingChange: (action) => {
+            this.capturingControllerAction = action;
+          },
+          saveActiveSlot: true,
+        });
+      }
+      return;
+    }
 
     const applyDropOnElement = (target: HTMLElement | null) => {
       if (!target || !this.dragPayload) return false;

@@ -17,14 +17,37 @@ import { ISLANDS, STORY_CHAPTERS, getBiomeChapter, type DungeonId } from '../dat
 import { getQuestById, getQuestsForNpc, type QuestDef, type QuestObjective } from '../data/quests';
 import { RECIPES, type RecipeDef, type StructureType } from '../data/recipes';
 import { SKILLS } from '../data/skills';
+import {
+  cloneSettings,
+  sanitizeSettings,
+  settingsStore,
+  type GameSettingsData,
+  type GameSettingsPatch,
+  type SettingsSection,
+} from './GameSettings';
 
 export type HeroClassId = 'Beastmaster' | 'Gladiator' | 'Sorcerer' | 'Swashbuckler';
 export type EquipmentSlotKey = 'weapon' | 'tool' | 'armor' | 'trinket1' | 'trinket2' | 'trinket3';
-export type MenuTabId = 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'progress';
-export const ALL_MENU_TABS: MenuTabId[] = ['inventory', 'craft', 'skills', 'quests', 'map', 'progress'];
+export type MenuTabId = 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'progress' | 'settings';
+export const ALL_MENU_TABS: MenuTabId[] = [
+  'inventory',
+  'craft',
+  'skills',
+  'quests',
+  'map',
+  'progress',
+  'settings',
+];
 
 export const ALL_EQUIP_SLOTS: EquipmentSlotKey[] = ['weapon', 'tool', 'armor', 'trinket1', 'trinket2', 'trinket3'];
 export const TRINKET_SLOTS: EquipmentSlotKey[] = ['trinket1', 'trinket2', 'trinket3'];
+const ALL_DUNGEON_IDS: DungeonId[] = [
+  'skull_crypt',
+  'sunken_tomb',
+  'frost_cavern',
+  'infernal_sanctum',
+  'void_spire',
+];
 
 export const BAG_COLS = 6;
 export const BAG_ROWS = 5;
@@ -141,6 +164,11 @@ export interface SaveData {
   marketSoldVolume?: Record<string, number>;
   marketLastDecayDay?: number;
   spawnPoint?: { x: number; y: number; label: string } | null;
+  dungeonSeeds?: Record<string, number>;
+  lootedOverworldChests?: string[];
+  solvedDungeonPuzzles?: string[];
+  openedDungeonChests?: string[];
+  settings?: GameSettingsData;
 }
 
 export type SaveSlotIndex = 0 | 1 | 2;
@@ -234,11 +262,80 @@ export class GameState {
   public marketLastDecayDay = 1;
   public spawnPoint: { x: number; y: number; label: string } | null = null;
   public pendingToast: string | null = null;
+  public dungeonSeeds: Record<string, number> = {};
+  public lootedOverworldChests = new Set<string>();
+  public solvedDungeonPuzzles = new Set<string>();
+  public openedDungeonChests = new Set<string>();
 
   private listeners: Array<() => void> = [];
   private vitalsListeners: Array<() => void> = [];
   private feedListeners: Array<(ev: InventoryFeedEvent) => void> = [];
   private feedSeq = 0;
+
+  constructor() {
+    this.dungeonSeeds = this.createInitialDungeonSeeds();
+  }
+
+  private generateRandomSeed(): number {
+    return (Math.floor(Math.random() * 0x7ffffffe) + 1) >>> 0;
+  }
+
+  private createInitialDungeonSeeds(): Record<string, number> {
+    const seeds: Record<string, number> = {};
+    const used = new Set<number>();
+    for (const id of ALL_DUNGEON_IDS) {
+      let seed = this.generateRandomSeed();
+      while (used.has(seed)) {
+        seed = this.generateRandomSeed();
+      }
+      used.add(seed);
+      seeds[id] = seed;
+    }
+    return seeds;
+  }
+
+  public getDungeonSeed(dungeonId: DungeonId, floor = 1): number {
+    if (!this.dungeonSeeds[dungeonId]) {
+      this.dungeonSeeds[dungeonId] = this.generateRandomSeed();
+    }
+    const base = this.dungeonSeeds[dungeonId] >>> 0;
+    if (floor <= 1) return base || 1;
+    return ((base ^ Math.imul(floor, 2654435761)) >>> 0) || 1;
+  }
+
+  private addPersistedKey(set: Set<string>, key: string): void {
+    if (set.has(key)) return;
+    set.add(key);
+    this.emit();
+  }
+
+  public isOverworldChestLooted(chestId: string): boolean {
+    return this.lootedOverworldChests.has(chestId);
+  }
+
+  public markOverworldChestLooted(chestId: string): void {
+    this.addPersistedKey(this.lootedOverworldChests, chestId);
+  }
+
+  public getDungeonRoomKey(dungeonId: DungeonId, floor: number, roomId: number): string {
+    return `${dungeonId}:${floor}:${roomId}`;
+  }
+
+  public isDungeonPuzzleSolved(dungeonId: DungeonId, floor: number, roomId: number): boolean {
+    return this.solvedDungeonPuzzles.has(this.getDungeonRoomKey(dungeonId, floor, roomId));
+  }
+
+  public markDungeonPuzzleSolved(dungeonId: DungeonId, floor: number, roomId: number): void {
+    this.addPersistedKey(this.solvedDungeonPuzzles, this.getDungeonRoomKey(dungeonId, floor, roomId));
+  }
+
+  public isDungeonChestOpened(dungeonId: DungeonId, floor: number, roomId: number): boolean {
+    return this.openedDungeonChests.has(this.getDungeonRoomKey(dungeonId, floor, roomId));
+  }
+
+  public markDungeonChestOpened(dungeonId: DungeonId, floor: number, roomId: number): void {
+    this.addPersistedKey(this.openedDungeonChests, this.getDungeonRoomKey(dungeonId, floor, roomId));
+  }
 
   public get coins(): number {
     return this._coins;
@@ -375,6 +472,10 @@ export class GameState {
     this.marketLastDecayDay = 1;
     this.spawnPoint = null;
     this.pendingToast = null;
+    this.dungeonSeeds = this.createInitialDungeonSeeds();
+    this.lootedOverworldChests.clear();
+    this.solvedDungeonPuzzles.clear();
+    this.openedDungeonChests.clear();
     this.hp = this.getMaxHp();
     this.energy = this.getMaxEnergy();
     this.emit();
@@ -414,7 +515,30 @@ export class GameState {
   }
 
   public isMenuTabUnlocked(tab: MenuTabId): boolean {
+    if (tab === 'settings') return true;
     return this.tutorialCompleted || this.debugMode || this.unlockedMenuTabs.has(tab);
+  }
+
+  public get settings(): GameSettingsData {
+    return settingsStore.get();
+  }
+
+  public updateSettings(patch: GameSettingsPatch, saveActiveSlot = true): GameSettingsData {
+    const next = settingsStore.update(patch, true);
+    this.emit();
+    if (saveActiveSlot && this.hasSavedGame(this.activeSlotIndex)) {
+      this.save(this.activeSlotIndex);
+    }
+    return next;
+  }
+
+  public resetSettings(section?: SettingsSection, saveActiveSlot = true): GameSettingsData {
+    const next = settingsStore.reset(section, true);
+    this.emit();
+    if (saveActiveSlot && this.hasSavedGame(this.activeSlotIndex)) {
+      this.save(this.activeSlotIndex);
+    }
+    return next;
   }
 
   public unlockMenuTab(...tabs: MenuTabId[]): void {
@@ -1279,7 +1403,7 @@ export class GameState {
   }
 
   public getCritDamageMultiplier(isTargetMarked = false): number {
-    let mult = 2.0;
+    let mult = 1.65;
     if (isTargetMarked && this.hasSkill('fam_sw_t7')) mult += 0.2;
     if (this.hasSkill('fam_sw_t11')) {
       const raw = this.getRawCritPct();
@@ -1632,6 +1756,11 @@ export class GameState {
       marketSoldVolume: { ...this.marketSoldVolume },
       marketLastDecayDay: this.marketLastDecayDay,
       spawnPoint: this.spawnPoint,
+      dungeonSeeds: { ...this.dungeonSeeds },
+      lootedOverworldChests: Array.from(this.lootedOverworldChests),
+      solvedDungeonPuzzles: Array.from(this.solvedDungeonPuzzles),
+      openedDungeonChests: Array.from(this.openedDungeonChests),
+      settings: cloneSettings(settingsStore.get()),
     };
     const key = this.getSlotKey(slot);
     const serialized = JSON.stringify(data);
@@ -1856,6 +1985,32 @@ export class GameState {
             }
           : null;
       this.pendingToast = null;
+      const nextSeeds: Record<string, number> = {};
+      if (data.dungeonSeeds && typeof data.dungeonSeeds === 'object') {
+        for (const [id, rawSeed] of Object.entries(data.dungeonSeeds)) {
+          if (typeof rawSeed === 'number' && Number.isFinite(rawSeed) && (rawSeed >>> 0) > 0) {
+            nextSeeds[id] = rawSeed >>> 0;
+          }
+        }
+      }
+      for (const id of ALL_DUNGEON_IDS) {
+        if (!nextSeeds[id]) {
+          nextSeeds[id] = this.generateRandomSeed();
+        }
+      }
+      this.dungeonSeeds = nextSeeds;
+      this.lootedOverworldChests = new Set(
+        Array.isArray(data.lootedOverworldChests) ? data.lootedOverworldChests : [],
+      );
+      this.solvedDungeonPuzzles = new Set(
+        Array.isArray(data.solvedDungeonPuzzles) ? data.solvedDungeonPuzzles : [],
+      );
+      this.openedDungeonChests = new Set(
+        Array.isArray(data.openedDungeonChests) ? data.openedDungeonChests : [],
+      );
+      if (data.settings) {
+        settingsStore.set(sanitizeSettings(data.settings), true);
+      }
       this.emit();
       return true;
     } catch {

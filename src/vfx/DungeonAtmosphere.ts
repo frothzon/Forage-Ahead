@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { onSettingsChange, settingsStore } from '../core/GameSettings';
 import { isMobileTouchDevice } from '../core/Platform';
 
 interface DustMote {
@@ -19,9 +20,12 @@ export class DungeonAtmosphere {
   private readonly scene: Phaser.Scene;
   private motes: DustMote[] = [];
   private clockSec = 0;
+  private enabled: boolean;
+  private unsubSettings?: () => void;
 
   constructor(scene: Phaser.Scene, accentColor = 0xe8dec8, count = 34) {
     this.scene = scene;
+    this.enabled = settingsStore.get().graphics.ambientParticles;
     const effectiveCount = isMobileTouchDevice() ? Math.min(count, 18) : count;
     for (let i = 0; i < effectiveCount; i++) {
       const sparkle = i % 4 === 0;
@@ -31,7 +35,8 @@ export class DungeonAtmosphere {
       const rect = scene.add
         .rectangle(0, 0, size, size, color, baseAlpha)
         .setScrollFactor(0)
-        .setDepth(8850);
+        .setDepth(8850)
+        .setVisible(this.enabled);
       this.motes.push({
         rect,
         nx: Math.random(),
@@ -43,15 +48,50 @@ export class DungeonAtmosphere {
         baseAlpha,
       });
     }
+
+    this.unsubSettings = onSettingsChange((s) => {
+      this.setEnabled(s.graphics.ambientParticles);
+    });
+    scene.events?.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanupSettingsSub, this);
+    scene.events?.once(Phaser.Scenes.Events.DESTROY, this.cleanupSettingsSub, this);
+  }
+
+  private cleanupSettingsSub(): void {
+    if (this.unsubSettings) {
+      this.unsubSettings();
+      this.unsubSettings = undefined;
+    }
+  }
+
+  private setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    for (const m of this.motes) {
+      if (m.rect.active) {
+        m.rect.setVisible(enabled);
+      }
+    }
   }
 
   public update(dtMs: number): void {
+    if (!settingsStore.get().graphics.ambientParticles) {
+      if (this.enabled) {
+        this.setEnabled(false);
+      }
+      return;
+    }
+    if (!this.enabled) {
+      this.setEnabled(true);
+    }
+
     const dt = Math.min(0.05, Math.max(0, dtMs / 1000));
     this.clockSec += dt;
     const vw = Math.max(320, this.scene.scale.width);
     const vh = Math.max(200, this.scene.scale.height);
 
     for (const m of this.motes) {
+      if (!m.rect.visible) {
+        m.rect.setVisible(true);
+      }
       m.nx = (m.nx + m.vx * dt + Math.sin(this.clockSec * 0.8 + m.phase) * 0.004 * dt + 1) % 1;
       m.ny = (m.ny + m.vy * dt + 1) % 1;
       m.rect.x = m.nx * vw;
@@ -61,5 +101,15 @@ export class DungeonAtmosphere {
         : 0.18 + Math.sin(this.clockSec * 1.4 + m.phase) * 0.14;
       m.rect.setAlpha(twinkle * (m.baseAlpha / 0.45));
     }
+  }
+
+  public destroy(): void {
+    this.cleanupSettingsSub();
+    this.scene.events?.off(Phaser.Scenes.Events.SHUTDOWN, this.cleanupSettingsSub, this);
+    this.scene.events?.off(Phaser.Scenes.Events.DESTROY, this.cleanupSettingsSub, this);
+    for (const m of this.motes) {
+      if (m.rect.active) m.rect.destroy();
+    }
+    this.motes.length = 0;
   }
 }

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { onSettingsChange, settingsStore, type WeatherDetail } from '../core/GameSettings';
 import { isMobileTouchDevice } from '../core/Platform';
 import type { BiomeKind } from '../data/islands';
 import type { WeatherLightModifier } from './LightingSystem';
@@ -62,6 +63,9 @@ export class WeatherSystem {
   private cloudDriftY = 0;
   private particles: WeatherParticle[] = [];
   private precipDirty = false;
+  private weatherDetail: WeatherDetail = 'full';
+  private unsubSettings?: () => void;
+  private destroyed = false;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -95,6 +99,38 @@ export class WeatherSystem {
 
     this.initParticles();
     this.applyWindToWorld();
+
+    this.setWeatherDetail(settingsStore.get().graphics.weatherEffects);
+    this.unsubSettings = onSettingsChange((s) => {
+      this.setWeatherDetail(s.graphics.weatherEffects);
+    });
+    scene.events?.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanupSettingsSub, this);
+    scene.events?.once(Phaser.Scenes.Events.DESTROY, this.cleanupSettingsSub, this);
+  }
+
+  private cleanupSettingsSub(): void {
+    if (this.unsubSettings) {
+      this.unsubSettings();
+      this.unsubSettings = undefined;
+    }
+  }
+
+  public setWeatherDetail(detail: WeatherDetail): void {
+    this.weatherDetail = detail;
+    if (this.destroyed) return;
+    if (detail === 'off') {
+      this.cloudTile.setVisible(false);
+      this.hazeRect.setVisible(false);
+      this.precipGfx.clear();
+      this.precipGfx.setVisible(false);
+      this.precipDirty = false;
+    } else if (detail === 'reduced') {
+      this.cloudTile.setVisible(false);
+      this.precipGfx.setVisible(true);
+    } else {
+      this.cloudTile.setVisible(true);
+      this.precipGfx.setVisible(true);
+    }
   }
 
   private ensurePerlinCloudTexture(): void {
@@ -202,38 +238,49 @@ export class WeatherSystem {
   }
 
   public update(dtMs: number): void {
+    if (this.weatherDetail === 'off') {
+      return;
+    }
+
     const dt = Math.min(0.05, dtMs / 1000);
     const vw = Math.max(320, this.scene.scale.width);
     const vh = Math.max(200, this.scene.scale.height);
     const cam = this.scene.cameras.main;
 
     // 1. Perlin-Noise Cloud Shadows drifting in world coordinates with wind
-    const targetCloudAlpha =
-      this.weather === 'cloudy'
-        ? 0.72
-        : this.weather === 'rain' || this.weather === 'snow' || this.weather === 'sandstorm'
-          ? 0.52
-          : 0.20;
-    this.cloudOpacity += (targetCloudAlpha - this.cloudOpacity) * Math.min(1, dt * 2.5);
+    if (this.weatherDetail === 'full') {
+      const targetCloudAlpha =
+        this.weather === 'cloudy'
+          ? 0.72
+          : this.weather === 'rain' || this.weather === 'snow' || this.weather === 'sandstorm'
+            ? 0.52
+            : 0.20;
+      this.cloudOpacity += (targetCloudAlpha - this.cloudOpacity) * Math.min(1, dt * 2.5);
 
-    const driftSpeed = 16 * Math.max(0.45, this.wind.strength);
-    this.cloudDriftX -= this.wind.dirX * driftSpeed * dt;
-    this.cloudDriftY -= this.wind.dirY * driftSpeed * dt;
+      const driftSpeed = 16 * Math.max(0.45, this.wind.strength);
+      this.cloudDriftX -= this.wind.dirX * driftSpeed * dt;
+      this.cloudDriftY -= this.wind.dirY * driftSpeed * dt;
 
-    const viewW = Math.max(320, Math.ceil(cam.worldView.width) + 8);
-    const viewH = Math.max(200, Math.ceil(cam.worldView.height) + 8);
-    const vx = cam.worldView.x - 4;
-    const vy = cam.worldView.y - 4;
+      const viewW = Math.max(320, Math.ceil(cam.worldView.width) + 8);
+      const viewH = Math.max(200, Math.ceil(cam.worldView.height) + 8);
+      const vx = cam.worldView.x - 4;
+      const vy = cam.worldView.y - 4;
 
-    this.cloudTile.setPosition(vx, vy);
-    if (this.cloudTile.width !== viewW || this.cloudTile.height !== viewH) {
-      this.cloudTile.setSize(viewW, viewH);
+      this.cloudTile.setPosition(vx, vy);
+      if (this.cloudTile.width !== viewW || this.cloudTile.height !== viewH) {
+        this.cloudTile.setSize(viewW, viewH);
+      }
+      const worldScale = 1.65;
+      this.cloudTile.setTileScale(worldScale, worldScale);
+      this.cloudTile.tilePositionX = (vx + this.cloudDriftX) / worldScale;
+      this.cloudTile.tilePositionY = (vy + this.cloudDriftY) / worldScale;
+      this.cloudTile.setAlpha(this.cloudOpacity);
+      if (!this.cloudTile.visible) {
+        this.cloudTile.setVisible(true);
+      }
+    } else if (this.cloudTile.visible) {
+      this.cloudTile.setVisible(false);
     }
-    const worldScale = 1.65;
-    this.cloudTile.setTileScale(worldScale, worldScale);
-    this.cloudTile.tilePositionX = (vx + this.cloudDriftX) / worldScale;
-    this.cloudTile.tilePositionY = (vy + this.cloudDriftY) / worldScale;
-    this.cloudTile.setAlpha(this.cloudOpacity);
 
     // 2. Desert / Volcanic Atmospheric Haze
     let targetHazeAlpha = 0;
@@ -279,9 +326,10 @@ export class WeatherSystem {
     this.precipGfx.clear();
     this.precipDirty = true;
 
-    const count = this.isMobile
+    const baseCount = this.isMobile
       ? this.weather === 'rain' ? 60 : this.weather === 'sandstorm' ? 50 : 45
       : this.weather === 'rain' ? 105 : this.weather === 'sandstorm' ? 85 : 75;
+    const count = this.weatherDetail === 'reduced' ? Math.max(1, Math.floor(baseCount * 0.5)) : baseCount;
     const tSec = this.scene.time.now * 0.001;
 
     for (let i = 0; i < count; i++) {
@@ -325,6 +373,10 @@ export class WeatherSystem {
   }
 
   public destroy(): void {
+    this.destroyed = true;
+    this.cleanupSettingsSub();
+    this.scene.events?.off(Phaser.Scenes.Events.SHUTDOWN, this.cleanupSettingsSub, this);
+    this.scene.events?.off(Phaser.Scenes.Events.DESTROY, this.cleanupSettingsSub, this);
     this.cloudTile.destroy();
     this.hazeRect.destroy();
     this.precipGfx.destroy();

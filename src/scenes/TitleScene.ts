@@ -1,15 +1,22 @@
 import Phaser from 'phaser';
+import { type ControllerAction } from '../core/GameSettings';
 import {
   gameState,
   SAVE_SLOT_COUNT,
   type HeroClassId,
   type SaveSlotIndex,
 } from '../core/GameState';
+import { gamepadManager } from '../core/GamepadManager';
 import { SFX } from '../core/SoundFX';
 import { startSceneAndWaitCreate, transitionManager } from '../core/TransitionManager';
 import { dialogueBox } from '../ui/DialogueBox';
 import { revealSequence } from '../ui/RevealSequence';
 import { addSproutNineSlice, createSproutButton } from '../ui/PhaserNineSlice';
+import {
+  bindSettingsPanelEvents,
+  ensureSettingsPanelStyles,
+  renderSettingsPanelHtml,
+} from '../ui/SettingsPanel';
 import { getFamiliarSpecForClass } from '../data/familiars';
 import { buildBaseSnapshot, isQaMode, markQaReady, registerQaApi, resetQaReady } from '../qa/QaDirector';
 import { applyGoldGleamShader, type GoldGleamPipeline } from '../vfx/GoldGleamShader';
@@ -105,12 +112,17 @@ export class TitleScene extends Phaser.Scene {
   private groundY = 0;
   private copySourceSlot: SaveSlotIndex | null = null;
   private splashSkipped = false;
+  private settingsOverlayEl: HTMLElement | null = null;
+  private settingsCleanup?: () => void;
+  private settingsEscHandler?: (e: KeyboardEvent) => void;
+  private capturingControllerAction: ControllerAction | null = null;
 
   constructor() {
     super('TitleScene');
   }
 
   create(data?: { skipSplash?: boolean; promoOutro?: boolean }): void {
+    this.closeTitleSettingsModal();
     dialogueBox.close(false);
     revealSequence.forceClose();
     const hud = document.getElementById('hud-root');
@@ -167,6 +179,7 @@ export class TitleScene extends Phaser.Scene {
     };
     this.scale.on('resize', onResize);
     this.events.once('shutdown', () => {
+      this.closeTitleSettingsModal();
       this.scale.off('resize', onResize);
       this.diorama?.destroy();
       this.diorama = undefined;
@@ -1141,6 +1154,21 @@ export class TitleScene extends Phaser.Scene {
 
     this.menuContainer.add([title, subtitle]);
 
+    const settingsBtn = createSproutButton(this, {
+      x: width - (compact ? 64 : 78),
+      y: compact ? 24 : 36,
+      width: compact ? 104 : 124,
+      height: compact ? 28 : 34,
+      label: '⚙ SETTINGS',
+      variant: 'tan',
+      fontSize: compact ? '10px' : '11px',
+      onClick: () => {
+        SFX.playUiClick();
+        this.openTitleSettingsModal();
+      },
+    });
+    this.menuContainer.add(settingsBtn.container);
+
     const slotW = Math.min(660, width - 32);
     const slotH = compact ? Math.min(76, Math.floor((height - 108) / 3)) : 100;
     const slotGap = compact ? 8 : 12;
@@ -1226,6 +1254,7 @@ export class TitleScene extends Phaser.Scene {
 
         const launchSlot = () => {
           if (transitionManager.isActive) return;
+          this.closeTitleSettingsModal();
           SFX.playUiClick();
           if (gameState.load(slot)) {
             SFX.playPortalWarp();
@@ -1538,6 +1567,7 @@ export class TitleScene extends Phaser.Scene {
       fontSize: compact ? '11px' : '13px',
       onClick: () => {
         if (transitionManager.isActive) return;
+        this.closeTitleSettingsModal();
         SFX.playUiClick();
         SFX.playPortalWarp();
         gameState.setActiveSlot(targetSlot);
@@ -1561,5 +1591,102 @@ export class TitleScene extends Phaser.Scene {
       duration: 280,
       ease: 'Cubic.Out',
     });
+  }
+
+  private openTitleSettingsModal(): void {
+    if (typeof document === 'undefined' || this.settingsOverlayEl) return;
+    ensureSettingsPanelStyles();
+
+    const root = document.getElementById('hud-root') ?? document.body;
+    const overlay = document.createElement('div');
+    overlay.id = 'title-settings-overlay';
+    overlay.className = 'hud-interactive';
+    overlay.style.cssText = `
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      background: rgba(12, 8, 4, 0.72);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      pointer-events: auto;
+      user-select: none;
+    `;
+
+    overlay.innerHTML = `
+      <div class="hud-panel-wood" id="title-settings-window" style="width:min(860px, 94vw); height:min(620px, 88vh); display:flex; flex-direction:column; padding:10px 12px; gap:8px; position:relative; box-sizing:border-box;">
+        <div class="hud-panel-inset" style="padding:6px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-shrink:0;">
+          <span style="font-family:'SproutLandsDisplay','SproutLandsUI',monospace; font-size:15px; font-weight:800; color:#ffe596; letter-spacing:0.6px;">SETTINGS</span>
+          <button type="button" class="hud-btn tan" id="title-settings-close" style="padding:2px 10px; font-size:11px;">✕ Close</button>
+        </div>
+        <div id="title-settings-body" style="flex:1; min-height:0; overflow:hidden;"></div>
+      </div>
+    `;
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay && !gamepadManager.isCapturing()) {
+        SFX.playUiClose();
+        this.closeTitleSettingsModal();
+      }
+    });
+
+    const closeBtn = overlay.querySelector<HTMLButtonElement>('#title-settings-close');
+    closeBtn?.addEventListener('click', () => {
+      SFX.playUiClose();
+      this.closeTitleSettingsModal();
+    });
+
+    root.appendChild(overlay);
+    this.settingsOverlayEl = overlay;
+
+    if (typeof window !== 'undefined') {
+      this.settingsEscHandler = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && !gamepadManager.isCapturing()) {
+          e.preventDefault();
+          SFX.playUiClose();
+          this.closeTitleSettingsModal();
+        }
+      };
+      window.addEventListener('keydown', this.settingsEscHandler);
+    }
+
+    SFX.playUiOpen();
+    this.renderTitleSettingsModal();
+  }
+
+  private renderTitleSettingsModal(): void {
+    this.settingsCleanup?.();
+    this.settingsCleanup = undefined;
+
+    const bodyEl = this.settingsOverlayEl?.querySelector<HTMLElement>('#title-settings-body');
+    if (!bodyEl) return;
+
+    bodyEl.innerHTML = renderSettingsPanelHtml(this.capturingControllerAction);
+    this.settingsCleanup = bindSettingsPanelEvents(bodyEl, {
+      onRerender: () => {
+        if (this.settingsOverlayEl) {
+          this.renderTitleSettingsModal();
+        }
+      },
+      onCapturingChange: (action) => {
+        this.capturingControllerAction = action;
+      },
+      saveActiveSlot: false,
+    });
+  }
+
+  private closeTitleSettingsModal(): void {
+    this.settingsCleanup?.();
+    this.settingsCleanup = undefined;
+    this.capturingControllerAction = null;
+
+    if (this.settingsEscHandler && typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.settingsEscHandler);
+    }
+    this.settingsEscHandler = undefined;
+
+    this.settingsOverlayEl?.remove();
+    this.settingsOverlayEl = null;
   }
 }

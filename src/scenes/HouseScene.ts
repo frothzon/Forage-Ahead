@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { gamepadManager } from '../core/GamepadManager';
+import { onSettingsChange, settingsStore } from '../core/GameSettings';
 import { gameState } from '../core/GameState';
 import { fmtKeyPrompt } from '../core/Platform';
 import { SFX } from '../core/SoundFX';
@@ -75,7 +77,10 @@ export class HouseScene extends Phaser.Scene {
       }),
     );
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
-    this.cameras.main.roundPixels = false;
+    this.cameras.main.setRoundPixels(settingsStore.get().graphics.roundPixels);
+    const unsubSettings = onSettingsChange((s) => {
+      this.cameras.main?.setRoundPixels(s.graphics.roundPixels);
+    });
     this.cameraRig = new CameraRig(this, { maxLookAheadPx: 8 });
 
     const onResize = (gameSize: Phaser.Structs.Size) => {
@@ -91,6 +96,7 @@ export class HouseScene extends Phaser.Scene {
     this.scale.on('resize', onResize);
     this.events.once('shutdown', () => {
       this.scale.off('resize', onResize);
+      unsubSettings();
     });
 
     this.hud = new HudController({
@@ -273,6 +279,7 @@ export class HouseScene extends Phaser.Scene {
       ESC: kb.addKey('ESC'),
     };
     kb.on('keydown-I', () => this.hud.toggleModal('inventory'));
+    kb.on('keydown-O', () => this.hud.toggleModal('settings' as never));
     kb.on('keydown-ESC', () => {
       if (this.hud.activeModal !== 'none') this.hud.closeModal();
     });
@@ -325,20 +332,69 @@ export class HouseScene extends Phaser.Scene {
     if (transitionManager.isActive) return;
     const dt = Math.min(dtMs, 50);
 
-    if (Phaser.Input.Keyboard.JustDown(this.keys.E)) {
+    gamepadManager.poll();
+    if (dialogueBox.isActive()) {
+      if (gamepadManager.isJustPressed('primaryAction')) {
+        dialogueBox.advance();
+      } else if (gamepadManager.isJustPressed('dash') || gamepadManager.isJustPressed('menu')) {
+        dialogueBox.close(true);
+      }
+    } else if (this.hud.activeModal !== 'none') {
+      if (gamepadManager.isJustPressed('menu') || gamepadManager.isJustPressed('dash')) {
+        this.hud.closeModal();
+      }
+    } else {
+      if (gamepadManager.isJustPressed('menu')) {
+        this.hud.toggleModal('settings' as never);
+      } else if (gamepadManager.isJustPressed('inventory')) {
+        this.hud.toggleModal('inventory');
+      } else if (gamepadManager.isJustPressed('craft')) {
+        this.hud.toggleModal('craft');
+      } else if (gamepadManager.isJustPressed('quests')) {
+        this.hud.toggleModal('quests');
+      } else if (gamepadManager.isJustPressed('map')) {
+        this.hud.toggleModal('map');
+      } else if (gamepadManager.isJustPressed('minimap')) {
+        this.hud.toggleMinimap();
+      }
+    }
+
+    if (
+      Phaser.Input.Keyboard.JustDown(this.keys.E) ||
+      (!this.hud.isBlockingInput() && gamepadManager.isJustPressed('interact'))
+    ) {
       this.tryInteract();
     }
 
     if (!this.hud.isBlockingInput()) {
+      if (gamepadManager.isJustPressed('hotbarPrev')) {
+        gameState.selectedHotbarIndex = (gameState.selectedHotbarIndex + 8) % 9;
+        SFX.playHotbarSelect();
+        this.hud.render();
+      } else if (gamepadManager.isJustPressed('hotbarNext')) {
+        gameState.selectedHotbarIndex = (gameState.selectedHotbarIndex + 1) % 9;
+        SFX.playHotbarSelect();
+        this.hud.render();
+      }
       const tv = this.hud.getTouchMoveVector();
+      const gp = gamepadManager.getMoveVector();
       const dir = new Phaser.Math.Vector2(
         (this.keys.D.isDown || this.keys.RIGHT.isDown ? 1 : 0) -
           (this.keys.A.isDown || this.keys.LEFT.isDown ? 1 : 0) +
-          tv.x,
+          tv.x +
+          gp.x,
         (this.keys.S.isDown || this.keys.DOWN.isDown ? 1 : 0) -
           (this.keys.W.isDown || this.keys.UP.isDown ? 1 : 0) +
-          tv.y,
+          tv.y +
+          gp.y,
       );
+      if (dir.lengthSq() > 1) dir.normalize();
+      if (gamepadManager.isJustPressed('dash')) {
+        this.player.tryDash(dir);
+      }
+      if (gamepadManager.isJustPressed('primaryAction')) {
+        this.tryInteract();
+      }
       this.player.updatePlayer(dt, dir, this.isWalkable, 1, 0xd9b382, 'stone');
       this.cameraRig.setLookAhead(dir.x, dir.y, 6);
       this.cameraRig.update(dt);

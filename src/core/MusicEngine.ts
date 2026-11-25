@@ -52,6 +52,7 @@ export class MusicEngine {
   private paused = false;
   private enabled = false;
   private masterVolume = 0.7;
+  private musicVolume = 1.0;
   private muted = false;
 
   public setContext(ctx: Partial<MusicContext>): void {
@@ -78,11 +79,17 @@ export class MusicEngine {
     void this.audioPlayer.playStinger(ctx, meta);
   }
 
-  public syncAudioSettings(enabled: boolean, muted: boolean, masterVolume: number): void {
+  public syncAudioSettings(
+    enabled: boolean,
+    muted: boolean,
+    masterVolume: number,
+    musicVolume = 1.0,
+  ): void {
     this.enabled = enabled;
     this.muted = muted;
     this.masterVolume = masterVolume;
-    const target = !enabled || muted ? 0 : masterVolume * 0.28;
+    this.musicVolume = Math.max(0, Math.min(1, musicVolume));
+    const target = !enabled || muted ? 0 : masterVolume * this.musicVolume * 0.28;
     this.audioPlayer.setVolume(target);
     if (!enabled || muted) {
       this.audioPlayer.stop(0.2);
@@ -140,7 +147,7 @@ export class MusicEngine {
     const ctx = this.ensureContext();
     if (!ctx) return;
 
-    this.audioPlayer.setVolume(!this.enabled || this.muted ? 0 : this.masterVolume * 0.28);
+    this.audioPlayer.setVolume(!this.enabled || this.muted ? 0 : this.masterVolume * this.musicVolume * 0.28);
     void this.audioPlayer.play(ctx, meta, {
       fadeSec,
       rememberPosition: sit === 'overworld',

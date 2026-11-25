@@ -1,4 +1,12 @@
 import Phaser from 'phaser';
+import { settingsStore, type ScreenShakeLevel } from '../core/GameSettings';
+
+export function getScreenShakeScale(level?: ScreenShakeLevel): number {
+  const resolved = level ?? settingsStore.get().graphics.screenShake;
+  if (resolved === 'off') return 0;
+  if (resolved === 'reduced') return 0.4;
+  return 1.0;
+}
 
 export interface CameraRigOptions {
   maxShakePx?: number;
@@ -41,15 +49,24 @@ export class CameraRig {
   }
 
   public addTrauma(amount: number): void {
+    const scale = getScreenShakeScale(settingsStore.get().graphics.screenShake);
+    if (scale <= 0) return;
     if (!Number.isFinite(amount) || amount <= 0) return;
-    this.trauma = Math.min(1, this.trauma + amount);
+    this.trauma = Math.min(1, this.trauma + amount * scale);
+  }
+
+  public getTrauma(): number {
+    return this.trauma;
   }
 
   public kick(dirX: number, dirY: number, distancePx = 3, durationMs = 80): void {
+    const scale = getScreenShakeScale(settingsStore.get().graphics.screenShake);
+    if (scale <= 0) return;
     const len = Math.hypot(dirX, dirY);
     if (len < 0.001) return;
-    this.kickX = (dirX / len) * distancePx;
-    this.kickY = (dirY / len) * distancePx;
+    const scaledDist = distancePx * scale;
+    this.kickX = (dirX / len) * scaledDist;
+    this.kickY = (dirY / len) * scaledDist;
     this.kickDurationMs = Math.max(20, durationMs);
     this.kickTimerMs = this.kickDurationMs;
   }
@@ -67,13 +84,16 @@ export class CameraRig {
   }
 
   public zoomPunch(factor = 0.05, durationMs = 110): void {
+    const scale = getScreenShakeScale(settingsStore.get().graphics.screenShake);
+    if (scale <= 0) return;
     if (!this.scene.tweens) return;
+    const scaledFactor = factor * scale;
     this.zoomPulseTween?.stop();
     const half = Math.max(30, Math.round(durationMs * 0.5));
     const state = { v: this.zoomPulse };
     this.zoomPulseTween = this.scene.tweens.add({
       targets: state,
-      v: factor,
+      v: scaledFactor,
       duration: half,
       ease: 'Sine.easeOut',
       onUpdate: () => {

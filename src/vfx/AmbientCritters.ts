@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { settingsStore } from '../core/GameSettings';
 import { isMobileTouchDevice } from '../core/Platform';
 import type { BiomeKind } from '../data/islands';
 
@@ -36,6 +37,16 @@ export class AmbientCritterSystem {
     biome: BiomeKind,
     nightFactor: number,
   ): void {
+    if (!settingsStore.get().graphics.ambientParticles) {
+      if (this.critters.length > 0) {
+        for (const c of this.critters) {
+          if (c.obj.active) c.obj.destroy();
+        }
+        this.critters.length = 0;
+      }
+      return;
+    }
+
     const dt = Math.min(0.05, dtMs / 1000);
     this.spawnTimerMs -= dtMs;
 

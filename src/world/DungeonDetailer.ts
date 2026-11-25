@@ -1,5 +1,5 @@
 import { createSeededRng, DIR_EAST, DIR_NORTH, DIR_SOUTH, DIR_WEST } from './WfcRoomGraph';
-import type { DungeonRoomRole } from './DungeonLayoutBuilder';
+import type { DungeonRoomRole, ExitWallDir } from './DungeonLayoutBuilder';
 import type { DungeonPropSpec, DungeonThemeVisuals } from '../data/dungeonTilesets';
 
 export interface DetailedTile {
@@ -45,6 +45,7 @@ export interface DetailRoomOptions {
   roomH: number;
   mask: number;
   role: DungeonRoomRole;
+  exitWall?: ExitWallDir;
   theme: DungeonThemeVisuals;
   seed: number;
   reservedTiles?: Array<{ lx: number; ly: number }>;
@@ -74,10 +75,18 @@ export function detailDungeonRoom(opts: DetailRoomOptions): RoomDetailPlan {
   markSafeBox(Math.floor(roomW / 2), Math.floor(roomH / 2), 1);
 
   // Doorway 3x3 clearance zones
-  if ((mask & DIR_NORTH) !== 0) markSafeBox(Math.floor(roomW / 2), 1, 1);
-  if ((mask & DIR_SOUTH) !== 0) markSafeBox(Math.floor(roomW / 2), roomH - 2, 1);
-  if ((mask & DIR_WEST) !== 0) markSafeBox(1, Math.floor(roomH / 2), 1);
-  if ((mask & DIR_EAST) !== 0) markSafeBox(roomW - 2, Math.floor(roomH / 2), 1);
+  const midX = Math.floor(roomW / 2);
+  const midY = Math.floor(roomH / 2);
+  if ((mask & DIR_NORTH) !== 0) markSafeBox(midX, 1, 1);
+  if ((mask & DIR_SOUTH) !== 0) markSafeBox(midX, roomH - 2, 1);
+  if ((mask & DIR_WEST) !== 0) markSafeBox(1, midY, 1);
+  if ((mask & DIR_EAST) !== 0) markSafeBox(roomW - 2, midY, 1);
+
+  // Reserve Exit Door clearance on the start room (explicit exitWall and/or all closed walls)
+  if (opts.exitWall === 'north' || role === 'start') markSafeBox(midX, 1, 1);
+  if (opts.exitWall === 'south' || role === 'start') markSafeBox(midX, roomH - 2, 1);
+  if (opts.exitWall === 'west' || role === 'start') markSafeBox(1, midY, 1);
+  if (opts.exitWall === 'east' || role === 'start') markSafeBox(roomW - 2, midY, 1);
 
   for (const r of opts.reservedTiles ?? []) {
     markSafeBox(r.lx, r.ly, 1);

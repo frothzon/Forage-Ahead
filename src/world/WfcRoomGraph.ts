@@ -7,6 +7,7 @@ export const DIR_SOUTH = 8;
 export type CardinalDirBit = typeof DIR_EAST | typeof DIR_NORTH | typeof DIR_WEST | typeof DIR_SOUTH;
 
 export const ALL_DIR_BITS: readonly CardinalDirBit[] = [DIR_EAST, DIR_NORTH, DIR_WEST, DIR_SOUTH];
+const ALL_CARDINAL_MASK = DIR_EAST | DIR_NORTH | DIR_WEST | DIR_SOUTH;
 
 export const DIR_DELTA: Record<CardinalDirBit, { dx: number; dy: number; opp: CardinalDirBit }> = {
   [DIR_EAST]: { dx: 1, dy: 0, opp: DIR_WEST },
@@ -127,11 +128,13 @@ function runSingleWfcAttempt(
 
   const startX = gridW >> 1;
   const startY = gridH >> 1;
-  // Seed center with 1 exit (or 2 if minRooms >= 6 to encourage branching)
-  const firstBit = pickRandomBit([...ALL_DIR_BITS]);
+  // Seed center with 1 exit (or 2 if minRooms >= 6 to encourage branching).
+  // For dungeons (minRooms >= 6), prefer keeping DIR_NORTH closed so the start room has a solid north Exit Door wall.
+  const startChoices: CardinalDirBit[] = minRooms >= 6 ? [DIR_EAST, DIR_SOUTH, DIR_WEST] : [...ALL_DIR_BITS];
+  const firstBit = pickRandomBit(startChoices);
   grid[startY][startX] = firstBit;
   if (minRooms >= 6 && rng() < 0.65) {
-    const rem = ALL_DIR_BITS.filter((b) => b !== firstBit);
+    const rem = startChoices.filter((b) => b !== firstBit);
     grid[startY][startX] |= pickRandomBit(rem);
   }
   enqueueNeighbors(startX, startY);
@@ -206,6 +209,7 @@ export function generateWfcRoomGraph(options: WfcGenerateOptions): WfcRoomGraph 
     const startX = gridWidth >> 1;
     const startY = gridHeight >> 1;
     if (grid[startY][startX] <= 0 || grid[startY][startX] >= VIRGIN) continue;
+    if ((grid[startY][startX] & ALL_CARDINAL_MASK) === ALL_CARDINAL_MASK) continue;
 
     // Collect connected component from start via BFS
     const coordToId = new Map<string, number>();

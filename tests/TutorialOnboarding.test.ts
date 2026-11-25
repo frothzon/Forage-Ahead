@@ -17,7 +17,7 @@ describe('TutorialOnboarding', () => {
     expect(gs.hotbar[4]).toBe('berries');
     expect(gs.hotbar.filter((id) => id === 'berries')).toHaveLength(1);
     for (const tab of ALL_MENU_TABS) {
-      expect(gs.isMenuTabUnlocked(tab)).toBe(false);
+      expect(gs.isMenuTabUnlocked(tab)).toBe(tab === 'settings');
     }
 
     // Granting pickaxe never overwrites berries and never creates duplicates

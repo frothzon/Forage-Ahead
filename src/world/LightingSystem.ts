@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { onSettingsChange, settingsStore } from '../core/GameSettings';
 
 export interface PointLightSource {
   x: number;
@@ -70,6 +71,9 @@ export class LightingSystem {
   private lastAmbient = -1;
   private forceRedraw = true;
   private beamMapClean = true;
+  private dynamicLightingEnabled = true;
+  private unsubSettings?: () => void;
+  private destroyed = false;
 
   /** 0.00..0.20 Dawn, 0.20..0.60 Day, 0.60..0.78 Dusk, 0.78..1.00 Night */
   public timeOfDay = 0.32;
@@ -119,6 +123,32 @@ export class LightingSystem {
     this.stampImg = scene.make.image({ key: '_light_radial', add: false });
     // Anchor at left emitter tip inside 256x128 cone texture (x = 12px / 256 = 0.047)
     this.spotImg = scene.make.image({ key: '_light_cone_soft', add: false }).setOrigin(12 / 256, 0.5);
+
+    this.setDynamicLightingEnabled(settingsStore.get().graphics.dynamicLighting);
+    this.unsubSettings = onSettingsChange((s) => {
+      this.setDynamicLightingEnabled(s.graphics.dynamicLighting);
+    });
+    scene.events?.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanupSettingsSub, this);
+    scene.events?.once(Phaser.Scenes.Events.DESTROY, this.cleanupSettingsSub, this);
+  }
+
+  private cleanupSettingsSub(): void {
+    if (this.unsubSettings) {
+      this.unsubSettings();
+      this.unsubSettings = undefined;
+    }
+  }
+
+  public setDynamicLightingEnabled(enabled: boolean): void {
+    this.dynamicLightingEnabled = enabled;
+    if (this.destroyed) return;
+    if (!enabled) {
+      this.lightmap.setVisible(false);
+      this.beamMap.setVisible(false);
+    } else {
+      this.lightmap.setVisible(true);
+      this.forceRedraw = true;
+    }
   }
 
   private ensureLightTextures(): void {
@@ -251,6 +281,10 @@ export class LightingSystem {
         this.dayNumber++;
         dayWrapped = true;
       }
+    }
+
+    if (!this.dynamicLightingEnabled) {
+      return dayWrapped;
     }
 
     const cam = this.scene.cameras.main;
@@ -546,6 +580,10 @@ export class LightingSystem {
   }
 
   public destroy(): void {
+    this.destroyed = true;
+    this.cleanupSettingsSub();
+    this.scene.events?.off(Phaser.Scenes.Events.SHUTDOWN, this.cleanupSettingsSub, this);
+    this.scene.events?.off(Phaser.Scenes.Events.DESTROY, this.cleanupSettingsSub, this);
     this.lightmap.destroy();
     this.beamMap.destroy();
     this.stampImg.destroy();

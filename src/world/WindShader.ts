@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { onSettingsChange, settingsStore } from '../core/GameSettings';
 
 interface WindConfig {
   swayPixels: number;
@@ -9,6 +10,19 @@ const windConfigs = new WeakMap<Phaser.GameObjects.GameObject, WindConfig>();
 
 let globalWindStrength = 1.0;
 let globalWindDirX = 0.8;
+let windSwayEnabled = settingsStore.get().graphics.windSway;
+
+onSettingsChange((s) => {
+  windSwayEnabled = s.graphics.windSway;
+});
+
+export function setWindSwayEnabled(enabled: boolean): void {
+  windSwayEnabled = enabled;
+}
+
+export function isWindSwayEnabled(): boolean {
+  return windSwayEnabled;
+}
 
 /**
  * Sets global daily wind parameters applied to every foliage wind shader instance.
@@ -54,7 +68,7 @@ export class WindSwayPipeline extends Phaser.Renderer.WebGL.Pipelines.MultiPipel
     texture?: Phaser.Renderer.WebGL.Wrappers.WebGLTextureWrapper,
     unit?: number,
   ): boolean {
-    if (gameObject) {
+    if (windSwayEnabled && gameObject) {
       const cfg = windConfigs.get(gameObject);
       if (cfg) {
         const t = this.game.loop.time * 0.001;

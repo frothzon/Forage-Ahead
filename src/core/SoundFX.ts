@@ -1,3 +1,4 @@
+import { onSettingsChange, settingsStore, type AudioSettings } from './GameSettings';
 import { musicEngine, type MusicContext, type MusicSituation, type StingerId } from './MusicEngine';
 
 export type NoiseColor = 'white' | 'pink' | 'brown';
@@ -58,25 +59,25 @@ class SoundFXManager {
   public muted = false;
   public masterVolume = 0.7;
   public musicEnabled = true;
+  public musicVolume = 1.0;
+  public sfxVolume = 1.0;
+  private applyingFromStore = false;
   private musicTimer?: number;
   private readonly prefsKey = 'forage_ahead_audio_v1';
 
   constructor() {
-    if (typeof localStorage !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(this.prefsKey);
-        if (raw) {
-          const p = JSON.parse(raw) as { muted?: boolean; masterVolume?: number; musicEnabled?: boolean };
-          if (typeof p.muted === 'boolean') this.muted = p.muted;
-          if (typeof p.masterVolume === 'number' && Number.isFinite(p.masterVolume)) {
-            this.masterVolume = Math.max(0, Math.min(1, p.masterVolume));
-          }
-          if (typeof p.musicEnabled === 'boolean') this.musicEnabled = p.musicEnabled;
-        }
-      } catch {
-        // Ignore malformed audio prefs
+    const initial = settingsStore.get().audio;
+    this.muted = initial.muted;
+    this.masterVolume = initial.masterVolume;
+    this.musicEnabled = initial.musicEnabled;
+    this.musicVolume = initial.musicVolume;
+    this.sfxVolume = initial.sfxVolume;
+
+    onSettingsChange((s) => {
+      if (!this.applyingFromStore) {
+        this.applyAudioSettings(s.audio);
       }
-    }
+    });
   }
 
   private savePrefs(): void {
@@ -113,7 +114,7 @@ class SoundFXManager {
       comp.release.setValueAtTime(0.16, ctx.currentTime);
 
       const sfxBus = ctx.createGain();
-      sfxBus.gain.value = 0.9;
+      sfxBus.gain.value = 0.9 * this.sfxVolume;
 
       // Lightweight algorithmic room/cavern reverb send (2-tap filtered feedback delay)
       const reverbSend = ctx.createGain();
@@ -155,6 +156,9 @@ class SoundFXManager {
     }
     if (this.masterGain) {
       this.masterGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.015);
+    }
+    if (this.sfxBus) {
+      this.sfxBus.gain.setTargetAtTime(0.9 * this.sfxVolume, this.ctx.currentTime, 0.015);
     }
     return this.ctx;
   }
@@ -207,7 +211,7 @@ class SoundFXManager {
   }
 
   public canPlay(key: string, minGapMs = 30): boolean {
-    if (this.muted || this.masterVolume <= 0.01) return false;
+    if (this.muted || this.masterVolume <= 0.01 || this.sfxVolume <= 0.01) return false;
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const last = this.cooldowns.get(key) ?? -Infinity;
     if (now - last < minGapMs) return false;
@@ -222,12 +226,72 @@ class SoundFXManager {
     }
   }
 
+  public applyAudioSettings(audio: AudioSettings): void {
+    this.applyingFromStore = true;
+    try {
+      this.muted = audio.muted;
+      this.masterVolume = Math.max(0, Math.min(1, audio.masterVolume));
+      this.musicEnabled = audio.musicEnabled;
+      this.musicVolume = Math.max(0, Math.min(1, audio.musicVolume));
+      this.sfxVolume = Math.max(0, Math.min(1, audio.sfxVolume));
+
+      if (this.ctx && this.masterGain) {
+        this.masterGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
+      }
+      if (this.ctx && this.sfxBus) {
+        this.sfxBus.gain.setTargetAtTime(0.9 * this.sfxVolume, this.ctx.currentTime, 0.02);
+      }
+      musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume, this.musicVolume);
+      this.savePrefs();
+    } finally {
+      this.applyingFromStore = false;
+    }
+  }
+
   public setVolume(v: number): void {
     this.masterVolume = Math.max(0, Math.min(1, v));
     if (this.ctx && this.masterGain) {
       this.masterGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
     }
-    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume);
+    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume, this.musicVolume);
+    if (!this.applyingFromStore) {
+      this.applyingFromStore = true;
+      try {
+        settingsStore.update({ audio: { masterVolume: this.masterVolume } });
+      } finally {
+        this.applyingFromStore = false;
+      }
+    }
+    this.savePrefs();
+  }
+
+  public setMusicVolume(v: number): void {
+    this.musicVolume = Math.max(0, Math.min(1, v));
+    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume, this.musicVolume);
+    if (!this.applyingFromStore) {
+      this.applyingFromStore = true;
+      try {
+        settingsStore.update({ audio: { musicVolume: this.musicVolume } });
+      } finally {
+        this.applyingFromStore = false;
+      }
+    }
+    this.savePrefs();
+  }
+
+  public setSfxVolume(v: number): void {
+    this.sfxVolume = Math.max(0, Math.min(1, v));
+    if (this.ctx && this.sfxBus) {
+      this.sfxBus.gain.setTargetAtTime(0.9 * this.sfxVolume, this.ctx.currentTime, 0.02);
+    }
+    if (!this.applyingFromStore) {
+      this.applyingFromStore = true;
+      try {
+        settingsStore.update({ audio: { sfxVolume: this.sfxVolume } });
+      } finally {
+        this.applyingFromStore = false;
+      }
+    }
     this.savePrefs();
   }
 
@@ -236,15 +300,31 @@ class SoundFXManager {
     if (this.ctx && this.masterGain) {
       this.masterGain.gain.setTargetAtTime(this.muted ? 0 : this.masterVolume, this.ctx.currentTime, 0.02);
     }
-    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume);
+    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume, this.musicVolume);
+    if (!this.applyingFromStore) {
+      this.applyingFromStore = true;
+      try {
+        settingsStore.update({ audio: { muted: this.muted } });
+      } finally {
+        this.applyingFromStore = false;
+      }
+    }
     this.savePrefs();
   }
 
   public setMusicEnabled(enabled: boolean, mode?: RoomSpace): void {
     this.musicEnabled = enabled;
-    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume);
+    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume, this.musicVolume);
     if (enabled && mode) {
       musicEngine.setSituation(mode);
+    }
+    if (!this.applyingFromStore) {
+      this.applyingFromStore = true;
+      try {
+        settingsStore.update({ audio: { musicEnabled: this.musicEnabled } });
+      } finally {
+        this.applyingFromStore = false;
+      }
     }
     this.savePrefs();
   }
@@ -253,7 +333,7 @@ class SoundFXManager {
     if (sit === 'dungeon' || sit === 'boss') this.setRoomSpace('dungeon');
     else if (sit === 'overworld' || sit === 'near_enemy') this.setRoomSpace('overworld');
     musicEngine.setSituation(sit);
-    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume);
+    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume, this.musicVolume);
   }
 
   public setMusicContext(ctx: Partial<MusicContext>): void {
@@ -266,7 +346,7 @@ class SoundFXManager {
 
   public setMusicPaused(paused: boolean): void {
     musicEngine.setPaused(paused);
-    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume);
+    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume, this.musicVolume);
   }
 
   public suspendAll(): void {
@@ -286,7 +366,7 @@ class SoundFXManager {
   public startAmbientMusic(mode: RoomSpace): void {
     this.setRoomSpace(mode);
     musicEngine.setSituation(mode);
-    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume);
+    musicEngine.syncAudioSettings(this.musicEnabled, this.muted, this.masterVolume, this.musicVolume);
   }
 
   public stopAmbientMusic(): void {
@@ -338,7 +418,7 @@ class SoundFXManager {
 
   private playTone(opts: ToneOpts): void {
     const ctx = this.ensureGraph();
-    if (!ctx || !this.sfxBus || this.masterVolume <= 0.01) return;
+    if (!ctx || !this.sfxBus || this.masterVolume <= 0.01 || this.sfxVolume <= 0.01) return;
 
     const jit = this.randFactor(opts.jitter ?? 0) * this.pitchScale;
     const t0 = ctx.currentTime + (opts.delay ?? 0);
@@ -380,7 +460,7 @@ class SoundFXManager {
 
   private playFM(opts: FMOpts): void {
     const ctx = this.ensureGraph();
-    if (!ctx || !this.sfxBus || this.masterVolume <= 0.01) return;
+    if (!ctx || !this.sfxBus || this.masterVolume <= 0.01 || this.sfxVolume <= 0.01) return;
 
     const jit = this.randFactor(opts.jitter ?? 0) * this.pitchScale;
     const t0 = ctx.currentTime + (opts.delay ?? 0);
@@ -428,7 +508,7 @@ class SoundFXManager {
 
   private playNoise(opts: NoiseOpts): void {
     const ctx = this.ensureGraph();
-    if (!ctx || !this.sfxBus || this.masterVolume <= 0.01) return;
+    if (!ctx || !this.sfxBus || this.masterVolume <= 0.01 || this.sfxVolume <= 0.01) return;
 
     const buf = this.noiseBuffers[opts.color ?? 'pink'] ?? this.noiseBuffers.white;
     if (!buf) return;

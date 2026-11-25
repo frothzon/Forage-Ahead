@@ -4,6 +4,7 @@
  */
 
 export const MAX_NODES_PER_ISLAND = 50;
+export const MAX_FISH_SPOTS_PER_ISLAND = 5;
 export const STARTER_ISLAND_NODES = 42;
 export const NODE_RESPAWN_INTERVAL_MS = 3360;
 

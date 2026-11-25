@@ -1,5 +1,25 @@
+import { settingsStore, type SpeechBubbleSpeed } from '../core/GameSettings';
 import { isMobileTouchDevice } from '../core/Platform';
 import { SFX } from '../core/SoundFX';
+
+export const DIALOGUE_SPEED_MS: Record<SpeechBubbleSpeed, number> = {
+  slow: 34,
+  normal: 18,
+  fast: 8,
+  instant: 0,
+};
+
+export const DIALOGUE_BLIP_GAP_MS: Record<SpeechBubbleSpeed, number> = {
+  slow: 95,
+  normal: 65,
+  fast: 48,
+  instant: 0,
+};
+
+export function getDialogueMsPerChar(speed?: SpeechBubbleSpeed): number {
+  const effective = speed ?? settingsStore.get().dialogue.speed;
+  return DIALOGUE_SPEED_MS[effective] ?? DIALOGUE_SPEED_MS.normal;
+}
 
 export interface DialogueChoice {
   label: string;
@@ -325,16 +345,27 @@ class DialogueBoxManager {
         : 'Choose an option or [Space]'
       : `Page ${this.lineIndex + 1}/${this.cfg.lines.length} • ${mobile ? 'Tap' : 'Click or [Space]'}`;
 
+    const speed = settingsStore.get().dialogue.speed;
+    const msPerChar = getDialogueMsPerChar(speed);
+    if (speed === 'instant' || msPerChar <= 0) {
+      this.finishTyping();
+      if (this.tokens.some((tok) => tok.ch.trim())) {
+        SFX.playDialogueBlip(this.cfg?.voicePitch ?? 1);
+      }
+      return;
+    }
+
+    const blipGapMs = DIALOGUE_BLIP_GAP_MS[speed] ?? DIALOGUE_BLIP_GAP_MS.normal;
     this.typeStartMs = performance.now();
     this.lastBlipAtMs = 0;
     const step = (now: number) => {
       if (!this.active) return;
-      const target = Math.min(this.charSpans.length, Math.floor((now - this.typeStartMs) / 18) + 1);
+      const target = Math.min(this.charSpans.length, Math.floor((now - this.typeStartMs) / msPerChar) + 1);
       let playedBlip = false;
       while (this.revealedCount < target) {
         this.charSpans[this.revealedCount].style.opacity = '1';
         const ch = this.tokens[this.revealedCount]?.ch ?? '';
-        if (!playedBlip && ch.trim() && now - this.lastBlipAtMs >= 65) {
+        if (!playedBlip && ch.trim() && now - this.lastBlipAtMs >= blipGapMs) {
           this.lastBlipAtMs = now;
           playedBlip = true;
           SFX.playDialogueBlip(this.cfg?.voicePitch ?? 1);

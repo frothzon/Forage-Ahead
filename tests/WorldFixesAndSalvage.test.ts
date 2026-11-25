@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatCompactNumber } from '../src/core/FormatNumber';
 import { gameState } from '../src/core/GameState';
+import { MAX_FISH_SPOTS_PER_ISLAND, MAX_NODES_PER_ISLAND } from '../src/data/economy';
 import { isDungeonPortalEnterable } from '../src/data/islands';
 import { ITEMS } from '../src/data/items';
 import { RECIPES } from '../src/data/recipes';
@@ -193,5 +194,11 @@ describe('World fixes, large number formatting & salvage tool', () => {
     expect(gameState.equipment.tool).toBe('pickaxe');
     expect(gameState.equippedInstanceIds.tool).toBe('upg_pick');
     expect(gameState.bagSlots[bagIdx]).toEqual({ itemId: 'pickaxe', count: 1, instanceId: 'eq_pick' });
+  });
+
+  it('caps per-island fishing spots independently of land resource nodes', () => {
+    expect(MAX_FISH_SPOTS_PER_ISLAND).toBeGreaterThan(0);
+    expect(MAX_FISH_SPOTS_PER_ISLAND).toBeLessThan(MAX_NODES_PER_ISLAND);
+    expect(MAX_FISH_SPOTS_PER_ISLAND).toBe(5);
   });
 });

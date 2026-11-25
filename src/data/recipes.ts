@@ -129,6 +129,9 @@ const UNSCALED_RECIPE_IDS = new Set([
   'craft_potion_blue',
   'craft_elixir_egg',
   'craft_bomb',
+  'craft_bomb_fire',
+  'craft_bomb_frost',
+  'craft_bomb_void',
 ]);
 
 const MONSTER_DROP_IDS = new Set(['slime_gel', 'bone', 'amber', 'demon_horn']);
@@ -535,6 +538,52 @@ const BASE_RECIPES: RecipeDef[] = [
     craftTimeMs: 20000,
   },
   {
+    id: 'craft_bomb_fire',
+    name: 'Fire Bomb (x2)',
+    station: 'alchemy_lab',
+    description: 'Ignites dungeon braziers and sears monsters for 55 AoE damage.',
+    ingredients: [
+      { itemId: 'coal', count: 2 },
+      { itemId: 'amber', count: 1 },
+      { itemId: 'slime_gel', count: 1 },
+    ],
+    outputItemId: 'bomb_fire',
+    outputCount: 2,
+    requiresSkill: 'magic_alchemy',
+    iconKey: 'projectiles/Bomb',
+    craftTimeMs: 20000,
+  },
+  {
+    id: 'craft_bomb_frost',
+    name: 'Frost Bomb (x2)',
+    station: 'frost_kiln',
+    description: 'Quenches flame vents and slows enemies for 3.5s (40 AoE damage).',
+    ingredients: [
+      { itemId: 'coal', count: 2 },
+      { itemId: 'crystal', count: 2 },
+      { itemId: 'iron_ingot', count: 1 },
+    ],
+    outputItemId: 'bomb_frost',
+    outputCount: 2,
+    iconKey: 'projectiles/Bomb',
+    craftTimeMs: 22000,
+  },
+  {
+    id: 'craft_bomb_void',
+    name: 'Void Cluster Bomb (x2)',
+    station: 'void_altar',
+    description: 'Deals 120 AoE damage, ignites braziers, and splits into 3 void clusters.',
+    ingredients: [
+      { itemId: 'obsidian', count: 2 },
+      { itemId: 'crystal', count: 2 },
+      { itemId: 'void_shard', count: 1 },
+    ],
+    outputItemId: 'bomb_void',
+    outputCount: 2,
+    iconKey: 'projectiles/Bomb',
+    craftTimeMs: 25000,
+  },
+  {
     id: 'craft_potion_red',
     name: 'Crimson Potion',
     station: 'alchemy_lab',
@@ -809,7 +858,7 @@ const BASE_RECIPES: RecipeDef[] = [
     id: 'upgrade_sword_2',
     name: 'Iron Broadsword',
     station: 'anvil',
-    description: '34 Attack, +7% Crit, +2 Armor.',
+    description: '15 Attack, +6% Crit, +2 Armor.',
     ingredients: [
       { itemId: 'iron_ingot', count: 6 },
       { itemId: 'slime_gel', count: 4 },
@@ -823,7 +872,7 @@ const BASE_RECIPES: RecipeDef[] = [
     id: 'upgrade_sword_3',
     name: 'Sunforged Blade',
     station: 'anvil',
-    description: '50 Attack, +12% Crit, +6% Speed.',
+    description: '26 Attack, +12% Crit, +6% Speed.',
     ingredients: [
       { itemId: 'gold_ingot', count: 6 },
       { itemId: 'amber', count: 5 },
@@ -840,7 +889,7 @@ const BASE_RECIPES: RecipeDef[] = [
     id: 'upgrade_sword_4',
     name: 'Obsidian Greatsword',
     station: 'infernal_forge',
-    description: '74 Attack, +18% Crit, +20 Max HP.',
+    description: '58 Attack, +18% Crit, +35 Max HP.',
     ingredients: [
       { itemId: 'obsidian', count: 8 },
       { itemId: 'demon_horn', count: 4 },
@@ -1029,7 +1078,7 @@ const BASE_RECIPES: RecipeDef[] = [
     id: 'craft_sword_astral',
     name: 'Astral Reaver (Lv.35)',
     station: 'void_altar',
-    description: '175 ATK, +20% Crit, +10% Speed. Fuses Void Shards & Owlbear Egg.',
+    description: '145 ATK, +20% Crit, +10% Speed. Fuses Void Shards & Owlbear Egg.',
     ingredients: [
       { itemId: 'void_shard', count: 4 },
       { itemId: 'astral_essence', count: 2 },
@@ -1059,7 +1108,7 @@ const BASE_RECIPES: RecipeDef[] = [
     id: 'craft_sword_wyrmheart',
     name: 'Wyrmheart Greatsword (Lv.60)',
     station: 'void_altar',
-    description: '380 ATK, +26% Crit, +150 HP. Fuses Celestial Scales & Wyrmling/Hellhound Eggs!',
+    description: '310 ATK, +26% Crit, +150 HP. Fuses Celestial Scales & Wyrmling/Hellhound Eggs!',
     ingredients: [
       { itemId: 'celestial_scale', count: 3 },
       { itemId: 'abyssal_core', count: 3 },

@@ -1,5 +1,9 @@
 import {
   createSeededRng,
+  DIR_EAST,
+  DIR_NORTH,
+  DIR_SOUTH,
+  DIR_WEST,
   generateWfcRoomGraph,
   type WfcRoomEdge,
   type WfcRoomGraph,
@@ -16,7 +20,35 @@ export type DungeonRoomRole =
   | 'treasure'
   | 'boss';
 
-export type DungeonPuzzleKind = 'sigils' | 'braziers' | 'ambush';
+export type ExitWallDir = 'north' | 'south' | 'west' | 'east';
+
+export const ALL_PUZZLE_KINDS = [
+  'sigils',
+  'braziers',
+  'ambush',
+  'ordered_sigils',
+  'timed_plates',
+  'mirror_plates',
+  'memory_runes',
+  'safe_path',
+  'push_block_single',
+  'push_block_twin',
+  'ice_slide_block',
+  'bridge_lever',
+  'bomb_rubble',
+  'brazier_chain',
+  'frost_vents',
+  'lightning_pylons',
+  'shadow_lanterns',
+  'powder_keg_chain',
+  'crystal_totems',
+  'bullseye_targets',
+  'sentinel_statue',
+  'lockpick_vault',
+  'spike_gauntlet',
+] as const;
+
+export type DungeonPuzzleKind = (typeof ALL_PUZZLE_KINDS)[number];
 
 export type DungeonDoorLock = 'open' | 'small_key' | 'boss_key' | 'combat_seal';
 
@@ -27,6 +59,7 @@ export interface DungeonRoomPlan {
   mask: number;
   depth: number;
   role: DungeonRoomRole;
+  exitWall?: ExitWallDir;
   puzzleKind?: DungeonPuzzleKind;
   grantsSmallKey: boolean;
   grantsBossKey: boolean;
@@ -76,12 +109,41 @@ function getPathToRoot(rooms: WfcRoomNode[], targetId: number): number[] {
   return path.reverse();
 }
 
+const EXIT_WALL_TO_BIT: Record<ExitWallDir, number> = {
+  north: DIR_NORTH,
+  south: DIR_SOUTH,
+  west: DIR_WEST,
+  east: DIR_EAST,
+};
+
+/**
+ * Picks the first closed cardinal wall on the start room for the Exit Door
+ * in priority order: north, south, west, east.
+ */
+export function pickStartExitWall(mask: number): ExitWallDir {
+  if ((mask & DIR_NORTH) === 0) return 'north';
+  if ((mask & DIR_SOUTH) === 0) return 'south';
+  if ((mask & DIR_WEST) === 0) return 'west';
+  if ((mask & DIR_EAST) === 0) return 'east';
+  throw new Error(`Start room has all 4 cardinal exits open (mask=${mask}); no solid wall for Exit Door.`);
+}
+
 /**
  * Simulates traversing the dungeon from `startRoomId` with key collection to prove
- * every room (including `bossRoomId`) is reachable without soft-locking.
+ * every room (including `bossRoomId`) is reachable without soft-locking, and verifies
+ * that the start room has a valid `exitWall` on a closed wall.
  */
-export function isDungeonLayoutSolvable(layout: DungeonLayout): boolean {
+export function verifyDungeonSolvable(layout: DungeonLayout): boolean {
   const roomById = new Map(layout.rooms.map((r) => [r.id, r]));
+  const startRoom = roomById.get(layout.startRoomId);
+  if (!startRoom || startRoom.role !== 'start' || !startRoom.exitWall) {
+    return false;
+  }
+  const exitWallBit = EXIT_WALL_TO_BIT[startRoom.exitWall];
+  if ((startRoom.mask & exitWallBit) !== 0) {
+    return false;
+  }
+
   const adj = new Map<number, Array<{ to: number; lock: DungeonDoorLock }>>();
   for (const r of layout.rooms) adj.set(r.id, []);
   for (const d of layout.doors) {
@@ -129,6 +191,11 @@ export function isDungeonLayoutSolvable(layout: DungeonLayout): boolean {
   }
 
   return visited.size === layout.rooms.length && visited.has(layout.bossRoomId);
+}
+
+/** Backwards-compatible alias for `verifyDungeonSolvable`. */
+export function isDungeonLayoutSolvable(layout: DungeonLayout): boolean {
+  return verifyDungeonSolvable(layout);
 }
 
 /**
@@ -229,9 +296,14 @@ export function buildDungeonLayout(seed = Date.now(), minRooms = 7, maxRooms = 1
     }
   }
 
-  // 4. Assign room roles & prefab puzzles
-  const puzzleCycle: DungeonPuzzleKind[] = ['sigils', 'braziers', 'ambush'];
-  let puzzleIdx = Math.floor(rng() * puzzleCycle.length);
+  // 4. Assign room roles & prefab puzzles (deterministically shuffle all 23 puzzle kinds)
+  const puzzleDeck: DungeonPuzzleKind[] = [...ALL_PUZZLE_KINDS];
+  for (let i = puzzleDeck.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [puzzleDeck[i], puzzleDeck[j]] = [puzzleDeck[j], puzzleDeck[i]];
+  }
+  let puzzleIdx = 0;
+  const nextPuzzleKind = (): DungeonPuzzleKind => puzzleDeck[puzzleIdx++ % puzzleDeck.length];
   let assignedPuzzle = false;
   let assignedTreasure = false;
 
@@ -244,6 +316,7 @@ export function buildDungeonLayout(seed = Date.now(), minRooms = 7, maxRooms = 1
         mask: r.mask,
         depth: r.depth,
         role: 'start',
+        exitWall: pickStartExitWall(r.mask),
         grantsSmallKey: false,
         grantsBossKey: false,
         hasTreasureChest: false,
@@ -286,7 +359,7 @@ export function buildDungeonLayout(seed = Date.now(), minRooms = 7, maxRooms = 1
     }
     if (r.id === smallKeyRoomId) {
       const usePuzzle = rng() < 0.6;
-      const pk = puzzleCycle[puzzleIdx++ % puzzleCycle.length];
+      const pk = usePuzzle ? nextPuzzleKind() : undefined;
       if (usePuzzle) assignedPuzzle = true;
       return {
         id: r.id,
@@ -295,7 +368,7 @@ export function buildDungeonLayout(seed = Date.now(), minRooms = 7, maxRooms = 1
         mask: r.mask,
         depth: r.depth,
         role: usePuzzle ? 'key_puzzle' : 'key_combat',
-        puzzleKind: usePuzzle ? pk : undefined,
+        puzzleKind: pk,
         grantsSmallKey: true,
         grantsBossKey: false,
         hasTreasureChest: true,
@@ -307,7 +380,7 @@ export function buildDungeonLayout(seed = Date.now(), minRooms = 7, maxRooms = 1
 
     if (!assignedPuzzle) {
       assignedPuzzle = true;
-      const pk = puzzleCycle[puzzleIdx++ % puzzleCycle.length];
+      const pk = nextPuzzleKind();
       return {
         id: r.id,
         gx: r.gx,
@@ -343,20 +416,21 @@ export function buildDungeonLayout(seed = Date.now(), minRooms = 7, maxRooms = 1
       };
     }
 
-    const isAmbush = rng() < 0.45;
+    const isBonusPuzzle = rng() < 0.45;
+    const pk = isBonusPuzzle ? nextPuzzleKind() : undefined;
     return {
       id: r.id,
       gx: r.gx,
       gy: r.gy,
       mask: r.mask,
       depth: r.depth,
-      role: isAmbush ? 'puzzle' : 'combat',
-      puzzleKind: isAmbush ? 'ambush' : undefined,
+      role: isBonusPuzzle ? 'puzzle' : 'combat',
+      puzzleKind: pk,
       grantsSmallKey: false,
       grantsBossKey: false,
-      hasTreasureChest: false,
-      lockOnClear: isAmbush,
-      enemyCount: 2 + Math.floor(rng() * 2),
+      hasTreasureChest: isBonusPuzzle && pk !== 'ambush',
+      lockOnClear: pk === 'ambush',
+      enemyCount: isBonusPuzzle && pk !== 'ambush' ? 1 : 2 + Math.floor(rng() * 2),
       breakableCount: 3 + Math.floor(rng() * 3),
     };
   });
@@ -371,7 +445,7 @@ export function buildDungeonLayout(seed = Date.now(), minRooms = 7, maxRooms = 1
     minibossRoomId: minibossNode.id,
   };
 
-  if (!isDungeonLayoutSolvable(layout)) {
+  if (!verifyDungeonSolvable(layout)) {
     throw new Error(`Generated unsolvable dungeon layout for seed ${graph.seed}`);
   }
 

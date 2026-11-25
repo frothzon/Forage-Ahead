@@ -73,7 +73,7 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     const cmp = state.compareGearStats('sword_iron');
     expect(cmp).not.toBeNull();
     const atkRow = cmp!.rows.find((r) => r.key === 'attack');
-    expect(atkRow?.diff).toBeGreaterThanOrEqual(12); // >= 20 - 8
+    expect(atkRow?.diff).toBeGreaterThanOrEqual(7); // >= 15 - 8
 
     // Equip Iron Broadsword from bag -> swaps Knight Sword into bag
     expect(state.equipFromBag(broadIdx, 'weapon')).toBe(true);
