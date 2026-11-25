@@ -6,6 +6,9 @@ export interface StampTilePlacement {
   lx: number;
   ly: number;
   type: StructureType;
+  orientation?: 'horizontal' | 'vertical';
+  locked?: boolean;
+  isBedroomChest?: boolean;
 }
 
 export interface OutdoorBuildingStamp {
@@ -15,6 +18,8 @@ export interface OutdoorBuildingStamp {
   height: number;
   doorLx: number;
   doorLy: number;
+  bedLx: number;
+  bedLy: number;
   placements: StampTilePlacement[];
 }
 
@@ -103,6 +108,23 @@ export function buildWfcOutdoorHouseStamp(theme: HouseThemeId): OutdoorBuildingS
     !floorSet.has(`${lx - 1},${ly + 1}`) ||
     !floorSet.has(`${lx + 1},${ly + 1}`);
 
+  const explicitBedrooms = layout.rooms.filter((r) => r.role === 'bedroom');
+  const bedroomRooms =
+    explicitBedrooms.length > 0
+      ? explicitBedrooms
+      : layout.rooms.filter((r) => r.role !== 'foyer').slice(-1);
+  const bedroomRoomIds = new Set(bedroomRooms.map((r) => r.id));
+  const bedroomTileSet = new Set<string>();
+  for (const r of bedroomRooms) {
+    const ox = (r.gx - minGx) * ROOM_STEP_X;
+    const oy = (r.gy - minGy) * ROOM_STEP_Y;
+    for (let ly = 0; ly <= ROOM_STEP_Y; ly++) {
+      for (let lx = 0; lx <= ROOM_STEP_X; lx++) {
+        bedroomTileSet.add(`${ox + lx},${oy + ly}`);
+      }
+    }
+  }
+
   const placements: StampTilePlacement[] = [];
   for (const k of floorSet) {
     const [lx, ly] = k.split(',').map(Number);
@@ -115,10 +137,13 @@ export function buildWfcOutdoorHouseStamp(theme: HouseThemeId): OutdoorBuildingS
     const [lx, ly] = k.split(',').map(Number);
     placements.push({ lx, ly, type: 'house_wall' });
   }
-  placements.push({ lx: doorLx, ly: doorLy, type: 'house_door' });
+  placements.push({ lx: doorLx, ly: doorLy, type: 'house_door', orientation: 'horizontal', locked: false });
   for (const arch of doorwayArchSet) {
     const [ax, ay] = arch.split(',').map(Number);
-    placements.push({ lx: ax, ly: ay, type: 'house_door' });
+    const isVertical = wallSet.has(`${ax},${ay - 1}`) || wallSet.has(`${ax},${ay + 1}`);
+    const orientation: 'horizontal' | 'vertical' = isVertical ? 'vertical' : 'horizontal';
+    const touchesBedroom = bedroomTileSet.has(`${ax},${ay}`);
+    placements.push({ lx: ax, ly: ay, type: 'house_door', orientation, locked: touchesBedroom });
   }
 
   // 5. Place themed furniture inside each WFC room's 4x3 interior without blocking any archway or door
@@ -134,20 +159,25 @@ export function buildWfcOutdoorHouseStamp(theme: HouseThemeId): OutdoorBuildingS
       occupied.add(`${ax + dx},${ay + dy}`);
     }
   }
-  const addProp = (lx: number, ly: number, type: StructureType) => {
+  const addProp = (lx: number, ly: number, type: StructureType, inBedroom = false) => {
     const k = `${lx},${ly}`;
     if (occupied.has(k) || !floorSet.has(k) || wallSet.has(k)) return;
     occupied.add(k);
-    placements.push({ lx, ly, type });
+    const placement: StampTilePlacement = { lx, ly, type };
+    if (type === 'chest' && inBedroom) {
+      placement.isBedroomChest = true;
+    }
+    placements.push(placement);
   };
 
   for (const r of layout.rooms) {
     const ox = (r.gx - minGx) * ROOM_STEP_X;
     const oy = (r.gy - minGy) * ROOM_STEP_Y;
+    const inBedroom = bedroomRoomIds.has(r.id);
     if (r.role === 'foyer') {
-      addProp(ox + 2, oy + 2, 'furniture_rug');
-      addProp(ox + 1, oy + 1, 'furniture_lamp');
-      addProp(ox + ROOM_STEP_X - 1, oy + 1, 'furniture_table');
+      addProp(ox + 2, oy + 2, 'furniture_rug', inBedroom);
+      addProp(ox + 1, oy + 1, 'furniture_lamp', inBedroom);
+      addProp(ox + ROOM_STEP_X - 1, oy + 1, 'furniture_table', inBedroom);
     } else if (r.role === 'workshop') {
       const station: StructureType =
         theme === 'blacksmith'
@@ -157,20 +187,50 @@ export function buildWfcOutdoorHouseStamp(theme: HouseThemeId): OutdoorBuildingS
             : theme === 'fisherman'
               ? 'water_well'
               : 'chest';
-      addProp(ox + 1, oy + 1, station);
+      addProp(ox + 1, oy + 1, station, inBedroom);
       addProp(
         ox + ROOM_STEP_X - 1,
         oy + 1,
         theme === 'blacksmith' ? 'furnace' : 'chest',
+        inBedroom,
       );
-      addProp(ox + 1, oy + ROOM_STEP_Y - 1, 'furniture_lamp');
-      addProp(ox + 2, oy + 2, 'furniture_rug');
+      addProp(ox + 1, oy + ROOM_STEP_Y - 1, 'furniture_lamp', inBedroom);
+      addProp(ox + 2, oy + 2, 'furniture_rug', inBedroom);
     } else {
       // bedroom
-      addProp(ox + 1, oy + 1, 'furniture_bed');
-      addProp(ox + ROOM_STEP_X - 1, oy + 1, 'furniture_lamp');
-      addProp(ox + ROOM_STEP_X - 1, oy + ROOM_STEP_Y - 1, 'chest');
-      addProp(ox + 2, oy + 2, 'furniture_rug');
+      addProp(ox + 1, oy + 1, 'furniture_bed', inBedroom);
+      addProp(ox + ROOM_STEP_X - 1, oy + 1, 'furniture_lamp', inBedroom);
+      addProp(ox + ROOM_STEP_X - 1, oy + ROOM_STEP_Y - 1, 'chest', inBedroom);
+      addProp(ox + 2, oy + 2, 'furniture_rug', inBedroom);
+    }
+  }
+
+  let bedPl = placements.find((p) => p.type === 'furniture_bed');
+  if (!bedPl) {
+    const roomsOrdered = [
+      ...layout.rooms.filter((r) => r.role === 'bedroom'),
+      ...layout.rooms.filter((r) => r.role !== 'bedroom'),
+    ];
+    outer: for (const r of roomsOrdered) {
+      const ox = (r.gx - minGx) * ROOM_STEP_X;
+      const oy = (r.gy - minGy) * ROOM_STEP_Y;
+      for (let ly = oy + 1; ly < oy + ROOM_STEP_Y; ly++) {
+        for (let lx = ox + 1; lx < ox + ROOM_STEP_X; lx++) {
+          const k = `${lx},${ly}`;
+          if (
+            floorSet.has(k) &&
+            !wallSet.has(k) &&
+            !doorwayArchSet.has(k) &&
+            k !== `${doorLx},${doorLy}` &&
+            !occupied.has(k)
+          ) {
+            occupied.add(k);
+            bedPl = { lx, ly, type: 'furniture_bed' };
+            placements.push(bedPl);
+            break outer;
+          }
+        }
+      }
     }
   }
 
@@ -181,6 +241,8 @@ export function buildWfcOutdoorHouseStamp(theme: HouseThemeId): OutdoorBuildingS
     height,
     doorLx,
     doorLy,
+    bedLx: bedPl ? bedPl.lx : doorLx,
+    bedLy: bedPl ? bedPl.ly : Math.max(1, doorLy - 2),
     placements,
   };
 }

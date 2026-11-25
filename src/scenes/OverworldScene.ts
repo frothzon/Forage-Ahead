@@ -56,6 +56,7 @@ import { LootDrop } from '../entities/LootDrop';
 import { FamiliarCompanion, Player } from '../entities/Player';
 import { dialogueBox } from '../ui/DialogueBox';
 import { FishingMinigame, type FishBehavior } from '../ui/FishingMinigame';
+import { LockpickMinigame } from '../ui/LockpickMinigame';
 import { tryActivateGadget } from '../entities/GadgetHelper';
 import {
   getProjectileRotation,
@@ -78,6 +79,7 @@ import {
   type TerrainType,
 } from '../world/AutoTiler';
 import { BuildingEntity, getStructurePreviewSpec } from '../world/BuildingEntity';
+import { evaluateHoeTile } from '../world/hoeRules';
 import { createOverworldPromoTimeline, getPromoConfig, markPromoReady, type PromoTimeline } from '../promo/PromoDirector';
 import { SKILLS } from '../data/skills';
 import { buildBaseSnapshot, isQaMode, markQaReady, registerQaApi, resetQaReady } from '../qa/QaDirector';
@@ -92,6 +94,7 @@ import { ResourceNode, type NodeKind } from '../world/ResourceNode';
 import { ensureCleanTilesets } from '../world/TilesetCleaner';
 import { WeatherSystem, type WeatherKind } from '../world/WeatherSystem';
 import { periodicPerlinFbm2D } from '../world/weatherRules';
+import { computeTargetSoilWetness, computeWetSoilTint, stepSoilWetness } from '../world/soilWetness';
 import { playSpawnGrowAndJello } from '../vfx/SpawnJuice';
 
 interface ActiveBomb {
@@ -121,12 +124,21 @@ interface IslandPurchaseMarker {
 interface NpcEntity {
   spec: NonNullable<IslandSpec['npc']>;
   sprite: Phaser.GameObjects.Sprite;
+  shadow: Phaser.GameObjects.Ellipse;
   promptBox: Phaser.GameObjects.Container;
   promptBg: Phaser.GameObjects.Graphics;
   prompt: Phaser.GameObjects.Text;
   redrawPrompt: () => void;
   x: number;
   y: number;
+  homeX: number;
+  homeY: number;
+  doorX?: number;
+  doorY?: number;
+  bedX?: number;
+  bedY?: number;
+  state: 'day_outside' | 'walking_home' | 'sleeping' | 'walking_out';
+  zzzTimerMs: number;
 }
 
 interface RanchEntity {
@@ -194,6 +206,7 @@ export class OverworldScene extends Phaser.Scene {
   private fx!: EffectSequencer;
   private critters!: AmbientCritterSystem;
   private fishingMinigame = new FishingMinigame();
+  private lockpickMinigame = new LockpickMinigame();
   private fishingBobber?: Phaser.GameObjects.Sprite;
   private fishingLine?: Phaser.GameObjects.Graphics;
   private fishingSplashTimerMs = 0;
@@ -222,7 +235,10 @@ export class OverworldScene extends Phaser.Scene {
   private readonly pointLightsBuf: PointLightSource[] = [];
   private readonly spotLightsBuf: SpotLightSource[] = [];
   private buildingTickCallbacks?: Parameters<BuildingEntity['updateBuilding']>[1];
-  private soilStateMap = new Map<string, { lastWateredMs: number; lastUsedMs: number }>();
+  private soilStateMap = new Map<
+    string,
+    { lastWateredMs: number; lastUsedMs: number; wateredAtMs: number; wetness: number }
+  >();
   private soilDecayTimerMs = 0;
   private cropStatusLabelBox?: {
     container: Phaser.GameObjects.Container;
@@ -276,6 +292,7 @@ export class OverworldScene extends Phaser.Scene {
   private harvestComboCount = 0;
   private stokeCooldownMs = 0;
   private buildCursor!: Phaser.GameObjects.Rectangle;
+  private hoeCursor?: Phaser.GameObjects.Rectangle;
   private targetIndicator!: Phaser.GameObjects.Arc;
   private swordTargeter = new SwordAutoTargeter<Enemy | OverworldScene['animals'][number]>();
   private mobilePlaceActive = false;
@@ -327,6 +344,7 @@ export class OverworldScene extends Phaser.Scene {
     this.buildings = [];
     this.buildingsByTile.clear();
     this.houseDoors = [];
+    this.soilStateMap.clear();
     this.cachedMinimapBuildings = null;
     this.buildingTickCallbacks = undefined;
     this.enemies = [];
@@ -341,6 +359,7 @@ export class OverworldScene extends Phaser.Scene {
     this.swordTargeter.clear();
     this.buildPreviewSprite = undefined;
     this.buildGizmoGfx = undefined;
+    this.hoeCursor = undefined;
     this.bridgeSprites.clear();
     this.houseRoofSprites.clear();
     this.houseTileSet.clear();
@@ -376,6 +395,12 @@ export class OverworldScene extends Phaser.Scene {
       .rectangle(0, 0, TILE_PX, TILE_PX, 0xffe066, 0.25)
       .setStrokeStyle(1, 0xffe066, 0.9)
       .setDepth(5000)
+      .setVisible(false);
+
+    this.hoeCursor = this.add
+      .rectangle(0, 0, TILE_PX, TILE_PX, 0x6ee88a, 0.28)
+      .setStrokeStyle(1, 0x8ef5a7, 0.95)
+      .setDepth(3)
       .setVisible(false);
 
     this.targetIndicator = this.add
@@ -433,6 +458,10 @@ export class OverworldScene extends Phaser.Scene {
     this.critters = new AmbientCritterSystem(this);
     this.syncBiomeFromPlayer();
     this.setupHud();
+    if (gameState.pendingToast) {
+      this.hud.showToast(gameState.pendingToast);
+      gameState.pendingToast = null;
+    }
     this.setupInput();
     this.refreshPurchaseMarkers();
     SFX.setMusicPaused(false);
@@ -441,12 +470,15 @@ export class OverworldScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.scale.off('resize', onResize);
       this.fishingMinigame.finish(false);
+      this.lockpickMinigame.stop();
       this.lighting.destroy();
       this.weather.destroy();
       this.ocean.destroy();
       this.critters.destroy();
       this.fishingLine?.destroy();
       this.fishingLine = undefined;
+      this.hoeCursor?.destroy();
+      this.hoeCursor = undefined;
     });
   }
 
@@ -578,7 +610,13 @@ export class OverworldScene extends Phaser.Scene {
             this.overlayLayer.removeTileAt(x, y);
           } else {
             const gid = this.getTilesetFirstGid(ovPlace.tilesetKey) + ovPlace.frame;
-            this.overlayLayer.putTileAt(gid, x, y);
+            const tile = this.overlayLayer.putTileAt(gid, x, y);
+            if (tile && ov === 'dirt') {
+              const entry = this.soilStateMap.get(`${x},${y}`);
+              if (entry) {
+                tile.tint = computeWetSoilTint(entry.wetness);
+              }
+            }
           }
         }
       }
@@ -708,7 +746,12 @@ export class OverworldScene extends Phaser.Scene {
     const nowMs = this.time?.now ?? 0;
     for (const ov of gameState.overlays) {
       if (ov.type === 'dirt') {
-        this.soilStateMap.set(`${ov.tx},${ov.ty}`, { lastWateredMs: nowMs, lastUsedMs: nowMs });
+        this.soilStateMap.set(`${ov.tx},${ov.ty}`, {
+          lastWateredMs: nowMs,
+          lastUsedMs: nowMs,
+          wateredAtMs: -Infinity,
+          wetness: 0,
+        });
       }
     }
     for (const rc of gameState.ranchCreatures) {
@@ -742,7 +785,23 @@ export class OverworldScene extends Phaser.Scene {
     );
   }
 
+  private syncHouseDoorOrientations(): void {
+    const wallSet = new Set<string>();
+    for (const b of this.buildings) {
+      if (b.active && b.structureType === 'house_wall') {
+        wallSet.add(`${b.tx},${b.ty}`);
+      }
+    }
+    for (const door of this.houseDoors) {
+      if (!door.active || door.readOnly) continue;
+      const hasNS = wallSet.has(`${door.tx},${door.ty - 1}`) || wallSet.has(`${door.tx},${door.ty + 1}`);
+      const hasWE = wallSet.has(`${door.tx - 1},${door.ty}`) || wallSet.has(`${door.tx + 1},${door.ty}`);
+      door.setDoorOrientation(hasNS && !hasWE ? 'vertical' : 'horizontal');
+    }
+  }
+
   private rebuildHouseRoofs(): void {
+    this.syncHouseDoorOrientations();
     this.houseTileSet.clear();
     this.houseInteriorTileSet.clear();
     const wallOrDoorSet = new Set<string>();
@@ -1266,7 +1325,7 @@ export class OverworldScene extends Phaser.Scene {
       const nTile = this.findNearestLandTileOnIsland(gx, gy, Math.floor(ISLAND_CELL_TILES * 0.36), half);
       const nx = nTile.tx * TILE_PX + 8;
       const ny = nTile.ty * TILE_PX + 8;
-      this.add.ellipse(nx, ny - 1, 10, 4, 0x000000, 0.38).setDepth(ny - 1);
+      const shadow = this.add.ellipse(nx, ny - 1, 10, 4, 0x000000, 0.38).setDepth(ny - 1);
       const spr = this.add
         .sprite(nx, ny - 6, spec.npc.spriteKey, 0)
         .setDepth(ny);
@@ -1288,16 +1347,22 @@ export class OverworldScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.InOut',
       });
-      this.npcs.push({
+      const npc: NpcEntity = {
         spec: spec.npc,
         sprite: spr,
+        shadow,
         promptBox: promptBox.container,
         promptBg: promptBox.bg,
         prompt: promptBox.label,
         redrawPrompt: promptBox.redraw,
         x: nx,
         y: ny,
-      });
+        homeX: nx,
+        homeY: ny,
+        state: 'day_outside',
+        zzzTimerMs: 0,
+      };
+      this.npcs.push(npc);
 
       // 2b. Outdoor Tile-Built NPC Building (same tileset & BuildingEntity system as player-built structures)
       const theme = spec.npc.id as HouseThemeId;
@@ -1325,10 +1390,65 @@ export class OverworldScene extends Phaser.Scene {
             }
             const id = `npc_bld_${theme}_${pl.type}_${tx}_${ty}`;
             const bld = new BuildingEntity(this, id, pl.type, tx, ty, [], 0, true);
+            if (pl.orientation) bld.setDoorOrientation(pl.orientation);
+            if (pl.locked) bld.setLocked(true);
+            if (pl.isBedroomChest) bld.isBedroomChest = true;
             this.registerBuilding(bld);
           }
           const doorX = (plot.ox + stamp.doorLx) * TILE_PX + 8;
           const doorY = (plot.oy + stamp.doorLy) * TILE_PX + 8;
+          const bedX = (plot.ox + stamp.bedLx) * TILE_PX + 8;
+          const bedY = (plot.oy + stamp.bedLy) * TILE_PX + 8;
+          npc.doorX = doorX;
+          npc.doorY = doorY;
+          npc.bedX = bedX;
+          npc.bedY = bedY;
+
+          // Reposition NPC away from the house doorway so they never block entry
+          const doorTx = plot.ox + stamp.doorLx;
+          const doorTy = plot.oy + stamp.doorLy;
+          const candidateOffsets: Array<[number, number]> = [
+            [2, 1],
+            [-2, 1],
+            [2, 2],
+            [-2, 2],
+            [3, 1],
+            [-3, 1],
+            [0, 3],
+            [1, 2],
+            [-1, 2],
+            [0, 2],
+          ];
+          for (const [odx, ody] of candidateOffsets) {
+            const ctx = doorTx + odx;
+            const cty = doorTy + ody;
+            if (!isLand(this.terrainGrid[cty]?.[ctx])) continue;
+            const outsideHouse =
+              ctx < plot.ox || ctx >= plot.ox + stamp.width || cty < plot.oy || cty >= plot.oy + stamp.height;
+            if (!outsideHouse) continue;
+            if (this.hasBuildingAt(ctx, cty) || this.hasNodeAt(ctx, cty)) continue;
+            const wx = ctx * TILE_PX + 8;
+            const wy = cty * TILE_PX + 8;
+            if (Math.hypot(wx - doorX, wy - doorY) < 24) continue;
+            npc.x = wx;
+            npc.y = wy;
+            npc.homeX = wx;
+            npc.homeY = wy;
+            npc.sprite.setPosition(wx, wy - 6).setDepth(wy);
+            npc.shadow.setPosition(wx, wy - 1).setDepth(wy - 1);
+            this.tweens.killTweensOf(npc.promptBox);
+            npc.promptBox.setPosition(wx, wy - 22);
+            this.tweens.add({
+              targets: npc.promptBox,
+              y: wy - 25,
+              duration: 720,
+              yoyo: true,
+              repeat: -1,
+              ease: 'Sine.InOut',
+            });
+            break;
+          }
+
           const signBox = this.createWorldLabelBox(doorX, doorY - 20, stamp.name, '#ffe6a8', 0xd9a85b, '7px');
           signBox.container.setAlpha(0).setVisible(false);
           this.houseDoorSigns.push({
@@ -1465,7 +1585,23 @@ export class OverworldScene extends Phaser.Scene {
       if (this.houseTileSet.has(`${tx},${ty}`)) continue;
       if (this.hasNodeAt(tx, ty) || this.hasBuildingAt(tx, ty)) continue;
 
-      const kind = this.pickNodeKindForBiome(spec.biome);
+      const sigOre: Record<BiomeKind, NodeKind> = {
+        grass: 'iron_vein',
+        graveyard: 'iron_vein',
+        autumn: 'gold_vein',
+        winter: 'crystal_vein',
+        infernal: 'obsidian_vein',
+      };
+      const targetOre = sigOre[spec.biome];
+      const sigCount = this.nodes.filter(
+        (n) =>
+          n.active &&
+          n.kind === targetOre &&
+          Math.floor(n.tx / ISLAND_CELL_TILES) === gx &&
+          Math.floor(n.ty / ISLAND_CELL_TILES) === gy,
+      ).length;
+      const kind =
+        sigCount < 3 && Math.random() < 0.4 ? targetOre : this.pickNodeKindForBiome(spec.biome);
       this.nodes.push(new ResourceNode(this, tx, ty, kind, spec.biome));
       return true;
     }
@@ -1492,6 +1628,84 @@ export class OverworldScene extends Phaser.Scene {
 
   private hasBuildingAt(tx: number, ty: number): boolean {
     return this.buildings.some((b) => b.active && b.tx === tx && b.ty === ty);
+  }
+
+  private getFacingUnitVector(): { nx: number; ny: number } {
+    switch (this.player.facing) {
+      case 'left':
+        return { nx: -1, ny: 0 };
+      case 'right':
+        return { nx: 1, ny: 0 };
+      case 'up':
+        return { nx: 0, ny: -1 };
+      default:
+        return { nx: 0, ny: 1 };
+    }
+  }
+
+  private getHoeTargetTile(aimWx?: number, aimWy?: number): { tx: number; ty: number; nx: number; ny: number } {
+    let { nx, ny } = this.getFacingUnitVector();
+    let targetWx = aimWx;
+    let targetWy = aimWy;
+
+    if (targetWx === undefined || targetWy === undefined) {
+      if (!this.hud.isTouchEnabled() && this.input.activePointer) {
+        const wp = this.cameras.main.getWorldPoint(this.input.activePointer.x, this.input.activePointer.y);
+        targetWx = wp.x;
+        targetWy = wp.y;
+      }
+    }
+
+    if (targetWx !== undefined && targetWy !== undefined) {
+      const dx = targetWx - this.player.x;
+      const dy = targetWy - this.player.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 4) {
+        nx = dx / dist;
+        ny = dy / dist;
+      }
+    }
+
+    const tx = Math.floor((this.player.x + nx * 16) / TILE_PX);
+    const ty = Math.floor((this.player.y + ny * 16) / TILE_PX);
+    return { tx, ty, nx, ny };
+  }
+
+  private canHoeTile(tx: number, ty: number) {
+    return evaluateHoeTile({
+      tx,
+      ty,
+      worldTiles: WORLD_TILES,
+      isLandTile: isLand(this.terrainGrid[ty]?.[tx]),
+      overlay: this.overlayGrid[ty]?.[tx],
+      hasBuilding: this.hasBuildingAt(tx, ty),
+      hasNode: this.hasNodeAt(tx, ty),
+    });
+  }
+
+  private updateBuildPreviewSprite(
+    structureType: Parameters<typeof getStructurePreviewSpec>[0] | undefined,
+    cx: number,
+    cy: number,
+    valid: boolean,
+  ): void {
+    if (!structureType) {
+      this.buildPreviewSprite?.setVisible(false);
+      return;
+    }
+    const spec = getStructurePreviewSpec(structureType);
+    if (!this.buildPreviewSprite) {
+      this.buildPreviewSprite = this.add.image(cx, cy, spec.texture, spec.frame).setDepth(8500);
+    } else {
+      this.buildPreviewSprite.setTexture(spec.texture, spec.frame);
+    }
+    this.buildPreviewSprite
+      .setPosition(cx, cy + (spec.offsetY ?? 0))
+      .setOrigin(0.5, spec.originY ?? 0.5)
+      .setScale(spec.scale ?? 1)
+      .setAlpha(0.78)
+      .setTint(valid ? 0xa6ffbe : 0xff8a93)
+      .setVisible(true);
   }
 
   private ensureFogTextures(): void {
@@ -1718,7 +1932,7 @@ export class OverworldScene extends Phaser.Scene {
         });
       },
       onTouchAction: () => {
-        if (this.fishingMinigame.isActive()) return;
+        if (this.fishingMinigame.isActive() || this.lockpickMinigame.isActive()) return;
         if (this.hud.isBlockingInput()) return;
         const f = this.player.facing;
         const dx = f === 'left' ? -28 : f === 'right' ? 28 : 0;
@@ -1731,7 +1945,7 @@ export class OverworldScene extends Phaser.Scene {
         }
       },
       onTouchDash: () => {
-        if (this.hud.isBlockingInput()) return;
+        if (this.hud.isBlockingInput() || this.lockpickMinigame.isActive()) return;
         const tv = this.hud.getTouchMoveVector();
         this.player.tryDash(new Phaser.Math.Vector2(tv.x, tv.y));
       },
@@ -1844,6 +2058,7 @@ export class OverworldScene extends Phaser.Scene {
         } else if (action === 'next_day') {
           this.lighting.dayNumber++;
           this.weather.setDay(this.lighting.dayNumber);
+          gameState.advanceMarketDay(this.lighting.dayNumber);
           this.hud.showToast(`Day ${this.lighting.dayNumber} • ${this.weather.getStatusLabel()}`);
         } else if (action === 'clear_dungeons') {
           gameState.clearedDungeons.add('skull_crypt');
@@ -1910,7 +2125,7 @@ export class OverworldScene extends Phaser.Scene {
 
     kb.on('keydown', (event: KeyboardEvent) => {
       if (event.key < '1' || event.key > '9') return;
-      if (this.hud.isBlockingInput()) return;
+      if (this.hud.isBlockingInput() || this.lockpickMinigame.isActive()) return;
       const idx = Number(event.key) - 1;
       if (gameState.selectedHotbarIndex !== idx) SFX.playHotbarSelect();
       gameState.selectedHotbarIndex = idx;
@@ -1918,7 +2133,7 @@ export class OverworldScene extends Phaser.Scene {
     });
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
-      if (this.hud.isBlockingInput()) return;
+      if (this.hud.isBlockingInput() || this.lockpickMinigame.isActive()) return;
       if (pointer.event && pointer.event.target !== this.game.canvas) return;
       if (pointer.rightButtonDown()) {
         if (gameState.pendingBuildRecipeId) {
@@ -2183,7 +2398,12 @@ export class OverworldScene extends Phaser.Scene {
             this.overlayGrid[ty][tx] = 'dirt';
             gameState.overlays.push({ tx, ty, type: 'dirt' });
             const now = this.time.now;
-            this.soilStateMap.set(`${tx},${ty}`, { lastWateredMs: now, lastUsedMs: now });
+            this.soilStateMap.set(`${tx},${ty}`, {
+              lastWateredMs: now,
+              lastUsedMs: now,
+              wateredAtMs: -Infinity,
+              wetness: 0,
+            });
             this.refreshAutoTiles(tx - 1, ty - 1, tx + 1, ty + 1);
             const rawCrop = (payload?.cropId as string | undefined) ?? 'carrot';
             const structType = (rawCrop.startsWith('crop_') ? rawCrop : `crop_${rawCrop}`) as StructureType;
@@ -2248,6 +2468,73 @@ export class OverworldScene extends Phaser.Scene {
               },
               { fishName: 'Fresh Fish', behavior: 'steady' },
             );
+            return true;
+          }
+          if (action === 'goto_farmer_house') {
+            const farmerDoors = this.houseDoors.filter(
+              (d) => d.active && d.id.startsWith('npc_bld_farmer_'),
+            );
+            const lockedDoorCount = this.houseDoors.filter((d) => d.active && d.isLocked).length;
+            const verticalDoorCount = this.houseDoors.filter(
+              (d) => d.active && d.doorOrientation === 'vertical',
+            ).length;
+            const bedroomChestCount = this.buildings.filter((b) => b.active && b.isBedroomChest).length;
+            const lockedDoor =
+              farmerDoors.find((d) => d.isLocked) ??
+              this.houseDoors.find((d) => d.active && d.isLocked);
+            if (!lockedDoor) {
+              return {
+                ok: false,
+                lockedDoorCount,
+                verticalDoorCount,
+                bedroomChestCount,
+              } as unknown as boolean;
+            }
+            for (const d of farmerDoors) {
+              if (!d.isLocked && !d.isOpen) d.toggleDoor();
+            }
+            const frontDoor = farmerDoors.find((d) => !d.isLocked);
+            const candidates: Array<{ x: number; y: number; score: number }> = [];
+            for (const [dx, dy] of [
+              [-1, 0],
+              [1, 0],
+              [0, 1],
+              [0, -1],
+            ]) {
+              const ntx = lockedDoor.tx + dx;
+              const nty = lockedDoor.ty + dy;
+              if (!this.houseTileSet.has(`${ntx},${nty}`)) continue;
+              const blocked = this.buildings.some(
+                (b) => b.active && b.tx === ntx && b.ty === nty && b.solid,
+              );
+              if (blocked) continue;
+              const wx = ntx * TILE_PX + 8;
+              const wy = nty * TILE_PX + 8;
+              if (!this.isWalkable(wx, wy)) continue;
+              const score = frontDoor ? Math.hypot(wx - frontDoor.x, wy - frontDoor.y) : 0;
+              candidates.push({ x: wx, y: wy, score });
+            }
+            candidates.sort((a, b) => a.score - b.score);
+            const dest = candidates[0] ?? { x: lockedDoor.x, y: lockedDoor.y + TILE_PX };
+            this.player.setPosition(dest.x, dest.y);
+            this.cameras.main.centerOn(dest.x, dest.y);
+            return {
+              ok: true,
+              lockedDoorCount,
+              verticalDoorCount,
+              bedroomChestCount,
+            } as unknown as boolean;
+          }
+          if (action === 'start_lockpick') {
+            const lockedDoor = this.houseDoors
+              .filter((d) => d.active && d.isLocked)
+              .sort(
+                (a, b) =>
+                  Math.hypot(a.x - this.player.x, a.y - this.player.y) -
+                  Math.hypot(b.x - this.player.x, b.y - this.player.y),
+              )[0];
+            if (!lockedDoor) return false;
+            this.startLockpickForDoor(lockedDoor);
             return true;
           }
           return false;
@@ -2410,6 +2697,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handlePrimaryAction(wx: number, wy: number, fromHold = false): void {
+    if (this.fishingMinigame.isActive() || this.lockpickMinigame.isActive()) return;
     const itemId = gameState.hotbar[gameState.selectedHotbarIndex] || 'pickaxe';
     const def = ITEMS[itemId];
     if (!def) {
@@ -2553,22 +2841,19 @@ export class OverworldScene extends Phaser.Scene {
 
     // Farming Tools: Hoe (tills dirt) & Watering Can (waters nearby crops)
     if (itemId === 'hoe') {
-      if (!this.player.startAction('hoeing', def.cooldownMs ?? 320, nx, ny, 190)) return;
-      const targetTx = Math.floor((this.player.x + nx * 16) / TILE_PX);
-      const targetTy = Math.floor((this.player.y + ny * 16) / TILE_PX);
-      if (
-        targetTx >= 0 &&
-        targetTy >= 0 &&
-        targetTx < WORLD_TILES &&
-        targetTy < WORLD_TILES &&
-        isLand(this.terrainGrid[targetTy][targetTx]) &&
-        this.overlayGrid[targetTy][targetTx] === 'none'
-      ) {
+      const { tx: targetTx, ty: targetTy, nx: hoeNx, ny: hoeNy } = this.getHoeTargetTile(wx, wy);
+      if (!this.player.startAction('hoeing', def.cooldownMs ?? 320, hoeNx, hoeNy, 190)) return;
+      if (this.canHoeTile(targetTx, targetTy).valid) {
         if (!this.consumeToolEnergy(1.5)) return;
         this.overlayGrid[targetTy][targetTx] = 'dirt';
         gameState.overlays.push({ tx: targetTx, ty: targetTy, type: 'dirt' });
         const now = this.time.now;
-        this.soilStateMap.set(`${targetTx},${targetTy}`, { lastWateredMs: now, lastUsedMs: now });
+        this.soilStateMap.set(`${targetTx},${targetTy}`, {
+          lastWateredMs: now,
+          lastUsedMs: now,
+          wateredAtMs: -Infinity,
+          wetness: this.weather.weather === 'rain' ? 1 : 0,
+        });
         this.refreshAutoTiles(targetTx - 1, targetTy - 1, targetTx + 1, targetTy + 1);
         spawnBurstParticles(this, targetTx * TILE_PX + 8, targetTy * TILE_PX + 8, 0x9c6544, 5);
         SFX.playChop();
@@ -2614,7 +2899,7 @@ export class OverworldScene extends Phaser.Scene {
 
     // Stardew-style Fishing Minigame (over a whirlpool) or fruitless idle bobber in open water
     if (itemId === 'fishing_rod') {
-      if (this.fishingPending || this.fishingMinigame.isActive()) return;
+      if (this.fishingPending || this.fishingMinigame.isActive() || this.lockpickMinigame.isActive()) return;
       if (this.fishingIdle) {
         this.cancelIdleFishing();
         return;
@@ -2968,8 +3253,14 @@ export class OverworldScene extends Phaser.Scene {
     const cur = this.soilStateMap.get(key);
     if (cur) {
       cur.lastWateredMs = nowMs;
+      cur.wateredAtMs = nowMs;
     } else if (this.overlayGrid[ty]?.[tx] === 'dirt') {
-      this.soilStateMap.set(key, { lastWateredMs: nowMs, lastUsedMs: nowMs });
+      this.soilStateMap.set(key, {
+        lastWateredMs: nowMs,
+        lastUsedMs: nowMs,
+        wateredAtMs: nowMs,
+        wetness: 0,
+      });
     }
   }
 
@@ -3163,6 +3454,13 @@ export class OverworldScene extends Phaser.Scene {
       spawnBurstParticles(this, b.x, b.y - 4, 0xffaa44, 8);
       spawnFloatingText(this, b.x, b.y - 14, `Salvaged ${target.name}! (50%)`, '#ffcf70');
       this.removeBuilding(b);
+      if (
+        st === 'furniture_bed' &&
+        gameState.spawnPoint &&
+        Math.hypot(gameState.spawnPoint.x - b.x, gameState.spawnPoint.y - b.y) <= 20
+      ) {
+        gameState.clearSpawnPoint();
+      }
       if (this.isHousePart(st)) this.rebuildHouseRoofs();
       return true;
     }
@@ -3199,13 +3497,20 @@ export class OverworldScene extends Phaser.Scene {
     if (this.stokeCooldownMs > 0) return false;
     const b = this.buildings.find((ent) => ent.active && ent.id === stationId);
     if (!b || b.craftQueue.length === 0) return false;
+    const payment = gameState.payForStoke();
+    if (!payment.ok) {
+      SFX.playUiError();
+      this.hud.showToast(`Need ${payment.cost}g to stoke!`);
+      return false;
+    }
     this.stokeCooldownMs = 800;
     const job = b.craftQueue[0];
     const boostMs = Math.max(500, Math.round(job.totalMs * 0.25));
     job.remainingMs = Math.max(50, job.remainingMs - boostMs);
     SFX.playMine();
+    SFX.playCoin();
     spawnBurstParticles(this, b.x, b.y - 6, 0xffe066, 6);
-    spawnFloatingText(this, b.x, b.y - 16, '⚡ Stoked (+25%)', '#ffe066');
+    spawnFloatingText(this, b.x, b.y - 16, `⚡ Stoked (+25%) -${payment.cost}g`, '#ffe066');
     return true;
   }
 
@@ -3363,10 +3668,43 @@ export class OverworldScene extends Phaser.Scene {
     const now = this.time.now;
     const soilEntry = this.soilStateMap.get(`${tx},${ty}`);
     if (soilEntry) soilEntry.lastUsedMs = now;
-    else this.soilStateMap.set(`${tx},${ty}`, { lastWateredMs: now, lastUsedMs: now });
+    else {
+      this.soilStateMap.set(`${tx},${ty}`, {
+        lastWateredMs: now,
+        lastUsedMs: now,
+        wateredAtMs: -Infinity,
+        wetness: 0,
+      });
+    }
     gameState.recordQuestProgress('build', st, 1);
     this.playSeedPlantAnimation(itemId, bld, tx, ty);
     return true;
+  }
+
+  private updateSoilWetness(dt: number, nowMs: number): void {
+    if (this.soilStateMap.size === 0) return;
+    const isRaining = this.weather.weather === 'rain';
+    for (const [key, state] of this.soilStateMap.entries()) {
+      const comma = key.indexOf(',');
+      const tx = Number(key.slice(0, comma));
+      const ty = Number(key.slice(comma + 1));
+      if (this.overlayGrid[ty]?.[tx] !== 'dirt') continue;
+      const bucket = this.buildingsByTile.get((ty << 10) | tx);
+      const crop = bucket?.find((b) => b.active && b.isCrop());
+      const target = computeTargetSoilWetness({
+        isRaining,
+        hasCrop: Boolean(crop),
+        cropStageWatered: Boolean(crop?.isStageWatered()),
+        msSinceWatered: nowMs - state.wateredAtMs,
+      });
+      const next = stepSoilWetness(state.wetness, target, dt);
+      const nextTint = computeWetSoilTint(next);
+      const tile = this.overlayLayer.getTileAt(tx, ty);
+      if (Math.abs(next - state.wetness) > 0.002 || next !== state.wetness || (tile && tile.tint !== nextTint)) {
+        state.wetness = next;
+        if (tile) tile.tint = nextTint;
+      }
+    }
   }
 
   private updateSoilDecay(nowMs: number): void {
@@ -3427,8 +3765,9 @@ export class OverworldScene extends Phaser.Scene {
     for (const b of this.buildings) {
       if (!b.active) continue;
       if (Math.abs(b.tx - ptx) > 2 || Math.abs(b.ty - pty) > 2) continue;
+      const isLockedDoor = b.structureType === 'house_door' && b.isLocked;
       const dist = Math.hypot(b.x - this.player.x, b.y - this.player.y);
-      if (dist > 28) continue;
+      if (dist > (isLockedDoor ? 34 : 28)) continue;
 
       let priority = -1;
       if (b.interactStation) {
@@ -3437,6 +3776,8 @@ export class OverworldScene extends Phaser.Scene {
           continue;
         }
         priority = 0; // Chests & crafting stations highest priority
+      } else if (isLockedDoor) {
+        priority = 0.5; // Locked doors beat beds/wells/nests/crops so nearby beds do not shadow lockpicking
       } else if (
         b.structureType === 'furniture_bed' ||
         b.structureType === 'water_well' ||
@@ -3587,6 +3928,18 @@ export class OverworldScene extends Phaser.Scene {
           ringColor,
         };
       }
+      if (bestBld.structureType === 'house_door' && bestBld.isLocked) {
+        return {
+          kind: 'building',
+          actionLabel: 'PICK LOCK',
+          x: bestBld.x,
+          y: bestBld.getCollisionCenter().y,
+          depth: bestBld.depth,
+          statusText: fmtKeyPrompt('E', 'Pick Lock 🔒'),
+          statusColor: '#ffd242',
+          ringColor: 0xffd242,
+        };
+      }
       const actionLabel = bestBld.interactStation
         ? bestBld.interactStation === 'chest'
           ? 'OPEN'
@@ -3685,7 +4038,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private updateTargetIndicator(): void {
-    if (!this.targetIndicator || this.hud.isBlockingInput()) {
+    if (!this.targetIndicator || this.hud.isBlockingInput() || this.lockpickMinigame.isActive()) {
       this.targetIndicator?.setVisible(false);
       this.updateCropStatusLabel();
       this.hud.setTouchActionHint(null);
@@ -3842,6 +4195,7 @@ export class OverworldScene extends Phaser.Scene {
       ) {
         qty += 1;
       }
+      if (gameState.hasSkill('foraging_sovereign') && Math.random() < 0.5) qty *= 2;
       qty = Math.max(1, Math.round(qty * mult));
       this.spawnLoot(node.x, node.y, d.itemId, qty);
     }
@@ -4024,12 +4378,77 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
     for (const npc of this.npcs) {
+      if (npc.state === 'sleeping') continue;
       if (Math.hypot(wx - npc.x, wy - (npc.y - 2)) < 11) return false;
     }
     return true;
   };
 
+  private isBlockedByHouseWall(wx: number, wy: number, pad = 2): boolean {
+    const tx = Math.floor(wx / TILE_PX);
+    const ty = Math.floor(wy / TILE_PX);
+    for (let oy = -1; oy <= 1; oy++) {
+      const ny = ty + oy;
+      if (ny < 0 || ny >= WORLD_TILES) continue;
+      for (let ox = -1; ox <= 1; ox++) {
+        const nx = tx + ox;
+        if (nx < 0 || nx >= WORLD_TILES) continue;
+        const bucket = this.buildingsByTile.get((ny << 10) | nx);
+        if (!bucket) continue;
+        for (const b of bucket) {
+          if (!b.active || !b.solid) continue;
+          if (b.structureType !== 'house_wall' && b.structureType !== 'house_door') continue;
+          if (b.collidesAt(wx, wy)) return true;
+          if (
+            pad > 0 &&
+            (b.collidesAt(wx - pad, wy) ||
+              b.collidesAt(wx + pad, wy) ||
+              b.collidesAt(wx, wy - pad) ||
+              b.collidesAt(wx, wy + pad) ||
+              b.collidesAt(wx - pad, wy - pad) ||
+              b.collidesAt(wx + pad, wy - pad) ||
+              b.collidesAt(wx - pad, wy + pad) ||
+              b.collidesAt(wx + pad, wy + pad))
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  private hasHouseWallBetween(x1: number, y1: number, x2: number, y2: number): boolean {
+    const dist = Math.hypot(x2 - x1, y2 - y1);
+    const steps = Math.min(32, Math.max(2, Math.ceil(dist / 6)));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const sx = x1 + (x2 - x1) * t;
+      const sy = y1 + (y2 - y1) * t;
+      if (this.isBlockedByHouseWall(sx, sy, 1)) return true;
+    }
+    return false;
+  }
+
+  private startLockpickForDoor(door: BuildingEntity): void {
+    this.lockpickMinigame.start(
+      (unlocked) => {
+        if (unlocked) {
+          door.unlockDoor();
+          spawnSparklers(this, door.x, door.y - 4, 12);
+          spawnBurstParticles(this, door.x, door.y - 4, 0xffe066, 8);
+          spawnFloatingText(this, door.x, door.y - 14, '🔓 Unlocked!', '#ffe066');
+          this.hud.showToast('Lock picked! Bedroom unlocked!');
+        } else {
+          this.hud.showToast('Lock remains sealed — try again!');
+        }
+      },
+      { title: 'Bedroom Lock' },
+    );
+  }
+
   private handleInteractKey(fromPrimaryAction = false): boolean {
+    if (this.fishingMinigame.isActive() || this.lockpickMinigame.isActive()) return false;
     const heldId = gameState.hotbar[gameState.selectedHotbarIndex] ?? '';
     const heldDef = heldId ? ITEMS[heldId] : undefined;
 
@@ -4164,12 +4583,17 @@ export class OverworldScene extends Phaser.Scene {
     if (targetBld) {
       const b = targetBld;
       if (b.structureType === 'house_door' || b.structureType === 'fence_gate') {
+        if (b.structureType === 'house_door' && b.isLocked) {
+          this.startLockpickForDoor(b);
+          return true;
+        }
         const opened = b.toggleDoor();
         SFX.playChop();
         this.hud.showToast(opened ? 'Opened' : 'Closed');
         return true;
       }
       if (b.structureType === 'furniture_bed') {
+        gameState.setSpawnPoint(b.x, b.y, 'Home Bed');
         gameState.hp = gameState.getMaxHp();
         gameState.energy = gameState.getMaxEnergy();
         gameState.emitVitals();
@@ -4179,6 +4603,7 @@ export class OverworldScene extends Phaser.Scene {
           this.lighting.timeOfDay = 0.08;
           this.lighting.dayNumber += 1;
           this.weather.setDay(this.lighting.dayNumber);
+          gameState.advanceMarketDay(this.lighting.dayNumber);
           for (const crop of this.buildings) {
             if (crop.active && crop.isCrop() && crop.isStageWatered()) {
               crop.updateBuilding(20000, this.buildingTickCallbacks ?? {
@@ -4190,10 +4615,19 @@ export class OverworldScene extends Phaser.Scene {
               });
             }
           }
-          spawnFloatingText(this, this.player.x, this.player.y - 16, `☀ Dawn (Day ${this.lighting.dayNumber})!`, '#ffe066');
-          this.hud.showToast(`Rested Until Dawn! Day ${this.lighting.dayNumber} • Full HP & EN`);
+          spawnFloatingText(
+            this,
+            this.player.x,
+            this.player.y - 16,
+            `☀ Dawn (Day ${this.lighting.dayNumber})! Spawn set!`,
+            '#ffe066',
+          );
+          this.hud.showToast(
+            `Rested Until Dawn! Day ${this.lighting.dayNumber} • Full HP & EN • Spawn set!`,
+          );
         } else {
-          spawnFloatingText(this, this.player.x, this.player.y - 16, 'Rested! Full HP & EN', '#8ef5a7');
+          spawnFloatingText(this, this.player.x, this.player.y - 16, 'Rested! Spawn set!', '#8ef5a7');
+          this.hud.showToast('Rested at Home Bed! Full HP & EN • Spawn set!');
         }
         return true;
       }
@@ -4244,10 +4678,74 @@ export class OverworldScene extends Phaser.Scene {
           b.playChestOpen();
           if (b.readOnly && !b.looted) {
             b.looted = true;
-            this.spawnCoin(b.x, b.y + 8, 15);
-            this.spawnLoot(b.x, b.y + 8, 'potion_red', 1);
-            spawnSparklers(this, b.x, b.y - 4, 10);
-            this.hud.showToast('Found a house stash!');
+            const nightHeist = this.npcs.some(
+              (npc) => npc.state === 'sleeping' && Math.hypot(npc.x - b.x, npc.y - b.y) <= 160,
+            );
+            if (b.isBedroomChest) {
+              const theme = b.id.includes('blacksmith')
+                ? 'blacksmith'
+                : b.id.includes('alchemist')
+                  ? 'alchemist'
+                  : b.id.includes('fisherman')
+                    ? 'fisherman'
+                    : 'farmer';
+              const lootTable: Record<
+                'farmer' | 'blacksmith' | 'alchemist' | 'fisherman',
+                { gold: number; items: Array<[string, number]> }
+              > = {
+                farmer: { gold: 65, items: [['iron_ingot', 3], ['potion_red', 2], ['bomb', 1]] },
+                blacksmith: { gold: 90, items: [['gold_ingot', 2], ['iron_ingot', 3], ['bomb', 2]] },
+                alchemist: { gold: 110, items: [['crystal', 3], ['potion_red', 3], ['bomb', 1]] },
+                fisherman: { gold: 125, items: [['gold_ingot', 3], ['crystal', 2], ['potion_red', 2]] },
+              };
+              const loot = lootTable[theme];
+              const totalGold = nightHeist ? Math.round(loot.gold * 1.35) : loot.gold;
+              const coinOffsets: Array<[number, number]> = [
+                [-10, -3],
+                [10, -3],
+                [-6, 4],
+                [6, 4],
+              ];
+              const baseCoin = Math.floor(totalGold / coinOffsets.length);
+              let remainder = totalGold - baseCoin * coinOffsets.length;
+              for (const [ox, oy] of coinOffsets) {
+                const amt = baseCoin + (remainder > 0 ? 1 : 0);
+                if (remainder > 0) remainder -= 1;
+                if (amt > 0) {
+                  this.drops.push(new LootDrop(this, b.x + ox, b.y + 8 + oy, 'coin', amt, true));
+                }
+              }
+              const itemOffsets: Array<[number, number]> = [
+                [-10, 2],
+                [0, -4],
+                [10, 2],
+              ];
+              loot.items.forEach(([itemId, count], idx) => {
+                const [ox, oy] = itemOffsets[idx % itemOffsets.length];
+                this.spawnLoot(b.x + ox, b.y + 8 + oy, itemId, count);
+              });
+              spawnSparklers(this, b.x, b.y - 6, nightHeist ? 18 : 14);
+              spawnBurstParticles(this, b.x, b.y - 4, 0xffd242, 10);
+              SFX.playLevelUp();
+              spawnFloatingText(
+                this,
+                b.x,
+                b.y - 16,
+                nightHeist ? `🌙 NIGHT HEIST! +${totalGold}g` : `💎 Bedroom Stash! +${totalGold}g`,
+                '#ffe066',
+              );
+              const itemSummary = loot.items.map(([id, cnt]) => `${cnt}x ${ITEMS[id]?.name ?? id}`).join(', ');
+              this.hud.showToast(
+                nightHeist
+                  ? `🌙 Night Heist! +${totalGold}g (1.35x) + ${itemSummary}!`
+                  : `💎 Bedroom Stash! +${totalGold}g + ${itemSummary}!`,
+              );
+            } else {
+              this.spawnCoin(b.x, b.y + 8, 15);
+              this.spawnLoot(b.x, b.y + 8, 'potion_red', 1);
+              spawnSparklers(this, b.x, b.y - 4, 10);
+              this.hud.showToast(nightHeist ? 'Sneaked into the house stash! (Shh!)' : 'Found a house stash!');
+            }
           } else {
             this.hud.toggleModal('inventory');
           }
@@ -4265,6 +4763,10 @@ export class OverworldScene extends Phaser.Scene {
   private tryInteractNpc(): boolean {
     for (const npc of this.npcs) {
       if (Math.hypot(npc.x - this.player.x, npc.y - this.player.y) > 30) continue;
+      if (npc.state === 'sleeping') {
+        this.hud.showToast(`Shh... ${npc.spec.name} is fast asleep!`);
+        return true;
+      }
       const q = gameState.getNextQuestForNpc(npc.spec.id);
       if (!q) {
         dialogueBox.show({
@@ -4408,7 +4910,11 @@ export class OverworldScene extends Phaser.Scene {
       }
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.keys.E)) {
+    if (
+      !this.fishingMinigame.isActive() &&
+      !this.lockpickMinigame.isActive() &&
+      Phaser.Input.Keyboard.JustDown(this.keys.E)
+    ) {
       this.handleInteractKey();
     }
 
@@ -4450,21 +4956,7 @@ export class OverworldScene extends Phaser.Scene {
         .setStrokeStyle(1, valid ? 0x8ef5a7 : 0xff8a93, 0.95)
         .setVisible(true);
 
-      if (rec?.structureType) {
-        const spec = getStructurePreviewSpec(rec.structureType);
-        if (!this.buildPreviewSprite) {
-          this.buildPreviewSprite = this.add.image(cx, cy, spec.texture, spec.frame).setDepth(8500);
-        } else {
-          this.buildPreviewSprite.setTexture(spec.texture, spec.frame);
-        }
-        this.buildPreviewSprite
-          .setPosition(cx, cy + (spec.offsetY ?? 0))
-          .setOrigin(0.5, spec.originY ?? 0.5)
-          .setScale(spec.scale ?? 1)
-          .setAlpha(0.78)
-          .setTint(valid ? 0xa6ffbe : 0xff8a93)
-          .setVisible(true);
-      }
+      this.updateBuildPreviewSprite(rec?.structureType, cx, cy, valid);
 
       if (!this.buildGizmoGfx) {
         this.buildGizmoGfx = this.add.graphics().setDepth(8550);
@@ -4484,22 +4976,45 @@ export class OverworldScene extends Phaser.Scene {
         this.hud.hideMobileBuildControls();
       }
       if (gameState.pendingBuildRecipeId && this.hud.activeModal === 'none') {
+        const rec = RECIPES.find((r) => r.id === gameState.pendingBuildRecipeId);
         const ptr = this.input.activePointer;
         const wp = cam.getWorldPoint(ptr.x, ptr.y);
         const tx = Math.floor(wp.x / TILE_PX);
         const ty = Math.floor(wp.y / TILE_PX);
+        const cx = tx * TILE_PX + 8;
+        const cy = ty * TILE_PX + 8;
         const valid = this.canPlacePendingAt(tx, ty);
         this.buildCursor
-          .setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8)
+          .setPosition(cx, cy)
           .setFillStyle(valid ? 0x6ee88a : 0xff6b78, 0.28)
           .setStrokeStyle(1, valid ? 0x8ef5a7 : 0xff8a93, 0.95)
           .setVisible(true);
+        this.updateBuildPreviewSprite(rec?.structureType, cx, cy, valid);
       } else {
         this.buildCursor.setVisible(false);
+        this.buildPreviewSprite?.setVisible(false);
       }
     }
 
-    if (!this.hud.isBlockingInput() && !this.fishingMinigame.isActive()) {
+    const showHoeCursor =
+      gameState.hotbar[gameState.selectedHotbarIndex] === 'hoe' &&
+      !gameState.pendingBuildRecipeId &&
+      !this.hud.isBlockingInput() &&
+      !this.fishingMinigame.isActive() &&
+      !this.lockpickMinigame.isActive();
+    if (showHoeCursor && this.hoeCursor) {
+      const { tx, ty } = this.getHoeTargetTile();
+      const valid = this.canHoeTile(tx, ty).valid;
+      this.hoeCursor
+        .setPosition(tx * TILE_PX + 8, ty * TILE_PX + 8)
+        .setFillStyle(valid ? 0x6ee88a : 0xff6b78, 0.28)
+        .setStrokeStyle(1, valid ? 0x8ef5a7 : 0xff8a93, 0.95)
+        .setVisible(true);
+    } else {
+      this.hoeCursor?.setVisible(false);
+    }
+
+    if (!this.hud.isBlockingInput() && !this.fishingMinigame.isActive() && !this.lockpickMinigame.isActive()) {
       const tv = this.hud.getTouchMoveVector();
       const dir = this.moveDir.set(
         (this.keys.D.isDown || this.keys.RIGHT.isDown ? 1 : 0) -
@@ -4671,10 +5186,23 @@ export class OverworldScene extends Phaser.Scene {
       }
       this.fox.updateCompanion(dt, this.player.x, this.player.y, {
         findTarget: () => {
+          if (
+            this.activeHouseGroupId !== 0 ||
+            this.isPlayerInsideHouseGroup(this.fox.x, this.fox.y) !== 0
+          ) {
+            return null;
+          }
           let best: Enemy | null = null;
           let bestD = 135;
           for (const e of this.enemies) {
             if (!e.active || e.isDead) continue;
+            if (
+              this.isPlayerInsideHouseGroup(e.x, e.y) !== 0 ||
+              this.hasHouseWallBetween(this.fox.x, this.fox.y, e.x, e.y) ||
+              this.hasHouseWallBetween(this.player.x, this.player.y, e.x, e.y)
+            ) {
+              continue;
+            }
             const d = Math.hypot(e.x - this.player.x, e.y - this.player.y);
             if (d < bestD) {
               bestD = d;
@@ -4772,6 +5300,7 @@ export class OverworldScene extends Phaser.Scene {
         onSplash: (fx, fy) => {
           this.ocean.spawnSplash(fx, fy, 0.52);
         },
+        isBlockedByWall: (x, y) => this.isBlockedByHouseWall(x, y, 2.5),
       });
     } else if (this.fishingMinigame.isActive()) {
       this.player.playHeroAnim('fishing');
@@ -4968,7 +5497,8 @@ export class OverworldScene extends Phaser.Scene {
 
     // Enemies (half-island leash & reduced aggro range in Sandstorms; pacified during modals/dialogue/level-up)
     const aggroMult = this.weather.weather === 'sandstorm' ? 0.8 : 1;
-    const isViewBlocked = this.hud.isBlockingInput() || this.fishingMinigame.isActive();
+    const isViewBlocked =
+      this.hud.isBlockingInput() || this.fishingMinigame.isActive() || this.lockpickMinigame.isActive();
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       if (!e.active) {
@@ -5058,7 +5588,7 @@ export class OverworldScene extends Phaser.Scene {
           // Skew heavily toward spawning monsters at night instead of plants/rocks
           if (curMonsters < maxMon && Math.random() < 0.78) {
             this.trySpawnMonsterOnIsland(gx, gy);
-          } else if (curNodes < MAX_NODES_PER_ISLAND && Math.random() < 0.25) {
+          } else if (curNodes < MAX_NODES_PER_ISLAND && Math.random() < 0.55) {
             this.trySpawnNodeOnIsland(gx, gy);
           }
         } else {
@@ -5074,6 +5604,8 @@ export class OverworldScene extends Phaser.Scene {
 
     // Target indicator & Ocean Waves, Caustics, Splashes & Weather + Day/Night Lighting
     this.updateTargetIndicator();
+    this.updateSoilWetness(dt, this.time.now);
+    this.updateNpcs(dt);
     this.syncBiomeFromPlayer();
     const { nightFactor } = this.lighting.getAmbientColor();
     this.ocean.update(dt, this.weather.wind, nightFactor);
@@ -5142,11 +5674,17 @@ export class OverworldScene extends Phaser.Scene {
     for (const b of this.houseDoors) {
       if (!b.active) continue;
       const dist = Math.hypot(b.x - this.player.x, b.y - this.player.y);
-      if (!b.isOpen && dist <= 22) {
-        b.toggleDoor();
+      const npcAtDoor = this.npcs.some(
+        (npc) =>
+          (npc.state === 'walking_home' || npc.state === 'walking_out') &&
+          Math.hypot(b.x - npc.x, b.y - npc.y) <= 22,
+      );
+      const playerAutoOpen = !b.isLocked && !this.lockpickMinigame.isActive() && dist <= 22;
+      if (!b.isOpen && (playerAutoOpen || npcAtDoor)) {
+        this.setDoorOpenForNpc(b, true);
         SFX.playChop();
-      } else if (b.isOpen && dist > 34) {
-        b.toggleDoor();
+      } else if (b.isOpen && !npcAtDoor && (b.isLocked ? dist > 14 : dist > 34)) {
+        this.setDoorOpenForNpc(b, false);
       }
     }
 
@@ -5224,7 +5762,166 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  private getNpcPromptText(npcId: string, name: string, inRange: boolean): string {
+  private setDoorOpenForNpc(door: BuildingEntity, wantOpen: boolean): void {
+    if (door.isOpen === wantOpen) return;
+    const wasLocked = door.isLocked;
+    door.toggleDoor();
+    if (door.isOpen !== wantOpen && wasLocked) {
+      door.setLocked(false);
+      door.toggleDoor();
+      door.setLocked(true);
+      if (wantOpen && !door.isOpen) {
+        door.setLocked(false);
+        door.toggleDoor();
+        door.isLocked = true;
+      }
+    }
+  }
+
+  private updateNpcs(dt: number): void {
+    const { nightFactor } = this.lighting.getAmbientColor();
+    const isNight = nightFactor >= 0.45;
+    const step = (44 * dt) / 1000;
+
+    const setDoorOpen = (doorX: number, doorY: number, wantOpen: boolean) => {
+      for (const d of this.houseDoors) {
+        if (!d.active) continue;
+        if (Math.hypot(d.x - doorX, d.y - doorY) <= 14) {
+          if (wantOpen && !d.isOpen) {
+            this.setDoorOpenForNpc(d, true);
+          } else if (!wantOpen && d.isOpen) {
+            const playerInDoorway = this.player && Math.hypot(d.x - this.player.x, d.y - this.player.y) <= 34;
+            if (!playerInDoorway) {
+              this.setDoorOpenForNpc(d, false);
+            }
+          }
+        }
+      }
+    };
+
+    const moveToward = (npc: NpcEntity, tx: number, ty: number): boolean => {
+      const dx = tx - npc.x;
+      const dy = ty - npc.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist <= step || dist < 0.001) {
+        npc.x = tx;
+        npc.y = ty;
+        return true;
+      }
+      npc.x += (dx / dist) * step;
+      npc.y += (dy / dist) * step;
+      return false;
+    };
+
+    for (const npc of this.npcs) {
+      if (
+        npc.bedX === undefined ||
+        npc.bedY === undefined ||
+        npc.doorX === undefined ||
+        npc.doorY === undefined
+      ) {
+        continue;
+      }
+
+      if (npc.state === 'day_outside') {
+        if (isNight) {
+          npc.state = 'walking_home';
+          this.tweens.killTweensOf(npc.promptBox);
+        }
+        continue;
+      }
+
+      if (npc.state === 'walking_home') {
+        if (!isNight) {
+          npc.state = 'walking_out';
+          continue;
+        }
+        if (Math.hypot(npc.x - npc.doorX, npc.y - npc.doorY) <= 18) {
+          setDoorOpen(npc.doorX, npc.doorY, true);
+        }
+        const targetX = npc.y > npc.doorY + 4 ? npc.doorX : npc.bedX;
+        const targetY = npc.y > npc.doorY + 4 ? npc.doorY : npc.bedY;
+        moveToward(npc, targetX, targetY);
+
+        if (Math.hypot(npc.x - npc.bedX, npc.y - npc.bedY) <= 4) {
+          npc.x = npc.bedX;
+          npc.y = npc.bedY;
+          npc.state = 'sleeping';
+          npc.zzzTimerMs = 1200;
+          npc.sprite.setPosition(npc.bedX, npc.bedY - 4).setAngle(90).setDepth(npc.bedY + 1);
+          npc.shadow.setVisible(false);
+          npc.promptBox.setPosition(npc.bedX, npc.bedY - 18);
+          setDoorOpen(npc.doorX, npc.doorY, false);
+        } else {
+          npc.sprite.setPosition(npc.x, npc.y - 6).setDepth(npc.y);
+          npc.shadow.setPosition(npc.x, npc.y - 1).setDepth(npc.y - 1);
+          npc.promptBox.setPosition(npc.x, npc.y - 22);
+        }
+        continue;
+      }
+
+      if (npc.state === 'sleeping') {
+        if (!isNight) {
+          npc.state = 'walking_out';
+          npc.sprite.setAngle(0);
+          npc.shadow.setVisible(true);
+          npc.sprite.setPosition(npc.x, npc.y - 6).setDepth(npc.y);
+          npc.shadow.setPosition(npc.x, npc.y - 1).setDepth(npc.y - 1);
+          npc.promptBox.setPosition(npc.x, npc.y - 22);
+        } else {
+          npc.zzzTimerMs -= dt;
+          if (npc.zzzTimerMs <= 0) {
+            npc.zzzTimerMs = 2400;
+            if (this.player && Math.hypot(this.player.x - npc.bedX, this.player.y - npc.bedY) <= 140) {
+              spawnFloatingText(this, npc.bedX + 4, npc.bedY - 12, 'Zzz', '#c8dcff', '7px');
+            }
+          }
+        }
+        continue;
+      }
+
+      if (npc.state === 'walking_out') {
+        if (isNight) {
+          npc.state = 'walking_home';
+          continue;
+        }
+        if (Math.hypot(npc.x - npc.doorX, npc.y - npc.doorY) <= 18) {
+          setDoorOpen(npc.doorX, npc.doorY, true);
+        }
+        const targetX = npc.y < npc.doorY + 6 ? npc.doorX : npc.homeX;
+        const targetY = npc.y < npc.doorY + 6 ? npc.doorY + 10 : npc.homeY;
+        moveToward(npc, targetX, targetY);
+
+        if (Math.hypot(npc.x - npc.homeX, npc.y - npc.homeY) <= 4) {
+          npc.x = npc.homeX;
+          npc.y = npc.homeY;
+          npc.state = 'day_outside';
+          npc.sprite.setPosition(npc.x, npc.y - 6).setDepth(npc.y);
+          npc.shadow.setPosition(npc.x, npc.y - 1).setDepth(npc.y - 1);
+          npc.promptBox.setPosition(npc.x, npc.y - 22);
+          this.tweens.killTweensOf(npc.promptBox);
+          this.tweens.add({
+            targets: npc.promptBox,
+            y: npc.y - 25,
+            duration: 720,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.InOut',
+          });
+          setDoorOpen(npc.doorX, npc.doorY, false);
+        } else {
+          npc.sprite.setPosition(npc.x, npc.y - 6).setDepth(npc.y);
+          npc.shadow.setPosition(npc.x, npc.y - 1).setDepth(npc.y - 1);
+          npc.promptBox.setPosition(npc.x, npc.y - 22);
+        }
+      }
+    }
+  }
+
+  private getNpcPromptText(npcId: string, name: string, inRange: boolean, sleeping = false): string {
+    if (sleeping) {
+      return inRange ? `Zzz (${name})` : 'Zzz';
+    }
     const q = gameState.getNextQuestForNpc(npcId);
     if (!q) return inRange ? fmtKeyPrompt('E', name) : '';
     if (gameState.isQuestActive(q.id)) {
@@ -5237,13 +5934,13 @@ export class OverworldScene extends Phaser.Scene {
   private refreshNpcPrompts(): void {
     for (const npc of this.npcs) {
       const inRange = this.player ? Math.hypot(npc.x - this.player.x, npc.y - this.player.y) <= 34 : false;
-      const nextTxt = this.getNpcPromptText(npc.spec.id, npc.spec.name, inRange);
+      const nextTxt = this.getNpcPromptText(npc.spec.id, npc.spec.name, inRange, npc.state === 'sleeping');
       if (npc.prompt.text !== nextTxt) {
         const wasInRange = npc.prompt.getData('inRange') === true;
         npc.prompt.setData('inRange', inRange);
         npc.prompt.setText(nextTxt);
         npc.redrawPrompt();
-        if (inRange && !wasInRange) {
+        if (inRange && !wasInRange && npc.state !== 'sleeping') {
           const q = gameState.getNextQuestForNpc(npc.spec.id);
           const emote = q ? 'portraits/Emote_question' : 'portraits/Emote_talking';
           showWorldEmote(this, npc.x, npc.y - 22, emote, { durationMs: 950, scale: 0.68 });
@@ -5364,6 +6061,7 @@ export class OverworldScene extends Phaser.Scene {
     );
     if (dayWrapped) {
       this.weather.setDay(this.lighting.dayNumber);
+      gameState.advanceMarketDay(this.lighting.dayNumber);
     }
     const phase = this.lighting.getPhaseLabel();
     this.hud.setTimeLabel(
@@ -5411,8 +6109,8 @@ export class OverworldScene extends Phaser.Scene {
       p.sprite.setRotation(getProjectileRotation(p.vx, p.vy));
       if (Math.random() < 0.45) spawnProjectileTrail(this, p.sprite.x, p.sprite.y, p.kind);
 
-      let hit = false;
-      if (p.fromPlayer) {
+      let hit = this.isBlockedByHouseWall(p.sprite.x, p.sprite.y, 1.5);
+      if (!hit && p.fromPlayer) {
         for (const e of this.enemies) {
           if (e.active && !e.isDead && Math.hypot(e.x - p.sprite.x, e.y - p.sprite.y) <= 13) {
             const spd = Math.hypot(p.vx, p.vy) || 1;
@@ -5438,8 +6136,9 @@ export class OverworldScene extends Phaser.Scene {
             }
           }
         }
-      } else {
-        const isViewBlocked = this.hud.isBlockingInput() || this.fishingMinigame.isActive();
+      } else if (!hit) {
+        const isViewBlocked =
+      this.hud.isBlockingInput() || this.fishingMinigame.isActive() || this.lockpickMinigame.isActive();
         if (!isViewBlocked && Math.hypot(this.player.x - p.sprite.x, this.player.y - p.sprite.y) <= 10) {
           const spd = Math.hypot(p.vx, p.vy) || 1;
           if (this.player.takeDamage(p.damage, p.vx / spd, p.vy / spd, this.isWalkable)) {
@@ -5462,13 +6161,32 @@ export class OverworldScene extends Phaser.Scene {
 
   private checkPlayerDeath(): void {
     if (gameState.hp > 0) return;
-    gameState.hp = Math.round(gameState.getMaxHp() * 0.6);
-    gameState.energy = gameState.getMaxEnergy();
-    const half = Math.floor(ISLAND_CELL_TILES / 2);
-    const tile = this.findNearestLandTileOnIsland(2, 2, half, half);
-    const pt = this.findNearestWalkablePoint(tile.tx * TILE_PX + 8, tile.ty * TILE_PX + 8);
+    const { fee, spawnPoint } = gameState.applyDeathRevival();
+    const hasBedAtSpawn = Boolean(
+      spawnPoint &&
+        this.buildings.some(
+          (b) =>
+            b.active &&
+            b.structureType === 'furniture_bed' &&
+            Math.hypot(b.x - spawnPoint.x, b.y - spawnPoint.y) <= 24,
+        ),
+    );
+
+    let pt: { x: number; y: number };
+    let locName = 'Emerald Origin';
+    if (spawnPoint && hasBedAtSpawn) {
+      pt = this.findNearestWalkablePoint(spawnPoint.x, spawnPoint.y);
+      locName = spawnPoint.label;
+    } else {
+      if (spawnPoint) {
+        gameState.clearSpawnPoint();
+      }
+      const half = Math.floor(ISLAND_CELL_TILES / 2);
+      const tile = this.findNearestLandTileOnIsland(2, 2, half, half);
+      pt = this.findNearestWalkablePoint(tile.tx * TILE_PX + 8, tile.ty * TILE_PX + 8);
+    }
+
     this.player.setPosition(pt.x, pt.y);
-    this.hud.showToast('Revived at Emerald Origin!');
-    gameState.emit();
+    this.hud.showToast(`Revived at ${locName}!${fee > 0 ? ` (-${fee}g revival fee)` : ''}`);
   }
 }

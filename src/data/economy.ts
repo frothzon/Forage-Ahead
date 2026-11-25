@@ -3,9 +3,9 @@
  * Mirrors tools/economy_sim.py so simulation and runtime match 1:1.
  */
 
-export const MAX_NODES_PER_ISLAND = 40;
-export const STARTER_ISLAND_NODES = 34;
-export const NODE_RESPAWN_INTERVAL_MS = 4200;
+export const MAX_NODES_PER_ISLAND = 50;
+export const STARTER_ISLAND_NODES = 42;
+export const NODE_RESPAWN_INTERVAL_MS = 3360;
 
 /**
  * Diminishing overlapping lighthouse bonus:
@@ -46,4 +46,30 @@ export function gearCoinCost(level: number): number {
 export function scaledIslandCost(baseCost: number, ownedCount: number): number {
   if (baseCost <= 0) return 0;
   return Math.round((baseCost * Math.pow(1.18, Math.max(0, ownedCount))) / 5) * 5;
+}
+
+export const BASE_STOKE_COST = 20;
+export const STOKE_COST_GROWTH = 1.01;
+
+/**
+ * Compounding campfire stoke coin cost (+1% per prior stoke).
+ */
+export function getStokeCost(stokeCount: number): number {
+  return Math.round(BASE_STOKE_COST * Math.pow(STOKE_COST_GROWTH, Math.max(0, stokeCount)));
+}
+
+/**
+ * Exponential gear reforge coin cost, rounded to nearest 5g.
+ */
+export function getReforgeCoinCost(reforgeCount: number): number {
+  return Math.round((40 * Math.pow(1.25, Math.max(0, reforgeCount))) / 5) * 5;
+}
+
+export const DEATH_REVIVAL_FEE_RATE = 0.30;
+
+/**
+ * Coin fee taken upon death revival (30% of current coins, floored).
+ */
+export function getDeathRevivalFee(coins: number): number {
+  return Math.floor(Math.max(0, coins) * DEATH_REVIVAL_FEE_RATE);
 }

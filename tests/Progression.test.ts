@@ -10,7 +10,7 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     const state = new GameState();
     state.reset('Beastmaster');
     expect(state.level).toBe(1);
-    const leveled = state.addXp(160);
+    const leveled = state.addXp(650);
     expect(leveled).toBe(true);
     expect(state.level).toBeGreaterThanOrEqual(2);
     expect(state.skillPoints).toBeGreaterThanOrEqual(1);
@@ -21,13 +21,17 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     state.reset('Gladiator');
     state.skillPoints = 2;
 
+    state.addItem('wood', 10);
+    const quoteWithoutBarter = state.getDynamicSellQuote('wood', 5).total;
+
     expect(state.unlockSkill('economy_barter')).toBe(false);
     expect(state.unlockSkill('economy_coinage')).toBe(true);
     expect(state.unlockSkill('economy_barter')).toBe(true);
 
-    state.addItem('wood', 10);
+    const quoteWithBarter = state.getDynamicSellQuote('wood', 5).total;
+    expect(quoteWithBarter).toBeGreaterThan(quoteWithoutBarter);
     const earned = state.sellItem('wood', 5);
-    expect(earned).toBe(15);
+    expect(earned).toBe(quoteWithBarter);
   });
 
   it('allows crafting Furnace when ingredients are present and discounts with Stonecraft', () => {
@@ -106,22 +110,22 @@ describe('GameState progression, crafting & Diablo inventory', () => {
   it('supports crafting queue ingredient consumption, Bellows Mastery speed, and full refund on cancel', () => {
     const state = new GameState();
     state.reset('Beastmaster');
-    // 5x coal recipe: 20 wood, 2500ms -> 1786ms with Bellows Mastery
-    state.addItem('wood', 14); // total 20 wood
+    // Unscaled coal recipe: 4 wood, 15000ms -> Math.round(15000 / 1.4) with Bellows Mastery
+    // Beastmaster starts with 6 wood
     const coalRecipe = RECIPES.find((r) => r.id === 'smelt_coal')!;
-    expect(coalRecipe.craftTimeMs).toBe(2500);
-    expect(state.getCraftDurationMs(coalRecipe)).toBe(2500);
+    expect(coalRecipe.craftTimeMs).toBe(15000);
+    expect(state.getCraftDurationMs(coalRecipe)).toBe(15000);
 
     // Unlock Bellows Mastery (+40% speed)
     state.skillPoints = 1;
     expect(state.unlockSkill('industry_smelt')).toBe(true);
-    expect(state.getCraftDurationMs(coalRecipe)).toBe(Math.round(2500 / 1.4));
+    expect(state.getCraftDurationMs(coalRecipe)).toBe(Math.round(15000 / 1.4));
 
     // Consume & refund
     expect(state.consumeIngredients(coalRecipe)).toBe(true);
-    expect(state.inventory.wood ?? 0).toBe(0);
+    expect(state.inventory.wood ?? 0).toBe(2);
     state.refundIngredients(coalRecipe);
-    expect(state.inventory.wood).toBe(20);
+    expect(state.inventory.wood).toBe(6);
   });
 
   it('supports debug cheats (resources, levels, skills, relics) and reset', () => {
@@ -383,5 +387,41 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     expect(state.coins).toBe(20);
     state.refundIngredients(vest);
     expect(state.coins).toBe(50);
+  });
+
+  it('keeps smelting unscaled, caps monster drops at 3x, and splits station craft speed skills', () => {
+    const smeltIron = RECIPES.find((r) => r.id === 'smelt_iron')!;
+    const smeltGold = RECIPES.find((r) => r.id === 'smelt_gold')!;
+    expect(smeltIron.ingredients).toEqual([
+      { itemId: 'iron_ore', count: 2 },
+      { itemId: 'coal', count: 1 },
+    ]);
+    expect(smeltGold.ingredients).toEqual([
+      { itemId: 'gold_ore', count: 2 },
+      { itemId: 'coal', count: 1 },
+    ]);
+
+    const infernalForge = RECIPES.find((r) => r.id === 'build_infernal_forge')!;
+    const demonHorn = infernalForge.ingredients.find((i) => i.itemId === 'demon_horn');
+    expect(demonHorn?.count).toBe(12);
+
+    const state = new GameState();
+    state.reset('Sorcerer');
+    state.level = 100;
+    state.skillPoints = 20;
+
+    const furnaceRec = RECIPES.find((r) => r.station === 'furnace')!;
+    const anvilRec = RECIPES.find((r) => r.station === 'anvil')!;
+    const infernalRec = RECIPES.find((r) => r.station === 'infernal_forge')!;
+    const voidRec = RECIPES.find((r) => r.station === 'void_altar')!;
+
+    expect(state.unlockSkill('industry_smelt')).toBe(true);
+    expect(state.getCraftDurationMs(furnaceRec)).toBe(Math.round((furnaceRec.craftTimeMs ?? 3000) / 1.4));
+    expect(state.getCraftDurationMs(anvilRec)).toBe(Math.round((anvilRec.craftTimeMs ?? 3000) / 1.4));
+    expect(state.getCraftDurationMs(infernalRec)).toBe(infernalRec.craftTimeMs ?? 3000);
+
+    state.debugUnlockAllSkills();
+    expect(state.getCraftDurationMs(infernalRec)).toBe(Math.round((infernalRec.craftTimeMs ?? 3000) / 1.35));
+    expect(state.getCraftDurationMs(voidRec)).toBe(Math.round((voidRec.craftTimeMs ?? 3000) / 1.35));
   });
 });

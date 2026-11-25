@@ -115,7 +115,26 @@ const VOID_ALTAR_SINKS: Record<string, Ingredient[]> = {
   ],
 };
 
+const UNSCALED_RECIPE_IDS = new Set([
+  'smelt_coal',
+  'smelt_iron',
+  'smelt_gold',
+  'cook_fish',
+  'cook_meat',
+  'cook_omelet',
+  'cook_pumpkin_soup',
+  'cook_veggie_medley',
+  'cook_starfruit_tart',
+  'craft_potion_red',
+  'craft_potion_blue',
+  'craft_elixir_egg',
+  'craft_bomb',
+]);
+
+const MONSTER_DROP_IDS = new Set(['slime_gel', 'bone', 'amber', 'demon_horn']);
+
 function getRecipeMaterialMultiplier(r: RecipeDef): number {
+  if (UNSCALED_RECIPE_IDS.has(r.id)) return 1;
   if (r.id === 'build_frost_kiln' || r.station === 'frost_kiln') return 8;
   if (r.id === 'build_infernal_forge' || r.station === 'infernal_forge') return 12;
   if (r.id === 'build_void_altar') return 10;
@@ -126,10 +145,13 @@ function getRecipeMaterialMultiplier(r: RecipeDef): number {
 
 function scaleRecipe(r: RecipeDef): RecipeDef {
   const mult = getRecipeMaterialMultiplier(r);
-  const scaledIngredients = r.ingredients.map((ing) => ({
-    itemId: ing.itemId,
-    count: Math.max(1, Math.round(ing.count * mult)),
-  }));
+  const scaledIngredients = r.ingredients.map((ing) => {
+    const ingMult = MONSTER_DROP_IDS.has(ing.itemId) ? Math.min(mult, 3) : mult;
+    return {
+      itemId: ing.itemId,
+      count: Math.max(1, Math.round(ing.count * ingMult)),
+    };
+  });
   const extraSinks = VOID_ALTAR_SINKS[r.id];
   if (extraSinks) {
     scaledIngredients.push(...extraSinks);
@@ -400,7 +422,7 @@ const BASE_RECIPES: RecipeDef[] = [
     ingredients: [
       { itemId: 'iron_ingot', count: 6 },
       { itemId: 'gold_ingot', count: 2 },
-      { itemId: 'crystal', count: 2 },
+      { itemId: 'amber', count: 2 },
     ],
     structureType: 'mining_rod',
     requiresSkill: 'industry_mining_rod',
@@ -510,7 +532,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'bomb',
     outputCount: 2,
     requiresSkill: 'magic_alchemy',
-    craftTimeMs: 3000,
+    craftTimeMs: 20000,
   },
   {
     id: 'craft_potion_red',
@@ -524,7 +546,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'potion_red',
     outputCount: 1,
     requiresSkill: 'magic_alchemy',
-    craftTimeMs: 3000,
+    craftTimeMs: 18000,
   },
   {
     id: 'craft_potion_blue',
@@ -538,7 +560,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'potion_blue',
     outputCount: 1,
     requiresSkill: 'magic_alchemy',
-    craftTimeMs: 3000,
+    craftTimeMs: 22000,
   },
 
   // FURNACE
@@ -550,7 +572,7 @@ const BASE_RECIPES: RecipeDef[] = [
     ingredients: [{ itemId: 'wood', count: 4 }],
     outputItemId: 'coal',
     outputCount: 2,
-    craftTimeMs: 2500,
+    craftTimeMs: 15000,
   },
   {
     id: 'smelt_iron',
@@ -563,7 +585,7 @@ const BASE_RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'iron_ingot',
     outputCount: 1,
-    craftTimeMs: 3500,
+    craftTimeMs: 24000,
   },
   {
     id: 'smelt_gold',
@@ -578,7 +600,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputCount: 1,
     unlockMode: 'blueprint',
     blueprintHint: 'Mine Gold Ore nodes or defeat Autumn/Desert monsters.',
-    craftTimeMs: 4500,
+    craftTimeMs: 35000,
   },
 
   // BONFIRE
@@ -593,7 +615,7 @@ const BASE_RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'cooked_fish',
     outputCount: 1,
-    craftTimeMs: 2500,
+    craftTimeMs: 12000,
   },
   {
     id: 'cook_meat',
@@ -606,7 +628,7 @@ const BASE_RECIPES: RecipeDef[] = [
     ],
     outputItemId: 'cooked_meat',
     outputCount: 1,
-    craftTimeMs: 2500,
+    craftTimeMs: 12000,
   },
 
   // ANVIL TOOL, WEAPON & ARMOR CRAFTING
@@ -622,7 +644,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'bow',
     outputCount: 1,
     iconKey: 'ui_icons/bow',
-    craftTimeMs: 4500,
+    craftTimeMs: 30000,
   },
   {
     id: 'craft_armor_leather',
@@ -652,7 +674,7 @@ const BASE_RECIPES: RecipeDef[] = [
     unlockMode: 'blueprint',
     blueprintHint: 'Drops from Autumn/Desert monsters or chests.',
     iconKey: 'ui_icons/ring_copper',
-    craftTimeMs: 4500,
+    craftTimeMs: 30000,
   },
   {
     id: 'craft_armor_iron',
@@ -668,7 +690,7 @@ const BASE_RECIPES: RecipeDef[] = [
     unlockMode: 'blueprint',
     blueprintHint: 'Mine Iron Ore or defeat Goblin Raiders.',
     iconKey: 'ui_icons/armor_iron',
-    craftTimeMs: 5000,
+    craftTimeMs: 35000,
   },
   {
     id: 'craft_charm_miner',
@@ -684,7 +706,7 @@ const BASE_RECIPES: RecipeDef[] = [
     unlockMode: 'blueprint',
     blueprintHint: 'Caught while Fishing or mined from Crystal nodes.',
     iconKey: 'ui_icons/charm_miner',
-    craftTimeMs: 5500,
+    craftTimeMs: 40000,
   },
   {
     id: 'craft_armor_frost',
@@ -700,7 +722,7 @@ const BASE_RECIPES: RecipeDef[] = [
     unlockMode: 'blueprint',
     blueprintHint: 'Drops from Winter monsters or Frost Cavern.',
     iconKey: 'ui_icons/armor_frost',
-    craftTimeMs: 6500,
+    craftTimeMs: 60000,
   },
   {
     id: 'craft_armor_obsidian',
@@ -717,7 +739,7 @@ const BASE_RECIPES: RecipeDef[] = [
     unlockMode: 'blueprint',
     blueprintHint: 'Drops from Infernal monsters or Infernal Sanctum.',
     iconKey: 'ui_icons/armor_obsidian',
-    craftTimeMs: 7500,
+    craftTimeMs: 90000,
   },
   {
     id: 'craft_amulet_dragon',
@@ -734,7 +756,7 @@ const BASE_RECIPES: RecipeDef[] = [
     unlockMode: 'blueprint',
     blueprintHint: 'Drops from Ignis, Crimson Wyrm or Flame Demons.',
     iconKey: 'ui_icons/amulet_dragon',
-    craftTimeMs: 7500,
+    craftTimeMs: 90000,
   },
   {
     id: 'upgrade_pick_2',
@@ -748,7 +770,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'pickaxe_iron',
     outputCount: 1,
     iconKey: 'ui_icons/pickaxe',
-    craftTimeMs: 4500,
+    craftTimeMs: 30000,
   },
   {
     id: 'upgrade_pick_3',
@@ -764,7 +786,7 @@ const BASE_RECIPES: RecipeDef[] = [
     unlockMode: 'blueprint',
     blueprintHint: 'Mine Gold Ore or clear Sunken Tomb.',
     iconKey: 'ui_icons/pickaxe_gold',
-    craftTimeMs: 6000,
+    craftTimeMs: 45000,
   },
   {
     id: 'upgrade_pick_4',
@@ -781,7 +803,7 @@ const BASE_RECIPES: RecipeDef[] = [
     unlockMode: 'blueprint',
     blueprintHint: 'Mine Frost Crystals or clear Frost Cavern.',
     iconKey: 'ui_icons/pickaxe_crystal',
-    craftTimeMs: 7500,
+    craftTimeMs: 70000,
   },
   {
     id: 'upgrade_sword_2',
@@ -795,7 +817,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'sword_iron',
     outputCount: 1,
     iconKey: 'ui_icons/sword',
-    craftTimeMs: 4500,
+    craftTimeMs: 30000,
   },
   {
     id: 'upgrade_sword_3',
@@ -812,7 +834,7 @@ const BASE_RECIPES: RecipeDef[] = [
     unlockMode: 'blueprint',
     blueprintHint: 'Defeat Anubis Guardians or clear Sunken Tomb.',
     iconKey: 'ui_icons/sword_gold',
-    craftTimeMs: 6000,
+    craftTimeMs: 45000,
   },
   {
     id: 'upgrade_sword_4',
@@ -829,7 +851,7 @@ const BASE_RECIPES: RecipeDef[] = [
     unlockMode: 'blueprint',
     blueprintHint: 'Defeat Flame Demons or clear Infernal Sanctum.',
     iconKey: 'ui_icons/sword_obsidian',
-    craftTimeMs: 7500,
+    craftTimeMs: 90000,
   },
   {
     id: 'craft_trinket_regen',
@@ -844,7 +866,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'trinket_regen',
     outputCount: 1,
     iconKey: 'ui_icons/ring_copper',
-    craftTimeMs: 4500,
+    craftTimeMs: 30000,
   },
   {
     id: 'craft_trinket_swift',
@@ -858,7 +880,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'trinket_swift',
     outputCount: 1,
     iconKey: 'ui_icons/charm_miner',
-    craftTimeMs: 5000,
+    craftTimeMs: 35000,
   },
   {
     id: 'craft_trinket_crit',
@@ -872,7 +894,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'trinket_crit',
     outputCount: 1,
     iconKey: 'ui_icons/amulet_dragon',
-    craftTimeMs: 6000,
+    craftTimeMs: 75000,
   },
   {
     id: 'craft_gadget_blink',
@@ -887,7 +909,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'gadget_blink',
     outputCount: 1,
     iconKey: 'ui_icons/thunder_rod',
-    craftTimeMs: 5000,
+    craftTimeMs: 45000,
   },
   {
     id: 'craft_gadget_ward',
@@ -901,7 +923,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'gadget_ward',
     outputCount: 1,
     iconKey: 'ui_icons/armor_iron',
-    craftTimeMs: 5500,
+    craftTimeMs: 50000,
   },
   {
     id: 'craft_gadget_nova',
@@ -915,7 +937,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'gadget_nova',
     outputCount: 1,
     iconKey: 'ui_icons/ice_rod',
-    craftTimeMs: 6000,
+    craftTimeMs: 55000,
   },
   {
     id: 'cook_omelet',
@@ -929,7 +951,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'monster_omelet',
     outputCount: 1,
     iconKey: 'ui_icons/cooked_fish',
-    craftTimeMs: 2800,
+    craftTimeMs: 15000,
   },
   {
     id: 'craft_elixir_egg',
@@ -943,7 +965,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'potion_red',
     outputCount: 2,
     iconKey: 'ui_icons/potion_red',
-    craftTimeMs: 3200,
+    craftTimeMs: 20000,
   },
   {
     id: 'cook_pumpkin_soup',
@@ -957,7 +979,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'pumpkin_soup',
     outputCount: 1,
     iconKey: 'sprout_icons/pumpkin',
-    craftTimeMs: 3000,
+    craftTimeMs: 15000,
   },
   {
     id: 'cook_veggie_medley',
@@ -972,7 +994,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'veggie_medley',
     outputCount: 1,
     iconKey: 'sprout_icons/cauliflower',
-    craftTimeMs: 3500,
+    craftTimeMs: 18000,
   },
   {
     id: 'cook_starfruit_tart',
@@ -986,7 +1008,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'starfruit_tart',
     outputCount: 1,
     iconKey: 'sprout_icons/starfruit',
-    craftTimeMs: 4000,
+    craftTimeMs: 20000,
   },
   ...SPROUT_CROPS.map((c) => ({
     id: `build_${c.structureType}`,
@@ -1016,7 +1038,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'sword_astral',
     outputCount: 1,
     iconKey: 'ui_icons/sword_gold',
-    craftTimeMs: 7000,
+    craftTimeMs: 110000,
   },
   {
     id: 'craft_pickaxe_celestial',
@@ -1031,7 +1053,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'pickaxe_celestial',
     outputCount: 1,
     iconKey: 'ui_icons/pickaxe_crystal',
-    craftTimeMs: 7500,
+    craftTimeMs: 120000,
   },
   {
     id: 'craft_sword_wyrmheart',
@@ -1047,7 +1069,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'sword_wyrmheart',
     outputCount: 1,
     iconKey: 'ui_icons/sword_obsidian',
-    craftTimeMs: 9000,
+    craftTimeMs: 150000,
   },
   {
     id: 'craft_armor_voidwalker',
@@ -1063,7 +1085,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'armor_voidwalker',
     outputCount: 1,
     iconKey: 'ui_icons/armor_obsidian',
-    craftTimeMs: 9000,
+    craftTimeMs: 150000,
   },
   {
     id: 'craft_trinket_chrono',
@@ -1078,7 +1100,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'trinket_chrono',
     outputCount: 1,
     iconKey: 'ui_icons/ring_copper',
-    craftTimeMs: 6500,
+    craftTimeMs: 100000,
   },
   {
     id: 'craft_trinket_abyssal',
@@ -1093,7 +1115,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'trinket_abyssal',
     outputCount: 1,
     iconKey: 'ui_icons/amulet_dragon',
-    craftTimeMs: 8000,
+    craftTimeMs: 135000,
   },
   {
     id: 'craft_gadget_meteor',
@@ -1108,7 +1130,7 @@ const BASE_RECIPES: RecipeDef[] = [
     outputItemId: 'gadget_meteor',
     outputCount: 1,
     iconKey: 'ui_icons/fire_rod',
-    craftTimeMs: 7000,
+    craftTimeMs: 110000,
   },
 ];
 

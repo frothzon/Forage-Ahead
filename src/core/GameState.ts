@@ -1,5 +1,18 @@
 import { ITEMS, type EquipSlot, type GearStats, type ItemRarity } from '../data/items';
-import { gearCoinCost, scaledIslandCost } from '../data/economy';
+import {
+  getDeathRevivalFee,
+  getReforgeCoinCost,
+  getStokeCost,
+  scaledIslandCost,
+} from '../data/economy';
+import {
+  calculateDynamicSellTotal,
+  decayMarketVolume,
+  type MarketQuote,
+  type MarketTrend,
+} from '../data/marketEconomy';
+
+export type { MarketQuote, MarketTrend };
 import { ISLANDS, STORY_CHAPTERS, getBiomeChapter, type DungeonId } from '../data/islands';
 import { getQuestById, getQuestsForNpc, type QuestDef, type QuestObjective } from '../data/quests';
 import { RECIPES, type RecipeDef, type StructureType } from '../data/recipes';
@@ -124,6 +137,10 @@ export interface SaveData {
   unlockedMenuTabs?: MenuTabId[];
   savedAt?: number;
   playerPos?: { x: number; y: number };
+  stokeCount?: number;
+  marketSoldVolume?: Record<string, number>;
+  marketLastDecayDay?: number;
+  spawnPoint?: { x: number; y: number; label: string } | null;
 }
 
 export type SaveSlotIndex = 0 | 1 | 2;
@@ -212,6 +229,11 @@ export class GameState {
   public tutorialCompleted = true;
   public unlockedMenuTabs = new Set<MenuTabId>(ALL_MENU_TABS);
   public playerPos?: { x: number; y: number };
+  public stokeCount = 0;
+  public marketSoldVolume: Record<string, number> = {};
+  public marketLastDecayDay = 1;
+  public spawnPoint: { x: number; y: number; label: string } | null = null;
+  public pendingToast: string | null = null;
 
   private listeners: Array<() => void> = [];
   private vitalsListeners: Array<() => void> = [];
@@ -348,6 +370,11 @@ export class GameState {
     this.tutorialCompleted = true;
     this.unlockedMenuTabs = new Set<MenuTabId>(ALL_MENU_TABS);
     this.playerPos = undefined;
+    this.stokeCount = 0;
+    this.marketSoldVolume = {};
+    this.marketLastDecayDay = 1;
+    this.spawnPoint = null;
+    this.pendingToast = null;
     this.hp = this.getMaxHp();
     this.energy = this.getMaxEnergy();
     this.emit();
@@ -501,8 +528,7 @@ export class GameState {
     }
     const existing = slot.instanceId ? this.gearInstances[slot.instanceId] : undefined;
     const refCount = existing?.reforgeCount ?? 0;
-    const baseReforge = (def.requiredLevel ?? 1) >= 2 ? Math.round(gearCoinCost(def.requiredLevel ?? 1) * 0.5) : 35;
-    const coinCost = baseReforge + refCount * 20;
+    const coinCost = getReforgeCoinCost(refCount);
     if (this._coins < coinCost) return { ok: false, reason: `Need ${coinCost}g to reforge.` };
     if ((this.inventory.iron_ingot ?? 0) < 2) return { ok: false, reason: 'Need 2 Iron Ingots.' };
 
@@ -554,6 +580,7 @@ export class GameState {
     slot: EquipmentSlotKey;
     equippedId: string | null;
     rows: StatComparisonRow[];
+    isAlreadyEquipped: boolean;
   } | null {
     const def = ITEMS[candidateItemId];
     if (!def?.equipSlot) return null;
@@ -589,7 +616,11 @@ export class GameState {
         suffix: k.suffix,
       });
     }
-    return { slot, equippedId, rows };
+    const sameItem = equippedId === candidateItemId;
+    const sameInstance = Boolean(candidateInstanceId && candidateInstanceId === this.equippedInstanceIds[slot]);
+    const hasStrictUpgrade = rows.some((r) => r.diff > 0);
+    const isAlreadyEquipped = sameInstance || (sameItem && !hasStrictUpgrade);
+    return { slot, equippedId, rows, isAlreadyEquipped };
   }
 
   public getMaxHp(): number {
@@ -666,7 +697,7 @@ export class GameState {
   }
 
   public getXpForNextLevel(): number {
-    return Math.round(100 + this.level * 50 + this.level * this.level * 4);
+    return Math.round(400 + this.level * 200 + this.level * this.level * 7);
   }
 
   public triggerAlert(alertKey: string, buttonId = 'menu'): void {
@@ -729,11 +760,20 @@ export class GameState {
     return leveled;
   }
 
-  public getItemCount(itemId: string): number {
+  public isItemEquipped(itemId: string): boolean {
+    return ALL_EQUIP_SLOTS.some((slot) => this.equipment[slot] === itemId);
+  }
+
+  public getBagItemCount(itemId: string): number {
     let total = 0;
     for (const s of this.bagSlots) {
       if (s && s.itemId === itemId) total += s.count;
     }
+    return total;
+  }
+
+  public getItemCount(itemId: string): number {
+    let total = this.getBagItemCount(itemId);
     for (const slot of ALL_EQUIP_SLOTS) {
       if (this.equipment[slot] === itemId) total += 1;
     }
@@ -845,6 +885,9 @@ export class GameState {
       if (targetSlot && def.equipSlot !== targetSlot) return false;
       eqSlot = def.equipSlot;
     }
+
+    const cmp = this.compareGearStats(slotItem.itemId, slotItem.instanceId, eqSlot);
+    if (cmp?.isAlreadyEquipped) return false;
 
     const prevEquipped = this.equipment[eqSlot];
     const prevInstId = this.equippedInstanceIds[eqSlot];
@@ -963,8 +1006,17 @@ export class GameState {
   }
 
   public getCraftDurationMs(recipe: RecipeDef): number {
-    const base = recipe.craftTimeMs ?? 3000;
-    return this.hasSkill('industry_smelt') ? Math.round(base / 1.4) : base;
+    let ms = recipe.craftTimeMs ?? 3000;
+    if (this.hasSkill('industry_smelt') && (recipe.station === 'furnace' || recipe.station === 'anvil')) {
+      ms /= 1.4;
+    }
+    if (
+      this.hasSkill('industry_void_smith') &&
+      (recipe.station === 'infernal_forge' || recipe.station === 'void_altar')
+    ) {
+      ms /= 1.35;
+    }
+    return Math.round(ms);
   }
 
   public consumeIngredients(recipe: RecipeDef): boolean {
@@ -976,6 +1028,14 @@ export class GameState {
     for (const ing of recipe.ingredients) {
       const needed = this.getStructureCostCount(ing.itemId, ing.count, isBuild);
       this.removeItem(ing.itemId, needed);
+      if (this.marketSoldVolume[ing.itemId] !== undefined) {
+        const nextVol = Math.max(0, this.marketSoldVolume[ing.itemId] - needed * 0.5);
+        if (nextVol <= 0.5) {
+          delete this.marketSoldVolume[ing.itemId];
+        } else {
+          this.marketSoldVolume[ing.itemId] = nextVol;
+        }
+      }
     }
     return true;
   }
@@ -1065,18 +1125,75 @@ export class GameState {
     return true;
   }
 
+  public getNextStokeCost(): number {
+    return getStokeCost(this.stokeCount);
+  }
+
+  public payForStoke(): { ok: boolean; cost: number } {
+    const cost = this.getNextStokeCost();
+    if (this._coins < cost) return { ok: false, cost };
+    this.coins = this._coins - cost;
+    this.stokeCount += 1;
+    this.emit();
+    return { ok: true, cost };
+  }
+
+  public getDynamicSellQuote(itemId: string, count = 1): MarketQuote {
+    const def = ITEMS[itemId];
+    const baseSellValue = def?.sellValue ?? 0;
+    const ownedCount = this.getItemCount(itemId);
+    const soldVolume = this.marketSoldVolume[itemId] ?? 0;
+    const barterMult = this.hasSkill('economy_barter') ? 1.5 : 1;
+    return calculateDynamicSellTotal(baseSellValue, count, ownedCount, soldVolume, barterMult);
+  }
+
   public sellItem(itemId: string, count = 1): number {
+    if (this.isItemEquipped(itemId)) return 0;
     const def = ITEMS[itemId];
     if (!def || def.sellValue <= 0) return 0;
-    const have = this.inventory[itemId] ?? 0;
+    const have = this.getBagItemCount(itemId);
     const qty = Math.min(have, count);
     if (qty <= 0) return 0;
+    const quote = this.getDynamicSellQuote(itemId, qty);
     this.removeItem(itemId, qty);
-    const mult = this.hasSkill('economy_barter') ? 1.5 : 1;
-    const earned = Math.round(def.sellValue * qty * mult);
-    this.coins = this._coins + earned;
+    this.coins = this._coins + quote.total;
+    this.marketSoldVolume[itemId] = (this.marketSoldVolume[itemId] ?? 0) + qty;
     this.emit();
-    return earned;
+    return quote.total;
+  }
+
+  public advanceMarketDay(dayNumber: number): void {
+    if (dayNumber > this.marketLastDecayDay) {
+      this.marketSoldVolume = decayMarketVolume(
+        this.marketSoldVolume,
+        dayNumber - this.marketLastDecayDay,
+      );
+      this.marketLastDecayDay = dayNumber;
+    }
+  }
+
+  public setSpawnPoint(x: number, y: number, label = 'Home Bed'): void {
+    this.spawnPoint = { x, y, label };
+    this.emit();
+  }
+
+  public clearSpawnPoint(): void {
+    this.spawnPoint = null;
+    this.emit();
+  }
+
+  public applyDeathRevival(): {
+    fee: number;
+    spawnPoint: { x: number; y: number; label: string } | null;
+  } {
+    const fee = getDeathRevivalFee(this._coins);
+    if (fee > 0) {
+      this.coins = this._coins - fee;
+    }
+    this.hp = Math.round(this.getMaxHp() * 0.6);
+    this.energy = this.getMaxEnergy();
+    this.emit();
+    return { fee, spawnPoint: this.spawnPoint };
   }
 
   public getArmorDefense(): number {
@@ -1511,6 +1628,10 @@ export class GameState {
       unlockedMenuTabs: [...this.unlockedMenuTabs],
       savedAt: Date.now(),
       playerPos: this.playerPos,
+      stokeCount: this.stokeCount,
+      marketSoldVolume: { ...this.marketSoldVolume },
+      marketLastDecayDay: this.marketLastDecayDay,
+      spawnPoint: this.spawnPoint,
     };
     const key = this.getSlotKey(slot);
     const serialized = JSON.stringify(data);
@@ -1714,6 +1835,27 @@ export class GameState {
             : [],
       );
       this.playerPos = data.playerPos;
+      this.stokeCount =
+        typeof data.stokeCount === 'number' && data.stokeCount >= 0 ? Math.floor(data.stokeCount) : 0;
+      this.marketSoldVolume =
+        data.marketSoldVolume && typeof data.marketSoldVolume === 'object'
+          ? { ...data.marketSoldVolume }
+          : {};
+      this.marketLastDecayDay =
+        typeof data.marketLastDecayDay === 'number' && data.marketLastDecayDay >= 1
+          ? Math.floor(data.marketLastDecayDay)
+          : 1;
+      this.spawnPoint =
+        data.spawnPoint &&
+        typeof data.spawnPoint.x === 'number' &&
+        typeof data.spawnPoint.y === 'number'
+          ? {
+              x: data.spawnPoint.x,
+              y: data.spawnPoint.y,
+              label: typeof data.spawnPoint.label === 'string' ? data.spawnPoint.label : 'Home Bed',
+            }
+          : null;
+      this.pendingToast = null;
       this.emit();
       return true;
     } catch {

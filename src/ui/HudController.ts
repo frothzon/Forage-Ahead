@@ -44,9 +44,10 @@ import {
 import { MONSTERS } from '../data/monsters';
 import { IMPLEMENTED_FEATURES, OUTSTANDING_ITEMS } from '../data/projectProgress';
 import { QUESTS, getQuestById } from '../data/quests';
-import { RECIPES, type CraftingStation } from '../data/recipes';
+import { RECIPES, type CraftingStation, type RecipeDef } from '../data/recipes';
 import { PILLAR_META, SKILLS, type SkillPillar } from '../data/skills';
 import { getFamiliarSpecForClass } from '../data/familiars';
+import { getReforgeCoinCost } from '../data/economy';
 
 /** Clamps the `#mobile-build-layer` anchor (translate(-50%, -100%)) inside safe viewport bounds. */
 export function clampMobileBuildControlPos(
@@ -70,6 +71,24 @@ export function clampMobileBuildControlPos(
     x: Math.max(minX, Math.min(maxX, screenX)),
     y: Math.max(minY, Math.min(maxY, screenY)),
   };
+}
+
+/** Computes how many times `rec` can be crafted/placed given current inventory and coins. */
+export function getMaxCraftableCount(
+  rec: RecipeDef,
+  inventory: Record<string, number>,
+  coins: number,
+): number {
+  let maxCount = Infinity;
+  for (const ing of rec.ingredients) {
+    if (ing.count <= 0) continue;
+    const have = Math.max(0, inventory[ing.itemId] ?? 0);
+    maxCount = Math.min(maxCount, Math.floor(have / ing.count));
+  }
+  if (rec.coinCost && rec.coinCost > 0) {
+    maxCount = Math.min(maxCount, Math.floor(Math.max(0, coins) / rec.coinCost));
+  }
+  return Math.max(0, maxCount);
 }
 
 export type HudModal = 'none' | 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'progress';
@@ -599,6 +618,100 @@ export class HudController {
       spark.style.setProperty('--sy', `${sp.sy}px`);
       this.root.appendChild(spark);
       window.setTimeout(() => spark.remove(), 650);
+    }
+  }
+
+  private pulseCoinCounters(kind: 'earn' | 'spend'): void {
+    const cls = kind === 'earn' ? 'hud-coin-earn' : 'hud-coin-spend';
+    const hudPlate = this.chromeLayer?.querySelector<HTMLElement>('#hud-coins-val')?.parentElement ?? null;
+    const modalCoins = this.modalLayer?.querySelector<HTMLElement>('#hud-modal-coins') ?? null;
+    for (const el of [hudPlate, modalCoins]) {
+      if (!el) continue;
+      el.classList.remove('hud-coin-earn', 'hud-coin-spend');
+      void el.offsetWidth;
+      el.classList.add(cls);
+      window.setTimeout(() => el.classList.remove(cls), 420);
+    }
+  }
+
+  private spawnGoldDeltaPop(
+    rect: DOMRect | { left: number; top: number; width: number; height: number },
+    delta: number,
+    subtitle?: string,
+    sparkCount = 6,
+  ): void {
+    const cx = rect.width > 0 ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    const cy = rect.height > 0 ? rect.top - 4 : window.innerHeight * 0.42;
+    const isSpend = delta < 0;
+    const amountStr = isSpend
+      ? `-${formatCompactNumber(Math.abs(delta))}g`
+      : `+${formatCompactNumber(delta)}g`;
+
+    const popup = document.createElement('div');
+    popup.className = `gold-delta-pop ${isSpend ? 'spend' : 'earn'}`;
+    popup.style.left = `${Math.round(cx)}px`;
+    popup.style.top = `${Math.round(cy)}px`;
+
+    const coinImg = document.createElement('img');
+    coinImg.src = 'assets/sprout_ui/vitals/coin_sm_1.png';
+    coinImg.className = 'px-icon';
+    coinImg.style.width = '14px';
+    coinImg.style.height = '14px';
+    popup.appendChild(coinImg);
+
+    const amtSpan = document.createElement('span');
+    amtSpan.textContent = amountStr;
+    popup.appendChild(amtSpan);
+
+    if (subtitle) {
+      const subSpan = document.createElement('span');
+      subSpan.style.fontSize = '11px';
+      subSpan.style.fontWeight = '700';
+      subSpan.style.opacity = '0.92';
+      subSpan.textContent = subtitle;
+      popup.appendChild(subSpan);
+    }
+
+    this.root.appendChild(popup);
+    window.setTimeout(() => popup.remove(), 1000);
+
+    for (let i = 0; i < sparkCount; i++) {
+      const angle = (Math.PI * 2 * i) / Math.max(1, sparkCount) - Math.PI / 2;
+      const dist = 24 + (i % 2) * 12;
+      const spark = document.createElement('span');
+      spark.className = 'craft-pop-spark';
+      spark.textContent = isSpend && i % 2 === 0 ? '⚡' : '✦';
+      if (isSpend) spark.style.color = i % 2 === 0 ? '#ff9b85' : '#ffe066';
+      spark.style.left = `${Math.round(cx)}px`;
+      spark.style.top = `${Math.round(cy - 4)}px`;
+      spark.style.setProperty('--sx', `${Math.round(Math.cos(angle) * dist)}px`);
+      spark.style.setProperty('--sy', `${Math.round(Math.sin(angle) * dist - 8)}px`);
+      this.root.appendChild(spark);
+      window.setTimeout(() => spark.remove(), 1000);
+    }
+  }
+
+  private showStokeJuice(rect: DOMRect, cost: number): void {
+    this.spawnGoldDeltaPop(rect, -cost, undefined, 7);
+
+    const cx = rect.width > 0 ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    const cy = rect.height > 0 ? rect.top - 26 : window.innerHeight * 0.38;
+    const burst = document.createElement('div');
+    burst.className = 'stoke-burst-pop';
+    burst.style.left = `${Math.round(cx)}px`;
+    burst.style.top = `${Math.round(cy)}px`;
+    burst.textContent = '⚡ +25% SPEED!';
+    this.root.appendChild(burst);
+    window.setTimeout(() => burst.remove(), 1000);
+
+    this.pulseCoinCounters('spend');
+
+    const fill = this.modalLayer?.querySelector<HTMLElement>('#hud-queue-fill-0');
+    if (fill) {
+      fill.classList.remove('queue-bar-flash');
+      void fill.offsetWidth;
+      fill.classList.add('queue-bar-flash');
+      window.setTimeout(() => fill.classList.remove('queue-bar-flash'), 450);
     }
   }
 
@@ -1253,6 +1366,85 @@ export class HudController {
         0%, 100% { opacity: 0.42; }
         50% { opacity: 0.85; }
       }
+      @keyframes goldDeltaRise {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+        18% { opacity: 1; transform: translate(-50%, calc(-50% - 10px)) scale(1.18); }
+        40% { opacity: 1; transform: translate(-50%, calc(-50% - 20px)) scale(1); }
+        100% { opacity: 0; transform: translate(-50%, calc(-50% - 44px)) scale(0.96); }
+      }
+      @keyframes stokeBurstRise {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+        20% { opacity: 1; transform: translate(-50%, calc(-50% - 10px)) scale(1.2); }
+        45% { opacity: 1; transform: translate(-50%, calc(-50% - 18px)) scale(1); }
+        100% { opacity: 0; transform: translate(-50%, calc(-50% - 38px)) scale(0.96); }
+      }
+      @keyframes hudCoinPulseEarn {
+        0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255, 210, 66, 0)); }
+        40% { transform: scale(1.24); filter: drop-shadow(0 0 10px rgba(255, 210, 66, 0.95)); }
+        100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255, 210, 66, 0)); }
+      }
+      @keyframes hudCoinPulseSpend {
+        0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255, 107, 120, 0)); }
+        30% { transform: scale(0.92); filter: drop-shadow(0 0 8px rgba(255, 107, 120, 0.9)); }
+        65% { transform: scale(1.08); filter: drop-shadow(0 0 6px rgba(255, 107, 120, 0.55)); }
+        100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255, 107, 120, 0)); }
+      }
+      @keyframes hudBtnShake {
+        0%, 100% { transform: translateX(0); }
+        20% { transform: translateX(-4px); }
+        40% { transform: translateX(4px); }
+        60% { transform: translateX(-4px); }
+        80% { transform: translateX(4px); }
+      }
+      @keyframes queueBarFlash {
+        0% { filter: brightness(1); box-shadow: 0 0 0 rgba(255, 224, 102, 0); }
+        35% { filter: brightness(1.55); box-shadow: 0 0 14px rgba(255, 224, 102, 0.95); }
+        100% { filter: brightness(1); box-shadow: 0 0 0 rgba(255, 224, 102, 0); }
+      }
+      .gold-delta-pop {
+        position: fixed;
+        pointer-events: none;
+        z-index: 9999;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-weight: 900;
+        font-size: 14px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        white-space: nowrap;
+        transform: translate(-50%, -50%);
+        animation: goldDeltaRise 950ms cubic-bezier(0.2, 0.85, 0.3, 1) forwards;
+        text-shadow: -1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109, 0 2px 4px rgba(0, 0, 0, 0.85);
+      }
+      .gold-delta-pop.spend {
+        color: #ff8585;
+        background: rgba(48, 14, 16, 0.92);
+        border: 1.5px solid #ff6b78;
+        box-shadow: 0 4px 12px rgba(255, 90, 100, 0.35);
+      }
+      .gold-delta-pop.earn {
+        color: #ffe066;
+        background: rgba(38, 26, 8, 0.92);
+        border: 1.5px solid #ffd242;
+        box-shadow: 0 4px 14px rgba(255, 210, 66, 0.45);
+      }
+      .stoke-burst-pop {
+        position: fixed;
+        pointer-events: none;
+        z-index: 9999;
+        white-space: nowrap;
+        font-weight: 900;
+        font-size: 13px;
+        color: #fff2a6;
+        text-shadow: -1px -1px 0 #3b2316, 1px -1px 0 #3b2316, -1px 1px 0 #3b2316, 1px 1px 0 #3b2316, 0 0 10px rgba(255, 210, 66, 0.85);
+        transform: translate(-50%, -50%);
+        animation: stokeBurstRise 900ms cubic-bezier(0.18, 0.88, 0.32, 1) forwards;
+      }
+      .hud-coin-earn { animation: hudCoinPulseEarn 380ms ease-out; }
+      .hud-coin-spend { animation: hudCoinPulseSpend 380ms ease-out; }
+      .hud-btn-shake { animation: hudBtnShake 280ms ease-in-out; }
+      .queue-bar-flash { animation: queueBarFlash 420ms ease-out; }
       #hud-low-hp-vignette {
         position: fixed;
         inset: 0;
@@ -1285,6 +1477,27 @@ export class HudController {
           left: 50% !important;
           right: auto !important;
           transform: translateX(-50%);
+        }
+        .craft-layout-grid.with-queue {
+          grid-template-columns: minmax(0, 1fr);
+          overflow-y: auto;
+        }
+        .craft-layout-grid.with-queue .craft-recipes-grid {
+          height: auto !important;
+          overflow-y: visible !important;
+          grid-template-columns: minmax(0, 1fr) !important;
+        }
+        .craft-layout-grid.with-queue .craft-queue-col {
+          order: -1;
+        }
+        .craft-station-picker {
+          gap: 6px !important;
+          max-height: 96px !important;
+        }
+        .craft-station-picker .hud-btn {
+          min-width: 34px !important;
+          padding: 3px 8px !important;
+          font-size: 11px !important;
         }
       }
       .modal-backdrop {
@@ -1360,6 +1573,34 @@ export class HudController {
       .ledger-tab-btn.active.tab-jiggle {
         animation: tabSoftJiggle 140ms ease-out;
       }
+      .craft-layout-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+      }
+      .craft-layout-grid.with-queue {
+        grid-template-columns: minmax(0, 1fr) 250px;
+      }
+      .craft-recipes-grid {
+        min-width: 0;
+      }
+      .craft-queue-col {
+        min-width: 0;
+        width: 100%;
+      }
+      .craft-station-picker {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+      .craft-station-picker .hud-btn {
+        flex-shrink: 0;
+      }
       .craft-queue-slot {
         height: 54px;
         border-style: solid;
@@ -1410,6 +1651,22 @@ export class HudController {
         white-space: nowrap;
         -webkit-font-smoothing: none;
         font-smooth: never;
+      }
+      .map-you-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        background: #24150c;
+        color: #ffe066;
+        border: 1px solid #ffe066;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        line-height: 1.2;
+        padding: 1px 5px;
+        border-radius: 3px;
+        text-shadow: none !important;
       }
       .ledger-body {
         padding: 10px 12px;
@@ -1714,7 +1971,7 @@ export class HudController {
 
   private applyMobileTextOutlines(container: HTMLElement): void {
     if (!this.isTouchDevice() && this.hudScale >= 0.999) return;
-    const skipSelector = '.hotbar-slot-num, .hotbar-slot-count, .hud-btn, .ledger-tab-btn, .touch-act-btn';
+    const skipSelector = '.hotbar-slot-num, .hotbar-slot-count, .hud-btn, .ledger-tab-btn, .touch-act-btn, .map-you-badge';
     const els = container.querySelectorAll<HTMLElement>('*');
     els.forEach((el) => {
       if (el.closest(skipSelector) || el.style.textShadow) return;
@@ -2111,9 +2368,19 @@ export class HudController {
           </div>
         `;
       } else {
+        const iconKey = rec?.iconKey ?? (rec?.outputItemId ? ITEMS[rec.outputItemId]?.iconKey : undefined);
+        const remaining = rec ? getMaxCraftableCount(rec, gameState.inventory, gameState.coins) : 0;
+        const remainingPill =
+          rec && Number.isFinite(remaining)
+            ? `<span style="background:rgba(59,35,22,0.14); border:1px solid rgba(59,35,22,0.3); color:${remaining > 0 ? '#3b2316' : '#9e2a35'}; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:800;">×${remaining} left</span>`
+            : '';
         html += `
-          <div class="hud-dock-light hud-interactive" style="position:absolute; bottom:78px; left:50%; transform:translateX(-50%); padding:4px 12px; font-size:12px; z-index:25; display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center;">
-            <span>Placing: <strong>${rec?.name ?? ''}</strong> — Left-click valid tile • Right-click or</span>
+          <div id="desktop-build-indicator" class="hud-dock-light hud-interactive" style="position:absolute; bottom:84px; left:50%; transform:translateX(-50%); padding:5px 12px; font-size:12px; z-index:40; display:flex; align-items:center; gap:8px; white-space:nowrap; box-shadow:0 6px 18px rgba(16, 10, 4, 0.45);">
+            ${iconKey ? `<div style="width:34px; height:34px; background:url('assets/sprout_ui/frames/backdrop_b3.png') no-repeat center / 100% 100%; image-rendering:pixelated; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><img src="assets/${iconKey}.png" class="px-icon" style="width:26px; height:26px;" /></div>` : ''}
+            <span style="background:#5a7d2b; color:#fff8e6; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:800; letter-spacing:0.6px; text-shadow:none;">PLACING</span>
+            <strong style="font-size:13px; color:#3b2316;">${rec?.name ?? ''}</strong>
+            ${remainingPill}
+            <span style="font-size:11px; color:#5c3a24;">Left-click: Place • Right-click or</span>
             <button class="hud-btn" data-action="cancel-build" style="padding:1px 6px;">Cancel [Esc]</button>
           </div>
         `;
@@ -2184,6 +2451,7 @@ export class HudController {
     if (def.stats?.speedPct) stats.push(`SPD +${def.stats.speedPct}%`);
     if (def.healHp) stats.push(`+${def.healHp} HP`);
     if (def.healEnergy) stats.push(`+${def.healEnergy} EN`);
+    const q = def.sellValue > 0 ? gameState.getDynamicSellQuote(itemId, 1) : null;
     this.tooltipEl.innerHTML = `
       <div style="display:flex; align-items:center; gap:7px; margin-bottom:4px;">
         ${def.iconKey ? `<img src="assets/${def.iconKey}.png" class="px-icon" style="width:22px; height:22px;" />` : ''}
@@ -2194,7 +2462,7 @@ export class HudController {
       </div>
       ${stats.length ? `<div style="color:#8ef5a7; font-size:10px; font-weight:600; margin-bottom:3px;">${stats.join(' • ')}</div>` : ''}
       <div style="color:#d2e2f2; font-size:10px;">${def.description}</div>
-      ${def.sellValue > 0 ? `<div style="margin-top:4px; font-size:9px; color:#ffd95a;">Sell: ${def.sellValue}g</div>` : ''}
+      ${q ? `<div style="margin-top:4px; font-size:9px; color:#ffd95a;">Sell: ${formatCompactNumber(q.total)}g <span style="color:${q.trend.color};">${q.trend.arrow} ${q.trend.pct}%</span></div>` : ''}
     `;
     this.tooltipEl.style.display = 'block';
     const s = this.hudScale || 1;
@@ -2429,7 +2697,7 @@ export class HudController {
                 <span style="color:#ffe066;">LV.${gameState.level} ${gameState.heroClass.toUpperCase()}</span>
                 <span>♥ ${Math.ceil(gameState.hp)}/${maxHp}</span>
                 <span>⚡ ${Math.ceil(gameState.energy)}/${maxEn}</span>
-                <span style="color:#ffd95a; display:inline-flex; align-items:center; gap:3px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" />${formatCompactNumber(gameState.coins)}g</span>
+                <span id="hud-modal-coins" style="color:#ffd95a; display:inline-flex; align-items:center; gap:3px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" />${formatCompactNumber(gameState.coins)}g</span>
                 ${gameState.skillPoints > 0 ? `<span style="color:#8ef5a7;">+${gameState.skillPoints} SP</span>` : ''}
               </span>
               <button class="hud-btn tan" data-modal-action="save" style="padding:1px 7px; font-size:11px;"><img src="assets/hud_icons/save.png" class="px-icon" style="width:12px; height:12px;" />Save</button>
@@ -2603,7 +2871,10 @@ export class HudController {
     const rarity = gameState.getGearRarity(itemId, instId);
     const activeStats = def.stats ? gameState.getGearStats(itemId, instId) : undefined;
     const slotCount = bagIdx >= 0 ? bagSlot?.count ?? 0 : 1;
-    const sellEach = Math.round(def.sellValue * (gameState.hasSkill('economy_barter') ? 1.5 : 1));
+    const quote1 = gameState.getDynamicSellQuote(itemId, 1);
+    const quoteAll = slotCount > 1 ? gameState.getDynamicSellQuote(itemId, slotCount) : quote1;
+    const reforgeCost = getReforgeCoinCost(inst?.reforgeCount ?? 0);
+    const isEquippedItem = gameState.isItemEquipped(itemId);
 
     const statsList = activeStats
       ? Object.entries(activeStats)
@@ -2625,10 +2896,13 @@ export class HudController {
       : '';
 
     // Diablo Stat Comparison when inspecting bag gear against equipped gear
+    const cmp = !isEquip && def.equipSlot ? gameState.compareGearStats(itemId, instId) : null;
+    const alreadyEquippedSame = Boolean(cmp?.isAlreadyEquipped);
     let compareHtml = '';
-    if (!isEquip && def.equipSlot) {
-      const cmp = gameState.compareGearStats(itemId, instId);
-      if (cmp) {
+    if (cmp) {
+      if (alreadyEquippedSame) {
+        compareHtml = `<div style="margin-top:8px; padding-top:8px; border-top:1px solid #2b3f59; font-size:11px; color:#9db6cf;">Already equipped in <strong>${EQUIP_SLOT_LABELS[cmp.slot]}</strong> — no stat change.</div>`;
+      } else {
         const eqName = cmp.equippedId ? ITEMS[cmp.equippedId]?.name ?? 'Equipped' : 'Nothing Equipped';
         compareHtml = `
           <div style="margin-top:8px; padding-top:8px; border-top:1px solid #2b3f59;">
@@ -2693,23 +2967,36 @@ export class HudController {
           isEquip
             ? `<button class="hud-btn" data-inspect-act="unequip">Unequip</button>`
             : `
-              ${def.equipSlot ? `<button class="hud-btn primary" data-inspect-act="equip">Equip</button>` : ''}
-              ${def.equipSlot && def.rarity !== 'relic' ? `<button class="hud-btn gold" data-inspect-act="reforge" title="Reroll & upgrade rarity (${35 + (inst?.reforgeCount ?? 0) * 20}g + 2 Iron Ingot)">Reforge (${35 + (inst?.reforgeCount ?? 0) * 20}g)</button>` : ''}
+              ${
+                def.equipSlot
+                  ? alreadyEquippedSame
+                    ? `<button class="hud-btn" disabled style="opacity:0.55; cursor:not-allowed;" title="Already equipped">Equipped</button>`
+                    : `<button class="hud-btn primary" data-inspect-act="equip">Equip</button>`
+                  : ''
+              }
+              ${def.equipSlot && def.rarity !== 'relic' ? `<button class="hud-btn gold" data-inspect-act="reforge" title="Reroll & upgrade rarity (${formatCompactNumber(reforgeCost)}g + 2 Iron Ingot)">Reforge (${formatCompactNumber(reforgeCost)}g)</button>` : ''}
               ${def.healHp || def.healEnergy ? `<button class="hud-btn primary" data-inspect-act="use">Use</button>` : ''}
               <button class="hud-btn" data-inspect-act="move">Move Slot</button>
               ${
-                def.sellValue > 0 && slotCount > 0
-                  ? `<button class="hud-btn gold" data-inspect-act="sell1">Sell 1 (+${formatCompactNumber(sellEach)}g)</button>`
-                  : ''
-              }
-              ${
-                def.sellValue > 0 && slotCount > 1
-                  ? `<button class="hud-btn gold" data-inspect-act="sellall">Sell ${formatCompactNumber(slotCount)} (+${formatCompactNumber(sellEach * slotCount)}g)</button>`
-                  : ''
+                def.sellValue > 0 && slotCount > 0 && isEquippedItem
+                  ? `<button class="hud-btn" disabled title="Unequip before selling" style="opacity:0.55; cursor:not-allowed;">Equipped (Unequip to Sell)</button>`
+                  : `
+                    ${
+                      def.sellValue > 0 && slotCount > 0
+                        ? `<button class="hud-btn gold" data-inspect-act="sell1">Sell 1 (+${formatCompactNumber(quote1.total)}g)</button>`
+                        : ''
+                    }
+                    ${
+                      def.sellValue > 0 && slotCount > 1
+                        ? `<button class="hud-btn gold" data-inspect-act="sellall">Sell All (+${formatCompactNumber(quoteAll.total)}g)</button>`
+                        : ''
+                    }
+                  `
               }
             `
         }
       </div>
+      ${def.sellValue > 0 ? `<div style="font-size:10px; color:${quote1.trend.color}; margin-top:4px; font-weight:700;">Market: ${quote1.trend.arrow} ${quote1.trend.label} (${quote1.trend.pct}%)</div>` : ''}
     `;
   }
 
@@ -2798,12 +3085,12 @@ export class HudController {
       } else {
         const stationPicker =
           stations.length > 1
-            ? `<div style="display:flex; gap:4px; align-items:center;">
-                <span style="font-size:10px; color:#9db6cf;">Station:</span>
+            ? `<div class="craft-station-picker" style="display:flex; flex-wrap:wrap; align-items:center; gap:4px; width:100%; box-sizing:border-box; max-height:72px; overflow-y:auto; padding-top:2px;">
+                <span style="font-size:10px; font-weight:700; color:#f2d9b1; white-space:nowrap; margin-right:2px;">Station:</span>
                 ${stations
                   .map(
                     (s, i) =>
-                      `<button class="hud-btn ${s.id === selectedStation.id ? 'gold' : ''}" data-pick-station="${s.id}" style="padding:2px 6px; font-size:10px;">#${i + 1}</button>`,
+                      `<button class="hud-btn ${s.id === selectedStation.id ? 'gold' : ''}" data-pick-station="${s.id}" title="Station #${i + 1} (${s.craftQueue.length}/${s.maxQueueSize})" style="padding:2px 6px; font-size:10px; min-width:28px; white-space:nowrap;">#${i + 1}</button>`,
                   )
                   .join('')}
               </div>`
@@ -2842,17 +3129,17 @@ export class HudController {
           `;
         }).join('');
 
+        const stokeCost = gameState.getNextStokeCost();
+        const canAffordStoke = gameState.coins >= stokeCost;
         queuePanelHtml = `
-          <div class="hud-panel-inset" style="padding:8px; display:flex; flex-direction:column; gap:6px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
-              <div style="font-size:11px; font-weight:800; color:#ffe596;">
+          <div class="hud-panel-inset" style="padding:8px; display:flex; flex-direction:column; gap:6px; min-width:0; box-sizing:border-box; overflow:hidden;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+              <div style="font-size:11px; font-weight:800; color:#ffe596; white-space:nowrap;">
                 Queue (${selectedStation.craftQueue.length}/${selectedStation.maxQueueSize})
               </div>
-              <div style="display:flex; gap:4px; align-items:center;">
-                ${selectedStation.craftQueue.length > 0 ? `<button class="hud-btn gold" data-stoke-station="${selectedStation.id}" style="padding:1px 6px; font-size:10px;" title="Stoke/Hammer station for a +25% craft speed burst!">⚡ Stoke</button>` : ''}
-                ${stationPicker}
-              </div>
+              ${selectedStation.craftQueue.length > 0 ? `<button class="hud-btn gold" data-stoke-station="${selectedStation.id}" style="padding:2px 8px; font-size:10px; white-space:nowrap; flex-shrink:0;${canAffordStoke ? '' : ' opacity:0.55;'}" title="Stoke/Hammer station for a +25% craft speed burst! Costs ${formatCompactNumber(stokeCost)}g (+1% each use).">⚡ Stoke (${formatCompactNumber(stokeCost)}g)</button>` : ''}
             </div>
+            ${stationPicker}
             <div style="font-size:9px; color:#f2d9b1;">Finished items drop in front of station</div>
             <div style="display:flex; flex-direction:column; gap:6px;">
               ${slotsHtml}
@@ -2875,8 +3162,8 @@ export class HudController {
             })
             .join('')}
         </div>
-        <div style="flex:1; min-height:0; display:grid; grid-template-columns:${isQueuedStation ? '1fr 250px' : '1fr'}; gap:10px; align-items:start;">
-          <div class="sl-scroll" style="height:100%; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(225px, 1fr)); gap:7px; align-content:start;">
+        <div class="craft-layout-grid ${isQueuedStation ? 'with-queue' : ''}" style="flex:1; min-height:0;">
+          <div class="sl-scroll craft-recipes-grid" style="height:100%; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(min(225px, 100%), 1fr)); gap:7px; align-content:start;">
             ${list
               .map((r) => {
                 const lockedByBlueprint = r.unlockMode === 'blueprint' && !gameState.unlockedBlueprints.has(r.id);
@@ -2936,7 +3223,7 @@ export class HudController {
               })
               .join('')}
           </div>
-          ${isQueuedStation ? `<div>${queuePanelHtml}</div>` : ''}
+          ${isQueuedStation ? `<div class="craft-queue-col">${queuePanelHtml}</div>` : ''}
         </div>
       </div>
     `;
@@ -3052,7 +3339,7 @@ export class HudController {
                       ? `<button class="hud-btn ${canBuy ? 'gold' : ''}" ${canBuy ? '' : 'disabled'} data-buy-island="${gx},${gy}" style="padding:1px 6px; font-size:10px;">Buy ${formatCompactNumber(cost)}g</button>`
                       : `<span style="font-size:9px; color:#b8a088;">Locked (${formatCompactNumber(cost)}g)</span>`
               }
-              ${isCurrentRegion ? `<span style="font-size:8px; font-weight:800; color:#1b1109; background:#ffe066; padding:0 4px; border-radius:3px;">YOU</span>` : ''}
+              ${isCurrentRegion ? `<span class="map-you-badge" style="text-shadow: none !important;">YOU</span>` : ''}
             </div>
           </div>
         `;
@@ -3625,6 +3912,7 @@ export class HudController {
       el.onclick = () => {
         const act = el.dataset.inspectAct;
         if (!this.selectedInspect) return;
+        let earnedGold = false;
         if (act === 'unequip' && this.selectedInspect.kind === 'equip') {
           const slot = this.selectedInspect.slot;
           if (gameState.unequipToBag(slot)) {
@@ -3663,17 +3951,33 @@ export class HudController {
           } else if (act === 'move') {
             this.moveSourceBagIdx = idx;
             this.render();
-          } else if (act === 'sell1') {
-            const earned = gameState.sellItem(slot.itemId, 1);
-            if (earned > 0) SFX.playCoin();
-            if (!gameState.bagSlots[idx]) this.selectedInspect = null;
-          } else if (act === 'sellall') {
-            const earned = gameState.sellItem(slot.itemId, slot.count);
-            if (earned > 0) SFX.playCoin();
-            this.selectedInspect = null;
+          } else if (act === 'sell1' || act === 'sellall') {
+            if (gameState.isItemEquipped(slot.itemId)) {
+              SFX.playUiError();
+              this.showToast('Unequip this item before selling!');
+            } else {
+              const rect = el.getBoundingClientRect();
+              const itemName = ITEMS[slot.itemId]?.name ?? slot.itemId;
+              const sellQty = act === 'sell1' ? 1 : slot.count;
+              const earned = gameState.sellItem(slot.itemId, sellQty);
+              if (earned > 0) {
+                earnedGold = true;
+                SFX.playCoin(act === 'sellall' && sellQty > 1 ? 2 : 0);
+                this.spawnGoldDeltaPop(
+                  rect,
+                  earned,
+                  sellQty > 1 ? `×${sellQty} ${itemName}` : itemName,
+                  act === 'sellall' ? 10 : 6,
+                );
+              }
+              if (act === 'sellall' || !gameState.bagSlots[idx]) {
+                this.selectedInspect = null;
+              }
+            }
           }
         }
         this.render();
+        if (earnedGold) this.pulseCoinCounters('earn');
       };
     });
 
@@ -3713,8 +4017,16 @@ export class HudController {
     this.modalLayer.querySelectorAll<HTMLElement>('[data-stoke-station]').forEach((el) => {
       el.onclick = () => {
         const stId = el.dataset.stokeStation!;
+        const rect = el.getBoundingClientRect();
+        const stokeCost = gameState.getNextStokeCost();
         if (this.callbacks.onStokeStation?.(stId)) {
-          this.updateCraftQueueInPlace();
+          this.renderModal();
+          this.showStokeJuice(rect, stokeCost);
+        } else {
+          el.classList.remove('hud-btn-shake');
+          void el.offsetWidth;
+          el.classList.add('hud-btn-shake');
+          window.setTimeout(() => el.classList.remove('hud-btn-shake'), 300);
         }
       };
     });

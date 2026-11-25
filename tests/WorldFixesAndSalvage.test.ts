@@ -99,4 +99,99 @@ describe('World fixes, large number formatting & salvage tool', () => {
     expect(gameState.getItemCount('sword_iron')).toBe(0);
     expect(gameState.hotbar[5]).toBe('');
   });
+
+  it('tracks equipped status and blocks selling items while equipped', () => {
+    gameState.reset(gameState.heroClass);
+    gameState.equipment.tool = 'pickaxe';
+    expect(gameState.isItemEquipped('pickaxe')).toBe(true);
+
+    gameState.addItem('pickaxe', 1);
+    gameState.assignHotbarSlot(2, 'pickaxe');
+    const coinsBefore = gameState.coins;
+    const bagCountBefore = gameState.getBagItemCount('pickaxe');
+    expect(bagCountBefore).toBe(1);
+
+    const earnedWhileEquipped = gameState.sellItem('pickaxe', 1);
+    expect(earnedWhileEquipped).toBe(0);
+    expect(gameState.coins).toBe(coinsBefore);
+    expect(gameState.getBagItemCount('pickaxe')).toBe(1);
+    expect(gameState.hotbar[2]).toBe('pickaxe');
+    expect(gameState.equipment.tool).toBe('pickaxe');
+
+    expect(gameState.unequipToBag('tool')).toBe(true);
+    expect(gameState.isItemEquipped('pickaxe')).toBe(false);
+
+    const earnedAfterUnequip = gameState.sellItem('pickaxe', 1);
+    expect(earnedAfterUnequip).toBeGreaterThan(0);
+    expect(gameState.coins).toBe(coinsBefore + earnedAfterUnequip);
+  });
+
+  it('flags identical or lower-stat duplicate gear as already equipped and skips equipFromBag', () => {
+    gameState.reset(gameState.heroClass);
+    gameState.gearInstances['eq_pick'] = {
+      id: 'eq_pick',
+      itemId: 'pickaxe',
+      rarity: 'common',
+      stats: { gather: 4 },
+      reforgeCount: 0,
+    };
+    gameState.equipment.tool = 'pickaxe';
+    gameState.equippedInstanceIds.tool = 'eq_pick';
+
+    gameState.gearInstances['dup_pick'] = {
+      id: 'dup_pick',
+      itemId: 'pickaxe',
+      rarity: 'common',
+      stats: { gather: 4 },
+      reforgeCount: 0,
+    };
+    const bagIdx = gameState.bagSlots.findIndex((s) => s === null);
+    expect(bagIdx).toBeGreaterThanOrEqual(0);
+    gameState.bagSlots[bagIdx] = { itemId: 'pickaxe', count: 1, instanceId: 'dup_pick' };
+    const hotbarBefore = [...gameState.hotbar];
+
+    const cmp = gameState.compareGearStats('pickaxe', 'dup_pick');
+    expect(cmp?.isAlreadyEquipped).toBe(true);
+    expect(gameState.equipFromBag(bagIdx)).toBe(false);
+    expect(gameState.equipment.tool).toBe('pickaxe');
+    expect(gameState.equippedInstanceIds.tool).toBe('eq_pick');
+    expect(gameState.bagSlots[bagIdx]).toEqual({ itemId: 'pickaxe', count: 1, instanceId: 'dup_pick' });
+    expect(gameState.hotbar).toEqual(hotbarBefore);
+  });
+
+  it('allows equipping a strictly higher-stat reforged copy of the same item and marks different tools as not equipped', () => {
+    gameState.reset(gameState.heroClass);
+    gameState.gearInstances['eq_pick'] = {
+      id: 'eq_pick',
+      itemId: 'pickaxe',
+      rarity: 'common',
+      stats: { gather: 4 },
+      reforgeCount: 0,
+    };
+    gameState.equipment.tool = 'pickaxe';
+    gameState.equippedInstanceIds.tool = 'eq_pick';
+
+    // Different tool is not considered already equipped
+    const diffCmp = gameState.compareGearStats('pickaxe_iron');
+    expect(diffCmp?.isAlreadyEquipped).toBe(false);
+
+    // Strictly higher-stat reforged copy of pickaxe is an upgrade
+    gameState.gearInstances['upg_pick'] = {
+      id: 'upg_pick',
+      itemId: 'pickaxe',
+      rarity: 'rare',
+      stats: { gather: 6, critPct: 3 },
+      reforgeCount: 1,
+    };
+    const bagIdx = gameState.bagSlots.findIndex((s) => s === null);
+    expect(bagIdx).toBeGreaterThanOrEqual(0);
+    gameState.bagSlots[bagIdx] = { itemId: 'pickaxe', count: 1, instanceId: 'upg_pick' };
+
+    const upgCmp = gameState.compareGearStats('pickaxe', 'upg_pick');
+    expect(upgCmp?.isAlreadyEquipped).toBe(false);
+    expect(gameState.equipFromBag(bagIdx)).toBe(true);
+    expect(gameState.equipment.tool).toBe('pickaxe');
+    expect(gameState.equippedInstanceIds.tool).toBe('upg_pick');
+    expect(gameState.bagSlots[bagIdx]).toEqual({ itemId: 'pickaxe', count: 1, instanceId: 'eq_pick' });
+  });
 });

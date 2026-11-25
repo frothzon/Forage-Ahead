@@ -531,8 +531,10 @@ export class FamiliarCompanion extends Phaser.GameObjects.Container {
     water?: {
       isWaterAt: (x: number, y: number) => boolean;
       onSplash: (x: number, y: number) => void;
+      isBlockedByWall?: (x: number, y: number) => boolean;
     },
   ): void {
+    const isBlocked = water?.isBlockedByWall;
     const profile = gameState.getFamiliarCombatProfile();
     this.syncAppearance(profile.isApex);
 
@@ -555,6 +557,9 @@ export class FamiliarCompanion extends Phaser.GameObjects.Container {
     }
 
     const foe = assists?.findTarget() ?? null;
+    if (!foe && this.strikeLungeMs > 0) {
+      this.strikeLungeMs = 0;
+    }
 
     if (assists) {
       // Combat
@@ -641,6 +646,25 @@ export class FamiliarCompanion extends Phaser.GameObjects.Container {
       restX = targetX + (fdx / fdist) * offset;
       restY = targetY + (fdy / fdist) * offset;
     }
+    if (isBlocked && isBlocked(restX, restY)) {
+      const fallbacks: ReadonlyArray<[number, number]> = [
+        [16, 6],
+        [-12, -10],
+        [12, -10],
+        [0, 14],
+        [0, -14],
+        [0, 0],
+      ];
+      for (const [ox, oy] of fallbacks) {
+        const cx = targetX + ox;
+        const cy = targetY + oy;
+        if (!isBlocked(cx, cy)) {
+          restX = cx;
+          restY = cy;
+          break;
+        }
+      }
+    }
 
     const goalX = this.strikeLungeMs > 0 ? this.strikeTargetX : restX;
     const goalY = this.strikeLungeMs > 0 ? this.strikeTargetY : restY;
@@ -649,15 +673,43 @@ export class FamiliarCompanion extends Phaser.GameObjects.Container {
     const dist = Math.hypot(dx, dy);
     let isMoving = false;
     if (dist > 140) {
-      this.x = restX;
-      this.y = restY;
+      if (!isBlocked || !isBlocked(restX, restY)) {
+        this.x = restX;
+        this.y = restY;
+      } else {
+        this.x = targetX;
+        this.y = targetY;
+      }
     } else if (dist > (this.strikeLungeMs > 0 ? 4 : 14)) {
       const spd = Math.min(this.strikeLungeMs > 0 ? 185 : 98, dist * 4.0) * (dtMs / 1000);
-      this.x += (dx / dist) * spd;
-      this.y += (dy / dist) * spd;
-      this.facing = vectorToDirection(dx, dy, this.facing);
-      this.playAnim('walk');
-      isMoving = true;
+      const nextX = this.x + (dx / dist) * spd;
+      const nextY = this.y + (dy / dist) * spd;
+      if (isBlocked) {
+        if (!isBlocked(nextX, nextY)) {
+          this.x = nextX;
+          this.y = nextY;
+          isMoving = true;
+        } else if (!isBlocked(nextX, this.y)) {
+          this.x = nextX;
+          isMoving = true;
+        } else if (!isBlocked(this.x, nextY)) {
+          this.y = nextY;
+          isMoving = true;
+        } else {
+          this.strikeLungeMs = 0;
+        }
+      } else {
+        this.x = nextX;
+        this.y = nextY;
+        isMoving = true;
+      }
+
+      if (isMoving) {
+        this.facing = vectorToDirection(dx, dy, this.facing);
+        this.playAnim('walk');
+      } else {
+        this.playAnim('idle');
+      }
     } else {
       this.playAnim('idle');
     }

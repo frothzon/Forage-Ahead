@@ -1114,6 +1114,20 @@ export class DungeonScene extends Phaser.Scene {
     }
   }
 
+  private handleDungeonPlayerDeath(): void {
+    SFX.playStinger('defeat');
+    const { fee, spawnPoint } = gameState.applyDeathRevival();
+    if (spawnPoint) {
+      gameState.playerPos = { x: spawnPoint.x, y: spawnPoint.y };
+    } else {
+      gameState.playerPos = undefined;
+    }
+    gameState.pendingToast = `Revived at ${spawnPoint ? spawnPoint.label : 'Emerald Origin'}!${
+      fee > 0 ? ` (-${fee}g revival fee)` : ''
+    }`;
+    this.transitionToOverworld();
+  }
+
   private transitionToOverworld(): void {
     if (transitionManager.isActive) return;
     SFX.playPortalWarp();
@@ -1928,9 +1942,7 @@ export class DungeonScene extends Phaser.Scene {
           if (this.player.takeDamage(dmg, dx, dy, this.isWalkable)) {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${dmg}`, '#ff5e6c');
             if (gameState.hp <= 0) {
-              SFX.playStinger('defeat');
-              gameState.hp = Math.round(gameState.getMaxHp() * 0.6);
-              this.transitionToOverworld();
+              this.handleDungeonPlayerDeath();
             }
           }
         },
@@ -1993,9 +2005,7 @@ export class DungeonScene extends Phaser.Scene {
           if (this.player.takeDamage(p.damage, p.vx / spd, p.vy / spd, this.isWalkable)) {
             spawnFloatingText(this, this.player.x, this.player.y - 14, `-${p.damage}`, '#ff5e6c');
             if (gameState.hp <= 0) {
-              SFX.playStinger('defeat');
-              gameState.hp = Math.round(gameState.getMaxHp() * 0.6);
-              this.transitionToOverworld();
+              this.handleDungeonPlayerDeath();
               return;
             }
           }

@@ -57,7 +57,7 @@ export class WeatherSystem {
   private hazeColor = 0xe6ba78;
   private hazeVw = 0;
   private hazeVh = 0;
-  private cloudOpacity = 0.28;
+  private cloudOpacity = 0.20;
   private cloudDriftX = 0;
   private cloudDriftY = 0;
   private particles: WeatherParticle[] = [];
@@ -114,7 +114,7 @@ export class WeatherSystem {
         // Smoothstep threshold into soft organic cloud shadow billows
         const t = Math.max(0, Math.min(1, (n + 0.04) / 0.34));
         const smooth = t * t * (3 - 2 * t);
-        const alpha = Math.round(smooth * 132); // up to ~52% shadow opacity when tile alpha = 1
+        const alpha = Math.round(smooth * 96); // up to ~38% shadow opacity when tile alpha = 1
         const i = (y * size + x) * 4;
         data[i] = 10;
         data[i + 1] = 20;
@@ -210,10 +210,10 @@ export class WeatherSystem {
     // 1. Perlin-Noise Cloud Shadows drifting in world coordinates with wind
     const targetCloudAlpha =
       this.weather === 'cloudy'
-        ? 0.92
+        ? 0.72
         : this.weather === 'rain' || this.weather === 'snow' || this.weather === 'sandstorm'
-          ? 0.68
-          : 0.28;
+          ? 0.52
+          : 0.20;
     this.cloudOpacity += (targetCloudAlpha - this.cloudOpacity) * Math.min(1, dt * 2.5);
 
     const driftSpeed = 16 * Math.max(0.45, this.wind.strength);

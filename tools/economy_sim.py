@@ -25,9 +25,10 @@ from dataclasses import dataclass, field
 # ---------------------------------------------------------------------------
 # 1. Game constants (Per-Island Respawn + 40 Max Density)
 # ---------------------------------------------------------------------------
-RESPAWN_INTERVAL_PER_ISLAND_S = 4.2   # 1 node / 4.2s PER OWNED ISLAND (was global!)
+RESPAWN_INTERVAL_PER_ISLAND_S = 3.36  # 1 node / 3.36s PER OWNED ISLAND (was global!)
 OLD_MAX_NODES_PER_ISLAND = 32
-NEW_MAX_NODES_PER_ISLAND = 40         # +25% density per island (starter: 26 -> 34)
+NEW_MAX_NODES_PER_ISLAND = 50         # +56% density per island (starter: 26 -> 42)
+DAY_NIGHT_SPAWN_FACTOR = 0.5463 + 0.4537 * 0.55  # 0.7958 effective day/night spawn rate
 DENSITY_SPEEDUP = (NEW_MAX_NODES_PER_ISLAND / OLD_MAX_NODES_PER_ISLAND) ** 0.5  # ~1.12x faster node-to-node
 
 NODE_DROPS: dict[str, list[tuple[str, int, int]]] = {
@@ -190,7 +191,7 @@ def rod_nodes_per_hour(stage: Stage) -> float:
 
 
 def income_per_hour_per_island_spawn(stage: Stage, lighthouse_fn) -> dict[str, float]:
-    max_spawn_per_island_hr = 3600.0 / RESPAWN_INTERVAL_PER_ISLAND_S
+    max_spawn_per_island_hr = (3600.0 / RESPAWN_INTERVAL_PER_ISLAND_S) * DAY_NIGHT_SPAWN_FACTOR
     total_harvest_demand = stage.active_nodes_per_hr + rod_nodes_per_hour(stage)
 
     lh_mult = lighthouse_fn(stage)

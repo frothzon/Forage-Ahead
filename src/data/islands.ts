@@ -89,7 +89,7 @@ export const ISLANDS: IslandSpec[] = [
     monsterPool: ['Slime'],
     maxMonsters: 1,
   },
-  { gx: 3, gy: 1, name: 'Ember Wastes', biome: 'infernal', baseCost: 195, shape: 'cove', monsterPool: ['Imp', 'Gog'], maxMonsters: 3 },
+  { gx: 3, gy: 1, name: 'Ember Wastes', biome: 'infernal', baseCost: 195, shape: 'cove', monsterPool: ['Imp', 'Hellhound'], maxMonsters: 3 },
   { gx: 4, gy: 1, name: 'Sulfur Crag', biome: 'infernal', baseCost: 250, shape: 'twin', monsterPool: ['Hellhound', 'Demon'], maxMonsters: 3 },
 
   // Row 2 (Center Row)

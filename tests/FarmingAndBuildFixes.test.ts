@@ -4,6 +4,7 @@ import { RECIPES } from '../src/data/recipes';
 import { getMaxHarvestsForCrop, SPROUT_CROPS } from '../src/data/sproutCrops';
 import { gameState } from '../src/core/GameState';
 import { computeOverlayTile, type OverlayType } from '../src/world/AutoTiler';
+import { evaluateHoeTile } from '../src/world/hoeRules';
 
 describe('Farming overhaul & build fixes', () => {
   beforeEach(() => {
@@ -61,5 +62,52 @@ describe('Farming overhaul & build fixes', () => {
     const isolatedLeft = computeOverlayTile(grid, 1, 1);
     expect(isolatedLeft?.tilesetKey).toBe('sprout_tilled_dirt');
     expect(isolatedLeft?.frame).not.toBe(connectedLeft?.frame);
+  });
+
+  it('evaluates hoe fertile-soil target tiles accurately', () => {
+    const base = {
+      tx: 10,
+      ty: 12,
+      worldTiles: 40,
+      isLandTile: true,
+      overlay: 'none',
+      hasBuilding: false,
+      hasNode: false,
+    };
+
+    expect(evaluateHoeTile(base)).toEqual({ valid: true });
+    expect(evaluateHoeTile({ ...base, overlay: undefined })).toEqual({ valid: true });
+    expect(evaluateHoeTile({ ...base, overlay: 'dirt' })).toEqual({
+      valid: false,
+      reason: 'already_fertile',
+    });
+    expect(evaluateHoeTile({ ...base, overlay: 'road' })).toEqual({
+      valid: false,
+      reason: 'blocked_overlay',
+    });
+    expect(evaluateHoeTile({ ...base, overlay: 'bridge' })).toEqual({
+      valid: false,
+      reason: 'blocked_overlay',
+    });
+    expect(evaluateHoeTile({ ...base, isLandTile: false })).toEqual({
+      valid: false,
+      reason: 'not_land',
+    });
+    expect(evaluateHoeTile({ ...base, hasBuilding: true })).toEqual({
+      valid: false,
+      reason: 'blocked_entity',
+    });
+    expect(evaluateHoeTile({ ...base, hasNode: true })).toEqual({
+      valid: false,
+      reason: 'blocked_entity',
+    });
+    expect(evaluateHoeTile({ ...base, tx: -1 })).toEqual({
+      valid: false,
+      reason: 'out_of_bounds',
+    });
+    expect(evaluateHoeTile({ ...base, ty: 40 })).toEqual({
+      valid: false,
+      reason: 'out_of_bounds',
+    });
   });
 });
