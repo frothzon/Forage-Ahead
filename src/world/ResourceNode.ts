@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { NODE_XP_MULT } from '../data/economy';
 import type { BiomeKind } from '../data/islands';
 import { applyWindShader } from './WindShader';
 import { playSpawnGrowAndJello } from '../vfx/SpawnJuice';
@@ -65,7 +66,7 @@ export class ResourceNode extends Phaser.GameObjects.Container {
     const cfg = ResourceNode.getConfig(kind, biome);
     this.maxHp = cfg.hp;
     this.hp = cfg.hp;
-    this.xpReward = cfg.xp;
+    this.xpReward = Math.round(cfg.xp * NODE_XP_MULT);
     this.drops = cfg.drops;
     this.requiredTool = cfg.tool;
     this.solid = cfg.solid;

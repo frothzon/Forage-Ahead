@@ -33,20 +33,46 @@ export function getLighthouseMultiplier(countInRange: number, beaconScale = 1): 
 
 /**
  * Exponential coin crafting surcharge by gear level:
- *   coins = round((25 * 1.13^level) / 5) * 5
+ *   coins = round((34 * 1.13^level) / 5) * 5
  */
 export function gearCoinCost(level: number): number {
   const lv = Math.max(1, level);
-  return Math.round((25 * Math.pow(1.13, lv)) / 5) * 5;
+  return Math.round((34 * Math.pow(1.13, lv)) / 5) * 5;
 }
 
 /**
  * Exponential island purchase price scaling with owned islands:
- *   price = round((baseCost * 1.18^ownedCount) / 5) * 5
+ *   price = round((baseCost * 1.20^ownedCount) / 5) * 5
  */
 export function scaledIslandCost(baseCost: number, ownedCount: number): number {
   if (baseCost <= 0) return 0;
-  return Math.round((baseCost * Math.pow(1.18, Math.max(0, ownedCount))) / 5) * 5;
+  return Math.round((baseCost * Math.pow(1.20, Math.max(0, ownedCount))) / 5) * 5;
+}
+
+export const COMBAT_XP_MULT = 1.2;
+export const NODE_XP_MULT = 1.15;
+
+/**
+ * XP required to advance from `level` to `level + 1` (10-20h campaign curve).
+ */
+export function getXpForLevel(level: number): number {
+  const lv = Math.max(1, Math.floor(level));
+  return Math.round(290 + lv * 115 + lv * lv * 3);
+}
+
+/**
+ * Void Spire XP bonus multiplier per floor (+2.5% per floor).
+ */
+export function getVoidSpireXpMultiplier(floor: number): number {
+  return 1 + Math.max(0, Math.floor(floor)) * 0.025;
+}
+
+/**
+ * Crafting XP reward scaled by total ingredient count, clamped to [12, 28].
+ */
+export function getCraftXpReward(ingredientTotal: number): number {
+  const count = Math.max(1, Math.floor(ingredientTotal));
+  return Math.max(12, Math.min(28, 10 + Math.round(count * 0.75)));
 }
 
 export const BASE_STOKE_COST = 20;

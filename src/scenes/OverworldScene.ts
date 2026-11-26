@@ -21,6 +21,7 @@ import {
   ISLANDS,
   ISLAND_CELL_TILES,
   TILE_PX,
+  WORLD_GRID_SIZE,
   WORLD_TILES,
   getIslandAt,
   isDungeonPortalEnterable,
@@ -31,10 +32,12 @@ import {
 import { RECIPES, type CraftingStation, type StructureType } from '../data/recipes';
 import { ELITE_SPAWN_CHANCE, computeEliteStats, rollEliteDrops } from '../data/eliteLoot';
 import {
+  COMBAT_XP_MULT,
   MAX_FISH_SPOTS_PER_ISLAND,
   MAX_NODES_PER_ISLAND,
   NODE_RESPAWN_INTERVAL_MS,
   STARTER_ISLAND_NODES,
+  getCraftXpReward,
   getLighthouseMultiplier as computeLighthouseMultiplier,
 } from '../data/economy';
 import {
@@ -60,6 +63,7 @@ import { vectorToDirection, type Direction } from '../entities/AnimationRegistry
 import { LootDrop } from '../entities/LootDrop';
 import { FamiliarCompanion, Player } from '../entities/Player';
 import { dialogueBox } from '../ui/DialogueBox';
+import { merchantShopModal } from '../ui/MerchantShopModal';
 import { FishingMinigame, type FishBehavior } from '../ui/FishingMinigame';
 import { LockpickMinigame } from '../ui/LockpickMinigame';
 import { tryActivateGadget } from '../entities/GadgetHelper';
@@ -72,7 +76,7 @@ import {
   type AimCandidate,
   type SwordAutoTargetCandidate,
 } from '../entities/targeting';
-import { HudController, type QueuedStationType } from '../ui/HudController';
+import { HudController, type MapNpcMarker, type QueuedStationType } from '../ui/HudController';
 import { revealSequence } from '../ui/RevealSequence';
 import { getBlueprintsForMonster, getBlueprintsForNode, tryUnlockBlueprintFromPool } from '../data/blueprints';
 import {
@@ -115,6 +119,26 @@ import {
   type RodVfxKind,
 } from '../vfx/RodAndBombJuice';
 import { getBombSpec, isBombItem, type BombSpec } from '../world/bombRules';
+import { npcBrainRuntime } from '../ai/NpcBrainRuntime';
+import { startNpcConversation } from '../ai/NpcConversationController';
+import {
+  buildAnchorNpcProfiles,
+  generateProceduralTown,
+  type DayPeriod,
+  type ProceduralNpcProfile,
+} from '../data/proceduralNpcs';
+import {
+  assignWanderingNpcsToIslands,
+  computeNpcSeparationVector,
+  findGossipPairs,
+  getDayPeriod,
+  getRequiredNpcSeparationPx,
+  isSpotRespectingNpcSpace,
+  resolveNpcScheduleTarget,
+  type NpcSpacePeer,
+  type ResolvedNpcScheduleTarget,
+  type WanderingAssignment,
+} from '../world/NpcScheduleSystem';
 
 interface SceneProjectile extends ActiveProjectile {
   glow?: Phaser.GameObjects.Image;
@@ -178,6 +202,12 @@ interface NpcEntity {
   path: Array<{ x: number; y: number }>;
   pathIdx: number;
   blanketOverlay?: Phaser.GameObjects.Image;
+  profile?: ProceduralNpcProfile;
+  homeIslandGx?: number;
+  homeIslandGy?: number;
+  wanderTimerMs?: number;
+  scheduleTargetX?: number;
+  scheduleTargetY?: number;
 }
 
 interface RanchEntity {
@@ -208,6 +238,138 @@ export function computeBridgeBobY(tx: number, ty: number, timeMs: number, baseY:
 
 export function computeSalvageRefundCount(usedCount: number): number {
   return Math.max(1, Math.floor(usedCount * 0.5));
+}
+
+/**
+ * Picks a candidate tile outside `viewRect` expanded by `marginPx`, preferring
+ * the closest off-camera tile to `targetTile` (or the first off-camera candidate
+ * in caller-preferred order when `targetTile` is omitted), or falling back to
+ * the candidate farthest from the viewport center when all candidates are visible.
+ */
+export function findOffCameraSpawnTile(
+  candidates: Array<{ tx: number; ty: number }>,
+  viewRect: { left: number; right: number; top: number; bottom: number },
+  tilePx = TILE_PX,
+  marginPx = 48,
+  targetTile?: { tx: number; ty: number },
+): { tx: number; ty: number } {
+  if (candidates.length === 0) {
+    return targetTile ?? { tx: 0, ty: 0 };
+  }
+
+  const expLeft = viewRect.left - marginPx;
+  const expRight = viewRect.right + marginPx;
+  const expTop = viewRect.top - marginPx;
+  const expBottom = viewRect.bottom + marginPx;
+
+  const isOffCamera = (c: { tx: number; ty: number }): boolean => {
+    const wx = (c.tx + 0.5) * tilePx;
+    const wy = (c.ty + 0.5) * tilePx;
+    return wx < expLeft || wx > expRight || wy < expTop || wy > expBottom;
+  };
+
+  const offCamera = candidates.filter(isOffCamera);
+  if (offCamera.length > 0) {
+    if (!targetTile) {
+      return offCamera[0];
+    }
+    let best = offCamera[0];
+    let bestDistSq = Infinity;
+    for (const c of offCamera) {
+      const dx = c.tx - targetTile.tx;
+      const dy = c.ty - targetTile.ty;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestDistSq) {
+        bestDistSq = d2;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  const centerX = (viewRect.left + viewRect.right) * 0.5;
+  const centerY = (viewRect.top + viewRect.bottom) * 0.5;
+  let farthest = candidates[0];
+  let maxDistSq = -1;
+  for (const c of candidates) {
+    const wx = (c.tx + 0.5) * tilePx;
+    const wy = (c.ty + 0.5) * tilePx;
+    const dx = wx - centerX;
+    const dy = wy - centerY;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > maxDistSq) {
+      maxDistSq = d2;
+      farthest = c;
+    }
+  }
+  return farthest;
+}
+
+export interface NpcInteractCandidate {
+  id: string;
+  dist: number;
+  sleeping: boolean;
+  isAnchor: boolean;
+  hasQuestTurnIn: boolean;
+  hasQuestOffer: boolean;
+}
+
+/**
+ * Picks the best NPC to interact with within `maxRangePx`, preferring awake NPCs
+ * with a quest ready to turn in (`?`), an available quest (`!`), or anchor
+ * quest-giver status when multiple awake NPCs stand within `priorityBandPx` of
+ * the closest awake NPC.
+ */
+export function selectInteractNpcCandidate<T extends NpcInteractCandidate>(
+  candidates: T[],
+  maxRangePx = 30,
+  priorityBandPx = 8,
+): T | null {
+  const inRange = candidates.filter((c) => c.dist <= maxRangePx);
+  if (inRange.length === 0) return null;
+
+  const awake = inRange.filter((c) => !c.sleeping);
+  const pool = awake.length > 0 ? awake : inRange;
+
+  let minDist = Infinity;
+  for (const c of pool) {
+    if (c.dist < minDist) minDist = c.dist;
+  }
+
+  const getPriorityScore = (c: NpcInteractCandidate): number => {
+    if (c.hasQuestTurnIn) return 3;
+    if (c.hasQuestOffer) return 2;
+    if (c.isAnchor) return 1;
+    return 0;
+  };
+
+  let best = pool[0];
+  let bestScore = -1;
+  let bestDist = Infinity;
+  for (const c of pool) {
+    if (c.dist > minDist + priorityBandPx) continue;
+    const score = getPriorityScore(c);
+    if (score > bestScore || (score === bestScore && c.dist < bestDist)) {
+      best = c;
+      bestScore = score;
+      bestDist = c.dist;
+    }
+  }
+  return best;
+}
+
+export function shouldPauseWorldClock(dialogueActive: boolean, shopActive: boolean): boolean {
+  return dialogueActive || shopActive;
+}
+
+export function isNpcBusyInConversation(
+  npcId: string,
+  activeConversationNpcId: string | null,
+  dialogueActive: boolean,
+  shopActive: boolean,
+): boolean {
+  if (!activeConversationNpcId) return false;
+  return (dialogueActive || shopActive) && npcId === activeConversationNpcId;
 }
 
 export class OverworldScene extends Phaser.Scene {
@@ -301,6 +463,18 @@ export class OverworldScene extends Phaser.Scene {
   private bombs: ActiveBomb[] = [];
   private purchaseMarkers: IslandPurchaseMarker[] = [];
   private npcs: NpcEntity[] = [];
+  private activeConversationNpcId: string | null = null;
+  private npcHouseByAnchorId = new Map<
+    string,
+    { doorX: number; doorY: number; familyBedX: number; familyBedY: number }
+  >();
+  private npcProfiles = new Map<string, ProceduralNpcProfile>();
+  private townCast: ProceduralNpcProfile[] = [];
+  private gossipTimerMs = 12000;
+  private lastScheduledDay = -1;
+  private lastScheduledPeriod: DayPeriod | null = null;
+  private lastScheduledRain = false;
+  private lastNpcSyncDay = 1;
   private ranchEntities: RanchEntity[] = [];
   private animals: Array<{
     kind: 'Cow' | 'Deer' | 'Hen' | 'Rabbit';
@@ -400,6 +574,15 @@ export class OverworldScene extends Phaser.Scene {
     this.bombs = [];
     this.purchaseMarkers = [];
     this.npcs = [];
+    this.activeConversationNpcId = null;
+    this.npcHouseByAnchorId.clear();
+    this.npcProfiles.clear();
+    this.townCast = [];
+    this.gossipTimerMs = 12000;
+    this.lastScheduledDay = -1;
+    this.lastScheduledPeriod = null;
+    this.lastScheduledRain = false;
+    this.lastNpcSyncDay = 1;
     this.ranchEntities = [];
     this.animals = [];
     this.dungeonPortals = [];
@@ -416,6 +599,20 @@ export class OverworldScene extends Phaser.Scene {
     this.activeHouseGroupId = 0;
     this.bridgeSet.clear();
 
+    this.initNpcBrainsAndCast();
+    if (typeof fetch === 'function') {
+      fetch('assets/ai/forage_npcs.wsppack')
+        .then((res) =>
+          res.ok ? res.arrayBuffer() : Promise.reject(new Error('Failed to load forage_npcs.wsppack')),
+        )
+        .then((buf) => {
+          if (this.sys?.isActive()) {
+            npcBrainRuntime.loadWspPack(buf);
+          }
+        })
+        .catch(() => {});
+    }
+
     this.initGrids();
     this.buildTilemap();
 
@@ -430,6 +627,20 @@ export class OverworldScene extends Phaser.Scene {
     this.player = new Player(this, safeStart.x, safeStart.y);
     this.fox = new FamiliarCompanion(this, safeStart.x - 16, safeStart.y + 6);
 
+    const worldPx = WORLD_TILES * TILE_PX;
+    this.cameras.main.setBounds(0, 0, worldPx, worldPx);
+    this.cameras.main.setZoom(
+      computeResponsiveZoom(this.scale.width, this.scale.height, {
+        worldWidthPx: worldPx,
+        worldHeightPx: worldPx,
+        minZoom: 3,
+      }),
+    );
+    this.cameras.main.centerOn(this.player.x, this.player.y);
+
+    this.lighting = new LightingSystem(this);
+    this.weather = new WeatherSystem(this);
+    this.ocean = new OceanSystem(this);
     this.populateOwnedWorld();
 
     // Ensure player is never overlapping any restored/spawned solid node
@@ -466,15 +677,6 @@ export class OverworldScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    const worldPx = WORLD_TILES * TILE_PX;
-    this.cameras.main.setBounds(0, 0, worldPx, worldPx);
-    this.cameras.main.setZoom(
-      computeResponsiveZoom(this.scale.width, this.scale.height, {
-        worldWidthPx: worldPx,
-        worldHeightPx: worldPx,
-        minZoom: 3,
-      }),
-    );
     this.cameras.main.startFollow(this.player, true, 0.14, 0.14);
     this.cameras.main.setRoundPixels(settingsStore.get().graphics.roundPixels);
     const unsubSettings = onSettingsChange((s) => {
@@ -497,9 +699,6 @@ export class OverworldScene extends Phaser.Scene {
     };
     this.scale.on('resize', onResize);
 
-    this.lighting = new LightingSystem(this);
-    this.weather = new WeatherSystem(this);
-    this.ocean = new OceanSystem(this);
     this.cameraRig = new CameraRig(this, { maxLookAheadPx: 11 });
     this.fx = new EffectSequencer(this, {
       cameraRig: this.cameraRig,
@@ -520,6 +719,14 @@ export class OverworldScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.scale.off('resize', onResize);
       unsubSettings();
+      if (dialogueBox.isActive()) {
+        dialogueBox.close(false);
+      }
+      if (merchantShopModal.isActive()) {
+        merchantShopModal.close(false);
+      }
+      this.activeConversationNpcId = null;
+      gameState.setNpcBrainsSnapshot(npcBrainRuntime.serializeAll());
       this.fishingMinigame.finish(false);
       this.lockpickMinigame.stop();
       this.lighting.destroy();
@@ -817,6 +1024,577 @@ export class OverworldScene extends Phaser.Scene {
     }
     this.removeBridgesOnLand(0, 0, WORLD_TILES - 1, WORLD_TILES - 1, true);
     this.rebuildHouseRoofs();
+    this.syncProceduralVillagers();
+  }
+
+  private initNpcBrainsAndCast(): void {
+    const snapshot = gameState.getNpcBrainsSnapshot();
+    const hasSavedBrains = Boolean(snapshot && Object.keys(snapshot).length > 0);
+    npcBrainRuntime.hydrateAll(
+      hasSavedBrains ? snapshot : { v: 1, worldEvents: [], npcs: {} },
+    );
+
+    const anchors = buildAnchorNpcProfiles(gameState.worldSeed);
+    const town = generateProceduralTown(gameState.worldSeed);
+    this.townCast = [...anchors, ...town];
+
+    for (const profile of this.townCast) {
+      this.npcProfiles.set(profile.id, profile);
+      npcBrainRuntime.ensureNpc({
+        id: profile.id,
+        personaKey: profile.personaKey,
+        loreSlice: {
+          id: profile.id,
+          name: profile.name,
+          label: `${profile.lore.home} (${profile.name})`,
+          ...profile.lore,
+        },
+        baselineMood: profile.baselineMood,
+        driveWeights: profile.driveWeights,
+        seed: profile.seed,
+      });
+    }
+  }
+
+  private getUnlockedIslandCoords(): Array<{ gx: number; gy: number }> {
+    const out: Array<{ gx: number; gy: number }> = [];
+    for (const key of gameState.ownedIslands) {
+      const [gx, gy] = key.split(',').map(Number);
+      if (Number.isFinite(gx) && Number.isFinite(gy)) {
+        out.push({ gx, gy });
+      }
+    }
+    return out;
+  }
+
+  private getNpcSpacePeers(): NpcSpacePeer[] {
+    return this.npcs.map((n) => ({
+      id: n.spec.id,
+      x: n.x,
+      y: n.y,
+      isAnchor:
+        (n.profile?.category ?? this.npcProfiles.get(n.spec.id)?.category ?? 'anchor') ===
+        'anchor',
+      sleeping: n.state === 'sleeping',
+    }));
+  }
+
+  private isNpcWalkablePoint(wx: number, wy: number, selfNpc?: NpcEntity): boolean {
+    const tx = Math.floor(wx / TILE_PX);
+    const ty = Math.floor(wy / TILE_PX);
+    if (tx < 0 || ty < 0 || tx >= WORLD_TILES || ty >= WORLD_TILES) return false;
+    if (!isLand(this.terrainGrid[ty]?.[tx])) return false;
+    if (this.houseTileSet.has(`${tx},${ty}`)) return false;
+    if (this.hasNodeAt(tx, ty)) return false;
+
+    const bucket = this.buildingsByTile.get((ty << 10) | tx);
+    if (bucket) {
+      for (const b of bucket) {
+        if (b.active && b.solid) return false;
+      }
+    }
+
+    if (this.player && Math.hypot(wx - this.player.x, wy - this.player.y) < 16) {
+      return false;
+    }
+
+    for (const other of this.npcs) {
+      if (other === selfNpc || other.spec.id === selfNpc?.spec.id || other.state === 'sleeping') {
+        continue;
+      }
+      const isAnchor =
+        (other.profile?.category ?? this.npcProfiles.get(other.spec.id)?.category ?? 'anchor') ===
+        'anchor';
+      const reqDist = getRequiredNpcSeparationPx({ isAnchor });
+      const newDist = Math.hypot(wx - other.x, wy - other.y);
+      if (selfNpc) {
+        const curDist = Math.hypot(selfNpc.x - other.x, selfNpc.y - other.y);
+        if (newDist < reqDist && newDist < curDist) return false;
+      } else if (newDist < reqDist) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private findProceduralNpcLandSpot(
+    gx: number,
+    gy: number,
+    offsetTx: number,
+    offsetTy: number,
+    selfNpc?: NpcEntity,
+  ): { x: number; y: number } {
+    const ox = gx * ISLAND_CELL_TILES;
+    const oy = gy * ISLAND_CELL_TILES;
+    const half = Math.floor(ISLAND_CELL_TILES / 2);
+    const targetLx = Phaser.Math.Clamp(half + offsetTx, 2, ISLAND_CELL_TILES - 3);
+    const targetLy = Phaser.Math.Clamp(half + offsetTy, 2, ISLAND_CELL_TILES - 3);
+    const peers = this.getNpcSpacePeers();
+
+    const candidates: Array<{ x: number; y: number; dist: number }> = [];
+    for (let ly = 2; ly < ISLAND_CELL_TILES - 2; ly++) {
+      for (let lx = 2; lx < ISLAND_CELL_TILES - 2; lx++) {
+        const tx = ox + lx;
+        const ty = oy + ly;
+        if (!isLand(this.terrainGrid[ty]?.[tx])) continue;
+        if (this.houseTileSet.has(`${tx},${ty}`)) continue;
+        if (this.hasBuildingAt(tx, ty) || this.hasNodeAt(tx, ty)) continue;
+
+        const wx = tx * TILE_PX + 8;
+        const wy = ty * TILE_PX + 8;
+        if (this.houseDoors.some((d) => d.active && Math.hypot(wx - d.x, wy - d.y) < 24)) continue;
+
+        candidates.push({ x: wx, y: wy, dist: Math.hypot(lx - targetLx, ly - targetLy) });
+      }
+    }
+
+    candidates.sort((a, b) => a.dist - b.dist);
+
+    for (const c of candidates) {
+      if (isSpotRespectingNpcSpace(c.x, c.y, selfNpc?.spec.id, peers)) {
+        return { x: c.x, y: c.y };
+      }
+    }
+
+    // Soft fallback pass if an island is too small/crowded to satisfy 48/64px spacing.
+    for (const c of candidates) {
+      if (isSpotRespectingNpcSpace(c.x, c.y, selfNpc?.spec.id, peers, 28, 28)) {
+        return { x: c.x, y: c.y };
+      }
+    }
+
+    if (candidates.length > 0) {
+      return { x: candidates[0].x, y: candidates[0].y };
+    }
+
+    const fallback = this.findNearestLandTileOnIsland(gx, gy, targetLx, targetLy);
+    return { x: fallback.tx * TILE_PX + 8, y: fallback.ty * TILE_PX + 8 };
+  }
+
+  private getCameraWorldViewRect(): { left: number; right: number; top: number; bottom: number } {
+    const cam = this.cameras?.main;
+    if (cam) {
+      const view = cam.worldView;
+      if (view && view.width > 0 && view.height > 0 && (cam.scrollX !== 0 || cam.scrollY !== 0 || !this.player)) {
+        return { left: view.left, right: view.right, top: view.top, bottom: view.bottom };
+      }
+      const zoom = Math.max(0.5, cam.zoom || 3);
+      const viewW = (this.scale?.width || 1280) / zoom;
+      const viewH = (this.scale?.height || 720) / zoom;
+      const cx = this.player ? this.player.x : viewW / 2;
+      const cy = this.player ? this.player.y : viewH / 2;
+      return {
+        left: cx - viewW / 2,
+        right: cx + viewW / 2,
+        top: cy - viewH / 2,
+        bottom: cy + viewH / 2,
+      };
+    }
+    return { left: 0, right: 0, top: 0, bottom: 0 };
+  }
+
+  private collectOffCameraNpcCandidates(
+    targetGx: number,
+    targetGy: number,
+    targetSpot: { x: number; y: number },
+    unlockedIslands: Array<{ gx: number; gy: number }>,
+    selfNpc?: NpcEntity,
+  ): Array<{ tx: number; ty: number }> {
+    const orderedIslands = [
+      { gx: targetGx, gy: targetGy },
+      ...unlockedIslands.filter((u) => u.gx !== targetGx || u.gy !== targetGy),
+    ];
+    const half = Math.floor(ISLAND_CELL_TILES / 2);
+    const peers = this.getNpcSpacePeers();
+    const candidates: Array<{ tx: number; ty: number }> = [];
+
+    for (const { gx, gy } of orderedIslands) {
+      const ox = gx * ISLAND_CELL_TILES;
+      const oy = gy * ISLAND_CELL_TILES;
+      const shoreTiles: Array<{ tx: number; ty: number }> = [];
+      const outerTiles: Array<{ tx: number; ty: number }> = [];
+      const fallbackTiles: Array<{ tx: number; ty: number }> = [];
+
+      for (let ly = 1; ly < ISLAND_CELL_TILES - 1; ly++) {
+        for (let lx = 1; lx < ISLAND_CELL_TILES - 1; lx++) {
+          const tx = ox + lx;
+          const ty = oy + ly;
+          if (!isLand(this.terrainGrid[ty]?.[tx])) continue;
+          if (this.houseTileSet.has(`${tx},${ty}`)) continue;
+          if (this.hasBuildingAt(tx, ty) || this.hasNodeAt(tx, ty)) continue;
+
+          const wx = tx * TILE_PX + 8;
+          const wy = ty * TILE_PX + 8;
+          if (this.player && Math.hypot(wx - this.player.x, wy - this.player.y) < 24) continue;
+          if (this.houseDoors.some((d) => d.active && Math.hypot(wx - d.x, wy - d.y) < 24)) continue;
+          if (!isSpotRespectingNpcSpace(wx, wy, selfNpc?.spec.id, peers)) {
+            continue;
+          }
+
+          const touchesWater =
+            !isLand(this.terrainGrid[ty - 1]?.[tx]) ||
+            !isLand(this.terrainGrid[ty + 1]?.[tx]) ||
+            !isLand(this.terrainGrid[ty]?.[tx - 1]) ||
+            !isLand(this.terrainGrid[ty]?.[tx + 1]);
+          if (touchesWater) {
+            shoreTiles.push({ tx, ty });
+          } else if (Math.hypot(lx - half, ly - half) >= INNER_ISLAND_SIZE * 0.28) {
+            outerTiles.push({ tx, ty });
+          } else {
+            fallbackTiles.push({ tx, ty });
+          }
+        }
+      }
+
+      if (shoreTiles.length > 0 || outerTiles.length > 0) {
+        candidates.push(...shoreTiles, ...outerTiles);
+      } else {
+        candidates.push(...fallbackTiles);
+      }
+    }
+
+    const targetTx = Math.floor(targetSpot.x / TILE_PX);
+    const targetTy = Math.floor(targetSpot.y / TILE_PX);
+    candidates.sort((a, b) => {
+      const da = (a.tx - targetTx) * (a.tx - targetTx) + (a.ty - targetTy) * (a.ty - targetTy);
+      const db = (b.tx - targetTx) * (b.tx - targetTx) + (b.ty - targetTy) * (b.ty - targetTy);
+      return da - db;
+    });
+    return candidates;
+  }
+
+  private resolveRoamingNpcSpawnPoint(
+    targetGx: number,
+    targetGy: number,
+    spot: { x: number; y: number },
+    unlockedIslands: Array<{ gx: number; gy: number }>,
+    selfNpc?: NpcEntity,
+  ): { x: number; y: number } {
+    const candidates = this.collectOffCameraNpcCandidates(
+      targetGx,
+      targetGy,
+      spot,
+      unlockedIslands,
+      selfNpc,
+    );
+    if (candidates.length === 0) return spot;
+    const targetTile = { tx: Math.floor(spot.x / TILE_PX), ty: Math.floor(spot.y / TILE_PX) };
+    const chosen = findOffCameraSpawnTile(
+      candidates,
+      this.getCameraWorldViewRect(),
+      TILE_PX,
+      48,
+      targetTile,
+    );
+    return { x: chosen.tx * TILE_PX + 8, y: chosen.ty * TILE_PX + 8 };
+  }
+
+  private relocateRoamingNpcToIsland(
+    npc: NpcEntity,
+    profile: ProceduralNpcProfile,
+    targetGx: number,
+    targetGy: number,
+    spot: { x: number; y: number },
+    unlockedIslands: Array<{ gx: number; gy: number }>,
+    announceMerchantArrival: boolean,
+  ): void {
+    const spawnPt = this.resolveRoamingNpcSpawnPoint(targetGx, targetGy, spot, unlockedIslands, npc);
+    npc.homeIslandGx = targetGx;
+    npc.homeIslandGy = targetGy;
+    npc.x = spawnPt.x;
+    npc.y = spawnPt.y;
+    npc.homeX = spot.x;
+    npc.homeY = spot.y;
+    npc.scheduleTargetX = spot.x;
+    npc.scheduleTargetY = spot.y;
+    const spawnGx = Math.floor(spawnPt.x / (ISLAND_CELL_TILES * TILE_PX));
+    const spawnGy = Math.floor(spawnPt.y / (ISLAND_CELL_TILES * TILE_PX));
+    npc.path =
+      spawnGx === targetGx && spawnGy === targetGy
+        ? this.buildNpcPath(spawnPt.x, spawnPt.y, spot.x, spot.y)
+        : [];
+    npc.pathIdx = 0;
+    npc.sprite.setPosition(npc.x, npc.y - 6).setDepth(npc.y);
+    npc.shadow.setPosition(npc.x, npc.y - 1).setDepth(npc.y - 1);
+    npc.promptBox.setPosition(npc.x, npc.y - 22);
+    this.playNpcAnim(npc, 'idle', 'down');
+
+    if (announceMerchantArrival && profile.category === 'merchant') {
+      const islandName = getIslandAt(targetGx, targetGy)?.name ?? 'another island';
+      this.hud?.showToast(`Traveling Merchant ${profile.name} arrived at ${islandName}!`);
+    }
+  }
+
+  private removeNpcEntity(npc: NpcEntity): void {
+    this.tweens?.killTweensOf(npc.promptBox);
+    this.tweens?.killTweensOf(npc.sprite);
+    npc.sprite.destroy();
+    npc.shadow.destroy();
+    npc.promptBox.destroy();
+    npc.blanketOverlay?.destroy();
+    const idx = this.npcs.indexOf(npc);
+    if (idx !== -1) {
+      this.npcs.splice(idx, 1);
+    }
+  }
+
+  private isUiBlockingGameplay(): boolean {
+    return this.hud.isBlockingInput() || dialogueBox.isActive() || merchantShopModal.isActive();
+  }
+
+  private canDespawnOrRelocateNpc(npc: NpcEntity): boolean {
+    if (dialogueBox.isActive() || merchantShopModal.isActive()) return false;
+    if (npc.spec.id === this.activeConversationNpcId) return false;
+    const playerFar =
+      !this.player || Math.hypot(npc.x - this.player.x, npc.y - this.player.y) > 48;
+    return playerFar;
+  }
+
+  private resolveNpcTargetFromAssignments(
+    profile: ProceduralNpcProfile,
+    wanderingAssignments: Map<string, WanderingAssignment>,
+    opts: {
+      dayNumber: number;
+      period: DayPeriod;
+      isRaining: boolean;
+      unlockedIslands: Array<{ gx: number; gy: number }>;
+    },
+  ): { target: ResolvedNpcScheduleTarget; targetGx: number; targetGy: number } | null {
+    if (profile.category === 'merchant' || profile.category === 'vagabond') {
+      const assigned = wanderingAssignments.get(profile.id);
+      if (!assigned) return null;
+      return {
+        target: assigned.schedule,
+        targetGx: assigned.targetGx,
+        targetGy: assigned.targetGy,
+      };
+    }
+    const target = resolveNpcScheduleTarget(profile, opts);
+    return {
+      target,
+      targetGx: target.targetGx,
+      targetGy: target.targetGy,
+    };
+  }
+
+  private syncProceduralVillagers(announceMerchantArrivals = false): void {
+    const unlockedIslands = this.getUnlockedIslandCoords();
+    if (unlockedIslands.length === 0) return;
+
+    const dayNumber = this.lighting?.dayNumber ?? 1;
+    const nightFactor = this.lighting?.getAmbientColor().nightFactor ?? 0;
+    const period = getDayPeriod(nightFactor, this.lighting?.timeOfDay);
+    const isRaining = this.weather?.weather === 'rain';
+    const scheduleOpts = { dayNumber, period, isRaining, unlockedIslands };
+    const wanderingAssignments = assignWanderingNpcsToIslands(this.townCast, scheduleOpts);
+
+    for (const profile of this.townCast) {
+      if (profile.category === 'anchor') continue;
+      if (
+        profile.category === 'family' &&
+        !gameState.ownedIslands.has(`${profile.homeIslandGx},${profile.homeIslandGy}`)
+      ) {
+        continue;
+      }
+
+      const existing = this.npcs.find((n) => n.spec.id === profile.id);
+      const resolved = this.resolveNpcTargetFromAssignments(
+        profile,
+        wanderingAssignments,
+        scheduleOpts,
+      );
+      if (!resolved) {
+        if (existing && this.canDespawnOrRelocateNpc(existing)) {
+          this.removeNpcEntity(existing);
+        }
+        continue;
+      }
+
+      const { target, targetGx, targetGy } = resolved;
+      if (!gameState.ownedIslands.has(`${targetGx},${targetGy}`)) {
+        continue;
+      }
+
+      const spot = this.findProceduralNpcLandSpot(
+        targetGx,
+        targetGy,
+        target.offsetTx,
+        target.offsetTy,
+        existing,
+      );
+
+      if (existing) {
+        existing.profile = profile;
+        if (profile.category === 'family' && profile.anchorNpcId) {
+          const house = this.npcHouseByAnchorId.get(profile.anchorNpcId);
+          if (house && existing.bedX === undefined) {
+            existing.doorX = house.doorX;
+            existing.doorY = house.doorY;
+            existing.bedX = house.familyBedX;
+            existing.bedY = house.familyBedY;
+          }
+        } else if (profile.category === 'merchant' || profile.category === 'vagabond') {
+          const islandChanged =
+            existing.homeIslandGx !== targetGx || existing.homeIslandGy !== targetGy;
+          if (islandChanged && this.canDespawnOrRelocateNpc(existing)) {
+            this.relocateRoamingNpcToIsland(
+              existing,
+              profile,
+              targetGx,
+              targetGy,
+              spot,
+              unlockedIslands,
+              announceMerchantArrivals,
+            );
+          }
+        }
+        continue;
+      }
+
+      const isRoaming = profile.category === 'merchant' || profile.category === 'vagabond';
+      const spawnPt = isRoaming
+        ? this.resolveRoamingNpcSpawnPoint(targetGx, targetGy, spot, unlockedIslands)
+        : spot;
+
+      const shadow = this.add.ellipse(spawnPt.x, spawnPt.y - 1, 10, 4, 0x000000, 0.38).setDepth(spawnPt.y - 1);
+      const spr = this.add.sprite(spawnPt.x, spawnPt.y - 6, profile.spriteKey, 0).setDepth(spawnPt.y);
+      if (profile.tint !== undefined && profile.tint !== 0xffffff) {
+        spr.setTint(profile.tint);
+      }
+
+      const npcBaseName = profile.spriteKey.split('/').pop()!.replace('_idle', '');
+      const animKey = `npc_${npcBaseName}_idle_down`;
+      if (this.anims.exists(animKey)) {
+        spr.play(animKey);
+      }
+
+      const promptBox = this.createWorldLabelBox(
+        spawnPt.x,
+        spawnPt.y - 22,
+        this.getNpcPromptText(profile.id, profile.name, false),
+        '#ffe066',
+        0xd9a85b,
+        '8px',
+      );
+
+      const house =
+        profile.category === 'family' && profile.anchorNpcId
+          ? this.npcHouseByAnchorId.get(profile.anchorNpcId)
+          : undefined;
+      const spawnGx = Math.floor(spawnPt.x / (ISLAND_CELL_TILES * TILE_PX));
+      const spawnGy = Math.floor(spawnPt.y / (ISLAND_CELL_TILES * TILE_PX));
+
+      const npc: NpcEntity = {
+        spec: {
+          id: profile.id,
+          name: profile.name,
+          spriteKey: profile.spriteKey,
+          questTitle: profile.title,
+          requestItemId: profile.gifts.loved[0] ?? 'berries',
+          requestCount: 1,
+          rewardCoins: 0,
+          rewardXp: 0,
+        },
+        npcBaseName,
+        facing: 'down',
+        curAnimKey: animKey,
+        sprite: spr,
+        shadow,
+        promptBox: promptBox.container,
+        promptBg: promptBox.bg,
+        prompt: promptBox.label,
+        redrawPrompt: promptBox.redraw,
+        x: spawnPt.x,
+        y: spawnPt.y,
+        homeX: spot.x,
+        homeY: spot.y,
+        ...(house
+          ? {
+              doorX: house.doorX,
+              doorY: house.doorY,
+              bedX: house.familyBedX,
+              bedY: house.familyBedY,
+            }
+          : {}),
+        state: 'day_outside',
+        zzzTimerMs: 0,
+        path:
+          isRoaming && spawnGx === targetGx && spawnGy === targetGy
+            ? this.buildNpcPath(spawnPt.x, spawnPt.y, spot.x, spot.y)
+            : [],
+        pathIdx: 0,
+        profile,
+        homeIslandGx: targetGx,
+        homeIslandGy: targetGy,
+        wanderTimerMs: Phaser.Math.Between(1800, 4200),
+        scheduleTargetX: spot.x,
+        scheduleTargetY: spot.y,
+      };
+      this.npcs.push(npc);
+    }
+
+    this.lastNpcSyncDay = dayNumber;
+    this.lastScheduledDay = dayNumber;
+    this.lastScheduledPeriod = period;
+    this.lastScheduledRain = isRaining;
+    this.refreshNpcPrompts();
+  }
+
+  private updateProceduralNpcScheduleTargets(
+    dayNumber: number,
+    period: DayPeriod,
+    isRaining: boolean,
+  ): void {
+    const unlockedIslands = this.getUnlockedIslandCoords();
+    if (unlockedIslands.length === 0) return;
+
+    const scheduleOpts = { dayNumber, period, isRaining, unlockedIslands };
+    const wanderingAssignments = assignWanderingNpcsToIslands(this.townCast, scheduleOpts);
+
+    for (const npc of [...this.npcs]) {
+      if (npc.bedX !== undefined || !npc.profile || npc.profile.category === 'anchor') continue;
+      const resolved = this.resolveNpcTargetFromAssignments(
+        npc.profile,
+        wanderingAssignments,
+        scheduleOpts,
+      );
+      if (!resolved) {
+        if (this.canDespawnOrRelocateNpc(npc)) {
+          this.removeNpcEntity(npc);
+        }
+        continue;
+      }
+
+      const { target, targetGx, targetGy } = resolved;
+      if (!gameState.ownedIslands.has(`${targetGx},${targetGy}`)) continue;
+
+      const islandChanged = npc.homeIslandGx !== targetGx || npc.homeIslandGy !== targetGy;
+      const spot = this.findProceduralNpcLandSpot(
+        targetGx,
+        targetGy,
+        target.offsetTx,
+        target.offsetTy,
+        npc,
+      );
+
+      if (islandChanged) {
+        if (this.canDespawnOrRelocateNpc(npc)) {
+          this.relocateRoamingNpcToIsland(
+            npc,
+            npc.profile,
+            targetGx,
+            targetGy,
+            spot,
+            unlockedIslands,
+            false,
+          );
+        }
+      } else {
+        npc.scheduleTargetX = spot.x;
+        npc.scheduleTargetY = spot.y;
+      }
+    }
   }
 
   private registerBuilding(b: BuildingEntity): void {
@@ -1423,6 +2201,9 @@ export class OverworldScene extends Phaser.Scene {
         zzzTimerMs: 0,
         path: [],
         pathIdx: 0,
+        profile: this.npcProfiles.get(spec.npc.id),
+        homeIslandGx: gx,
+        homeIslandGy: gy,
       };
       this.npcs.push(npc);
 
@@ -1469,6 +2250,14 @@ export class OverworldScene extends Phaser.Scene {
           npc.doorY = doorY;
           npc.bedX = bedX;
           npc.bedY = bedY;
+          if (stamp.familyBedLx !== undefined && stamp.familyBedLy !== undefined) {
+            this.npcHouseByAnchorId.set(spec.npc.id, {
+              doorX,
+              doorY,
+              familyBedX: (plot.ox + stamp.familyBedLx) * TILE_PX + 8,
+              familyBedY: (plot.oy + stamp.familyBedLy) * TILE_PX + 8,
+            });
+          }
 
           // Reposition NPC away from the house doorway so they never block entry
           const doorTx = plot.ox + stamp.doorLx;
@@ -1934,8 +2723,12 @@ export class OverworldScene extends Phaser.Scene {
     this.removeBridgesOnLand(ox, oy, ox + ISLAND_CELL_TILES - 1, oy + ISLAND_CELL_TILES - 1, true);
     this.refreshAutoTiles(ox - 1, oy - 1, ox + ISLAND_CELL_TILES, oy + ISLAND_CELL_TILES);
     this.populateIslandContent(gx, gy);
+    this.syncProceduralVillagers();
     this.refreshPurchaseMarkers();
     const spec = getIslandAt(gx, gy);
+    if (spec) {
+      npcBrainRuntime.recordWorldEvent(`The hero unlocked ${spec.name} (${spec.biome} biome).`);
+    }
     const centerPx = (gx * ISLAND_CELL_TILES + ISLAND_CELL_TILES / 2) * TILE_PX;
     const centerPy = (gy * ISLAND_CELL_TILES + ISLAND_CELL_TILES / 2) * TILE_PX;
     this.fx.play('island_unlock', { x: centerPx, y: centerPy });
@@ -1947,10 +2740,12 @@ export class OverworldScene extends Phaser.Scene {
       badgeText: '🏝️',
       accentColor: '#7ef29d',
     });
+    gameState.setNpcBrainsSnapshot(npcBrainRuntime.serializeAll());
     gameState.save();
   }
 
   private syncBuildingQueuesToSave(): void {
+    gameState.setNpcBrainsSnapshot(npcBrainRuntime.serializeAll());
     for (const bSave of gameState.buildings) {
       const ent = this.buildings.find((b) => b.id === bSave.id);
       if (ent) {
@@ -2004,7 +2799,7 @@ export class OverworldScene extends Phaser.Scene {
           return;
         }
         if (this.fishingMinigame.isActive()) return;
-        if (this.hud.isBlockingInput()) return;
+        if (this.isUiBlockingGameplay()) return;
         const f = this.player.facing;
         const dx = f === 'left' ? -28 : f === 'right' ? 28 : 0;
         const dy = f === 'up' ? -28 : f === 'down' ? 28 : 0;
@@ -2016,19 +2811,19 @@ export class OverworldScene extends Phaser.Scene {
         }
       },
       onTouchDash: () => {
-        if (this.hud.isBlockingInput() || this.lockpickMinigame.isActive()) return;
+        if (this.isUiBlockingGameplay() || this.lockpickMinigame.isActive()) return;
         const tv = this.hud.getTouchMoveVector();
         this.player.tryDash(new Phaser.Math.Vector2(tv.x, tv.y));
       },
       onTouchPlaceBuilding: () => {
-        if (!gameState.pendingBuildRecipeId) return;
+        if (this.isUiBlockingGameplay() || !gameState.pendingBuildRecipeId) return;
         const f = this.player.facing;
         const dx = f === 'left' ? -18 : f === 'right' ? 18 : 0;
         const dy = f === 'up' ? -18 : f === 'down' ? 18 : 0;
         this.tryPlaceBuilding(this.player.x + dx, this.player.y + dy);
       },
       onTouchConfirmBuilding: () => {
-        if (!gameState.pendingBuildRecipeId || !this.mobilePlaceActive) return;
+        if (this.isUiBlockingGameplay() || !gameState.pendingBuildRecipeId || !this.mobilePlaceActive) return;
         this.tryPlaceBuilding(this.mobilePlaceTx * TILE_PX + 8, this.mobilePlaceTy * TILE_PX + 8);
       },
       getNearbyStations: () => {
@@ -2080,6 +2875,7 @@ export class OverworldScene extends Phaser.Scene {
         activeCraftJobs: this.buildings.reduce((acc, b) => acc + (b.active ? b.craftQueue.length : 0), 0),
         hasSavedData: gameState.hasSavedGame(),
       }),
+      getMapNpcMarkers: () => this.getMapNpcMarkers(),
       onDebugAction: (action, payload) => {
         if (action === 'unlock_all_islands') {
           for (const spec of ISLANDS) {
@@ -2090,6 +2886,7 @@ export class OverworldScene extends Phaser.Scene {
               this.populateIslandContent(spec.gx, spec.gy);
             }
           }
+          this.syncProceduralVillagers();
           this.refreshAutoTiles(0, 0, WORLD_TILES - 1, WORLD_TILES - 1);
           this.refreshPurchaseMarkers();
           SFX.playLevelUp();
@@ -2106,6 +2903,7 @@ export class OverworldScene extends Phaser.Scene {
             this.removeBridgesOnLand(ox, oy, ox + ISLAND_CELL_TILES - 1, oy + ISLAND_CELL_TILES - 1, true);
             this.refreshAutoTiles(ox - 1, oy - 1, ox + ISLAND_CELL_TILES, oy + ISLAND_CELL_TILES);
             this.populateIslandContent(gx, gy);
+            this.syncProceduralVillagers();
             this.refreshPurchaseMarkers();
           }
           const half = Math.floor(ISLAND_CELL_TILES / 2);
@@ -2177,16 +2975,39 @@ export class OverworldScene extends Phaser.Scene {
 
     kb.on('keydown-TAB', (ev: KeyboardEvent) => {
       ev.preventDefault();
+      if (dialogueBox.isActive() || merchantShopModal.isActive()) return;
       this.hud.toggleModal('craft');
     });
-    kb.on('keydown-K', () => this.hud.toggleModal('skills'));
-    kb.on('keydown-Q', () => this.hud.toggleModal('quests'));
-    kb.on('keydown-M', () => this.hud.toggleModal('map'));
-    kb.on('keydown-I', () => this.hud.toggleModal('inventory'));
-    kb.on('keydown-P', () => this.hud.toggleModal('progress'));
-    kb.on('keydown-O', () => this.hud.toggleModal('settings' as never));
-    kb.on('keydown-N', () => this.hud.toggleMinimap());
+    kb.on('keydown-K', () => {
+      if (dialogueBox.isActive() || merchantShopModal.isActive()) return;
+      this.hud.toggleModal('skills');
+    });
+    kb.on('keydown-Q', () => {
+      if (dialogueBox.isActive() || merchantShopModal.isActive()) return;
+      this.hud.toggleModal('quests');
+    });
+    kb.on('keydown-M', () => {
+      if (dialogueBox.isActive() || merchantShopModal.isActive()) return;
+      this.hud.toggleModal('map');
+    });
+    kb.on('keydown-I', () => {
+      if (dialogueBox.isActive() || merchantShopModal.isActive()) return;
+      this.hud.toggleModal('inventory');
+    });
+    kb.on('keydown-P', () => {
+      if (dialogueBox.isActive() || merchantShopModal.isActive()) return;
+      this.hud.toggleModal('progress');
+    });
+    kb.on('keydown-O', () => {
+      if (dialogueBox.isActive() || merchantShopModal.isActive()) return;
+      this.hud.toggleModal('settings' as never);
+    });
+    kb.on('keydown-N', () => {
+      if (dialogueBox.isActive() || merchantShopModal.isActive()) return;
+      this.hud.toggleMinimap();
+    });
     kb.on('keydown-ESC', () => {
+      if (dialogueBox.isActive() || merchantShopModal.isActive()) return;
       if (gameState.pendingBuildRecipeId) {
         gameState.pendingBuildRecipeId = null;
         this.hud.render();
@@ -2197,7 +3018,7 @@ export class OverworldScene extends Phaser.Scene {
 
     kb.on('keydown', (event: KeyboardEvent) => {
       if (event.key < '1' || event.key > '9') return;
-      if (this.hud.isBlockingInput() || this.lockpickMinigame.isActive()) return;
+      if (this.isUiBlockingGameplay() || this.lockpickMinigame.isActive()) return;
       const idx = Number(event.key) - 1;
       if (gameState.selectedHotbarIndex !== idx) SFX.playHotbarSelect();
       gameState.selectedHotbarIndex = idx;
@@ -2205,7 +3026,7 @@ export class OverworldScene extends Phaser.Scene {
     });
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, currentlyOver: Phaser.GameObjects.GameObject[]) => {
-      if (this.hud.isBlockingInput() || this.lockpickMinigame.isActive()) return;
+      if (this.isUiBlockingGameplay() || this.lockpickMinigame.isActive()) return;
       if (pointer.event && pointer.event.target !== this.game.canvas) return;
       if (pointer.rightButtonDown()) {
         if (gameState.pendingBuildRecipeId) {
@@ -2336,6 +3157,7 @@ export class OverworldScene extends Phaser.Scene {
             const oy = gy * ISLAND_CELL_TILES;
             this.refreshAutoTiles(ox - 1, oy - 1, ox + ISLAND_CELL_TILES, oy + ISLAND_CELL_TILES);
             this.populateIslandContent(gx, gy);
+            this.syncProceduralVillagers();
             this.refreshPurchaseMarkers();
           }
           const half = Math.floor(ISLAND_CELL_TILES / 2);
@@ -2372,6 +3194,7 @@ export class OverworldScene extends Phaser.Scene {
             const oy = gy * ISLAND_CELL_TILES;
             this.refreshAutoTiles(ox - 1, oy - 1, ox + ISLAND_CELL_TILES, oy + ISLAND_CELL_TILES);
             this.populateIslandContent(gx, gy);
+            this.syncProceduralVillagers();
             this.refreshPurchaseMarkers();
           }
           const half = Math.floor(ISLAND_CELL_TILES / 2);
@@ -2802,6 +3625,7 @@ export class OverworldScene extends Phaser.Scene {
       if (this.isHousePart(st)) this.rebuildHouseRoofs();
     }
     gameState.recordQuestProgress('build', st, 1);
+    gameState.recordStat('structuresBuilt', 1);
 
     // Keep placing any crafted object smoothly until the player hits Exit or runs out of materials
     if (!gameState.canCraft(rec)) {
@@ -2829,7 +3653,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handlePrimaryAction(wx: number, wy: number, fromHold = false): void {
-    if (this.fishingMinigame.isActive() || this.lockpickMinigame.isActive()) return;
+    if (this.isUiBlockingGameplay() || this.fishingMinigame.isActive() || this.lockpickMinigame.isActive()) return;
     const itemId = gameState.hotbar[gameState.selectedHotbarIndex] || 'pickaxe';
     const def = ITEMS[itemId];
     if (!def) {
@@ -3259,6 +4083,7 @@ export class OverworldScene extends Phaser.Scene {
                 this.spawnCoin(this.player.x + 8, this.player.y + 8, Math.round(6 * mult));
               }
               this.awardXp(25);
+              gameState.recordStat('fishCaught', 1);
               this.hud.showToast(`Caught ${catchName} x${count}!`);
               const bpName = tryUnlockBlueprintFromPool(['craft_charm_miner', 'craft_ring_copper'], 0.16);
               if (bpName) {
@@ -4281,7 +5106,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private updateTargetIndicator(): void {
-    if (!this.targetIndicator || this.hud.isBlockingInput() || this.lockpickMinigame.isActive()) {
+    if (!this.targetIndicator || this.isUiBlockingGameplay() || this.lockpickMinigame.isActive()) {
       this.targetIndicator?.setVisible(false);
       this.updateCropStatusLabel();
       this.hud.setTouchActionHint(this.lockpickMinigame.isActive() ? 'Pick Pin' : null);
@@ -4551,7 +5376,7 @@ export class OverworldScene extends Phaser.Scene {
         }
         spawnFloatingText(this, enemy.x, enemy.y - 22, 'ELITE SLAIN!', '#ffd166', '9px');
       }
-      this.awardXp(eliteStats ? eliteStats.xp : enemy.def.xp);
+      this.awardXp(Math.round((eliteStats ? eliteStats.xp : enemy.def.xp) * COMBAT_XP_MULT));
     }
   }
 
@@ -4707,7 +5532,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private handleInteractKey(fromPrimaryAction = false): boolean {
-    if (this.fishingMinigame.isActive() || this.lockpickMinigame.isActive()) return false;
+    if (this.isUiBlockingGameplay() || this.fishingMinigame.isActive() || this.lockpickMinigame.isActive()) return false;
     const heldId = gameState.hotbar[gameState.selectedHotbarIndex] ?? '';
     const heldDef = heldId ? ITEMS[heldId] : undefined;
 
@@ -5021,96 +5846,185 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   private tryInteractNpc(): boolean {
-    for (const npc of this.npcs) {
-      if (Math.hypot(npc.x - this.player.x, npc.y - this.player.y) > 30) continue;
-      if (npc.state === 'sleeping') {
-        this.hud.showToast(`Shh... ${npc.spec.name} is fast asleep!`);
-        return true;
-      }
-      const q = gameState.getNextQuestForNpc(npc.spec.id);
-      if (!q) {
-        dialogueBox.show({
-          speaker: npc.spec.name,
-          portraitKey: npc.spec.spriteKey,
-          subtitle: 'Townsfolk',
-          lines: ['{c:#7ef29d}Safe travels, hero!{/c} Our island is thriving thanks to your courage.'],
-        });
-        return true;
-      }
-      if (gameState.isQuestActive(q.id)) {
-        if (gameState.isQuestReadyToTurnIn(q.id)) {
-          dialogueBox.show({
-            speaker: npc.spec.name,
-            portraitKey: npc.spec.spriteKey,
-            subtitle: `Quest Complete: ${q.title}`,
-            voicePitch: q.voicePitch,
-            lines: q.completeDialogue,
-            choices: [
-              {
-                label: `Complete (+${q.rewards.coins}g, +${q.rewards.xp} XP)`,
-                primary: true,
-                onSelect: () => {
-                  const done = gameState.completeQuest(q.id);
-                  if (done) {
-                    SFX.playQuestComplete();
-                    spawnSparklers(this, this.player.x, this.player.y - 8, 16);
-                    this.hud.showToast(`Quest Complete: ${done.title}! +${done.rewards.coins}g +${done.rewards.xp} XP`);
-                    this.refreshNpcPrompts();
-                  }
-                },
-              },
-            ],
-          });
-        } else {
-          const summary = q.objectives
-            .map((o) => `{c:#ffe066}${o.label}{/c}: ${gameState.getObjectiveProgress(q.id, o)}/${o.count}`)
-            .join(' • ');
-          dialogueBox.show({
-            speaker: npc.spec.name,
-            portraitKey: npc.spec.spriteKey,
-            subtitle: `In Progress: ${q.title}`,
-            voicePitch: q.voicePitch,
-            lines: [...q.progressDialogue, `Progress: ${summary}`],
-          });
-        }
-      } else {
-        dialogueBox.show({
-          speaker: npc.spec.name,
-          portraitKey: npc.spec.spriteKey,
-          subtitle: `New Quest: ${q.title}`,
-          voicePitch: q.voicePitch,
-          lines: q.offerDialogue,
-          choices: [
-            {
-              label: 'Accept Quest',
-              primary: true,
-              onSelect: () => {
-                gameState.acceptQuest(q.id);
-                gameState.setTrackedQuest(q.id);
-                SFX.playPickup();
-                spawnSparklers(this, this.player.x, this.player.y - 8, 14);
-                this.hud.showToast(fmtKeySuffix(`Quest Accepted: ${q.title}`, 'Q'));
-                this.refreshNpcPrompts();
-                revealSequence.show({
-                  title: 'QUEST ACCEPTED!',
-                  subtitle: q.title,
-                  badgeText: '📜',
-                  accentColor: '#ffe066',
-                });
-              },
-            },
-            {
-              label: 'Maybe Later',
-              onSelect: () => {
-                SFX.playUiClose();
-              },
-            },
-          ],
-        });
-      }
+    const candidates = this.npcs.map((npc) => {
+      const profile = npc.profile ?? this.npcProfiles.get(npc.spec.id);
+      const isAnchor = (profile?.category ?? 'anchor') === 'anchor';
+      const hearts = npcBrainRuntime.getNpc(npc.spec.id)?.getMoodState().hearts;
+      const q = gameState.getNextQuestForNpc(npc.spec.id, hearts);
+      const isActive = q ? gameState.isQuestActive(q.id) : false;
+      return {
+        npc,
+        id: npc.spec.id,
+        dist: Math.hypot(npc.x - this.player.x, npc.y - this.player.y),
+        sleeping: npc.state === 'sleeping',
+        isAnchor,
+        hasQuestTurnIn: Boolean(q && isActive && gameState.isQuestReadyToTurnIn(q.id)),
+        hasQuestOffer: Boolean(q && !isActive),
+      };
+    });
+    const chosen = selectInteractNpcCandidate(candidates, 30, 8);
+    if (!chosen) return false;
+    const closestNpc = chosen.npc;
+
+    if (closestNpc.state === 'sleeping') {
+      this.hud.showToast(`Shh... ${closestNpc.spec.name} is fast asleep!`);
       return true;
     }
-    return false;
+
+    const profile =
+      closestNpc.profile ??
+      this.npcProfiles.get(closestNpc.spec.id) ??
+      buildAnchorNpcProfiles(gameState.worldSeed).find((p) => p.id === closestNpc.spec.id);
+
+    if (!profile) {
+      closestNpc.facing = vectorToDirection(
+        this.player.x - closestNpc.x,
+        this.player.y - closestNpc.y,
+        closestNpc.facing,
+      );
+      this.playNpcAnim(closestNpc, 'idle', closestNpc.facing);
+      const fallbackNpcId = closestNpc.spec.id;
+      this.activeConversationNpcId = fallbackNpcId;
+      dialogueBox.show({
+        speaker: closestNpc.spec.name,
+        portraitKey: closestNpc.spec.spriteKey,
+        subtitle: 'Townsfolk',
+        lines: ['{c:#7ef29d}Safe travels, hero!{/c} Our island is thriving thanks to your courage.'],
+        onClose: () => {
+          if (this.activeConversationNpcId === fallbackNpcId) {
+            this.activeConversationNpcId = null;
+          }
+        },
+      });
+      return true;
+    }
+
+    closestNpc.facing = vectorToDirection(
+      this.player.x - closestNpc.x,
+      this.player.y - closestNpc.y,
+      closestNpc.facing,
+    );
+    this.playNpcAnim(closestNpc, 'idle', closestNpc.facing);
+
+    const npcRef = closestNpc;
+    this.activeConversationNpcId = npcRef.spec.id;
+    startNpcConversation({
+      profile,
+      currentDay: this.lighting?.dayNumber ?? 1,
+      onAcceptQuest: (q) => {
+        gameState.setTrackedQuest(q.id);
+        SFX.playPickup();
+        spawnSparklers(this, this.player.x, this.player.y - 8, 14);
+        this.hud.showToast(fmtKeySuffix(`Quest Accepted: ${q.title}`, 'Q'));
+        this.refreshNpcPrompts();
+        revealSequence.show({
+          title: 'QUEST ACCEPTED!',
+          subtitle: q.title,
+          badgeText: '📜',
+          accentColor: '#ffe066',
+        });
+      },
+      onCompleteQuest: (done) => {
+        SFX.playQuestComplete();
+        spawnSparklers(this, this.player.x, this.player.y - 8, 16);
+        this.hud.showToast(`Quest Complete: ${done.title}! +${done.rewards.coins}g +${done.rewards.xp} XP`);
+        this.refreshNpcPrompts();
+      },
+      onGiftReaction: (reaction, _itemId, itemName) => {
+        if (reaction === 'loved') {
+          SFX.playQuestComplete();
+          showWorldEmote(this, npcRef.x, npcRef.y - 22, 'portraits/Emote_laughing', {
+            durationMs: 1200,
+            hearts: true,
+            scale: 0.72,
+          });
+          this.hud.showToast(`${profile.name} loved the ${itemName}!`);
+        } else if (reaction === 'liked') {
+          SFX.playPickup();
+          showWorldEmote(this, npcRef.x, npcRef.y - 22, 'portraits/Emote_yes', {
+            durationMs: 1050,
+            hearts: true,
+            scale: 0.68,
+          });
+          this.hud.showToast(`${profile.name} liked the ${itemName}.`);
+        } else {
+          SFX.playUiClose();
+          showWorldEmote(this, npcRef.x, npcRef.y - 22, 'portraits/Emote_no', {
+            durationMs: 1050,
+            scale: 0.68,
+          });
+          this.hud.showToast(`${profile.name} didn't care for ${itemName}...`);
+        }
+        this.refreshNpcPrompts();
+      },
+      onSecretClaimed: (reward) => {
+        SFX.playLevelUp();
+        spawnSparklers(this, npcRef.x, npcRef.y - 10, 14);
+        showWorldEmote(this, npcRef.x, npcRef.y - 22, 'portraits/Emote_laughing', {
+          durationMs: 1250,
+          hearts: true,
+          scale: 0.74,
+        });
+        this.hud.showToast(`${profile.name}'s Secret: ${reward.description}`);
+        this.refreshNpcPrompts();
+      },
+      onHeartLevelUp: (newHearts, unlockedQuestTitle) => {
+        SFX.playLevelUp();
+        spawnSparklers(this, npcRef.x, npcRef.y - 8, 12);
+        const emoteKey = this.textures.exists('portraits/Emote_heart')
+          ? ('portraits/Emote_heart' as Parameters<typeof showWorldEmote>[3])
+          : 'portraits/Emote_talking';
+        showWorldEmote(this, npcRef.x, npcRef.y - 22, emoteKey, {
+          durationMs: 1200,
+          hearts: true,
+          scale: 0.78,
+        });
+        this.hud.showToast(
+          unlockedQuestTitle
+            ? `${npcRef.spec.name} reached ${newHearts} ♥! New Quest: ${unlockedQuestTitle}`
+            : `Friendship increased! ${npcRef.spec.name} reached ${newHearts} ♥`,
+        );
+        this.refreshNpcPrompts();
+      },
+      onMerchantPurchase: (offer) => {
+        SFX.playPickup();
+        this.hud.showToast(`Bought ${offer.count}× ${offer.name} (-${offer.finalPrice}g)`);
+      },
+      onOpenMerchantShop: ({
+        profile: mProfile,
+        currentDay: day,
+        hearts,
+        secretClaimed,
+        onBackToChat,
+        onCloseAll,
+      }) => {
+        merchantShopModal.show({
+          merchantId: mProfile.id,
+          merchantName: mProfile.name,
+          merchantTitle: mProfile.title,
+          portraitKey: mProfile.spriteKey,
+          hearts,
+          secretClaimed,
+          worldSeed: gameState.worldSeed ?? mProfile.seed,
+          dayNumber: day,
+          state: gameState,
+          onPurchase: (itemName, qty, totalCost) => {
+            SFX.playPickup();
+            this.hud.showToast(`Bought ${qty}× ${itemName} (-${totalCost}g)`);
+          },
+          onBackToChat,
+          onClose: onCloseAll,
+        });
+      },
+      onConversationEnd: () => {
+        if (this.activeConversationNpcId === npcRef.spec.id) {
+          this.activeConversationNpcId = null;
+        }
+        gameState.setNpcBrainsSnapshot(npcBrainRuntime.serializeAll());
+        this.refreshNpcPrompts();
+      },
+    });
+    return true;
   }
 
   update(_time: number, dtMs: number): void {
@@ -5177,6 +6091,10 @@ export class OverworldScene extends Phaser.Scene {
       } else if (gamepadManager.isJustPressed('dash') || gamepadManager.isJustPressed('menu')) {
         dialogueBox.close(true);
       }
+    } else if (merchantShopModal.isActive()) {
+      if (gamepadManager.isJustPressed('dash') || gamepadManager.isJustPressed('menu')) {
+        merchantShopModal.close(true);
+      }
     } else if (this.hud.activeModal !== 'none') {
       if (gamepadManager.isJustPressed('menu') || gamepadManager.isJustPressed('dash')) {
         this.hud.closeModal();
@@ -5203,10 +6121,10 @@ export class OverworldScene extends Phaser.Scene {
     }
 
     if (
+      !this.isUiBlockingGameplay() &&
       !this.fishingMinigame.isActive() &&
       !this.lockpickMinigame.isActive() &&
-      (Phaser.Input.Keyboard.JustDown(this.keys.E) ||
-        (!this.hud.isBlockingInput() && gamepadManager.isJustPressed('interact')))
+      (Phaser.Input.Keyboard.JustDown(this.keys.E) || gamepadManager.isJustPressed('interact'))
     ) {
       this.handleInteractKey();
     }
@@ -5292,7 +6210,7 @@ export class OverworldScene extends Phaser.Scene {
     const showHoeCursor =
       gameState.hotbar[gameState.selectedHotbarIndex] === 'hoe' &&
       !gameState.pendingBuildRecipeId &&
-      !this.hud.isBlockingInput() &&
+      !this.isUiBlockingGameplay() &&
       !this.fishingMinigame.isActive() &&
       !this.lockpickMinigame.isActive();
     if (showHoeCursor && this.hoeCursor) {
@@ -5307,7 +6225,7 @@ export class OverworldScene extends Phaser.Scene {
       this.hoeCursor?.setVisible(false);
     }
 
-    if (!this.hud.isBlockingInput() && !this.fishingMinigame.isActive() && !this.lockpickMinigame.isActive()) {
+    if (!this.isUiBlockingGameplay() && !this.fishingMinigame.isActive() && !this.lockpickMinigame.isActive()) {
       if (gamepadManager.isJustPressed('hotbarPrev')) {
         gameState.selectedHotbarIndex = (gameState.selectedHotbarIndex + 8) % 9;
         SFX.playHotbarSelect();
@@ -5714,7 +6632,12 @@ export class OverworldScene extends Phaser.Scene {
               gameState.recordQuestProgress('craft', rec.id, 1);
             }
           }
-          this.awardXp(8);
+          const craftRecipe = RECIPES.find((r) => r.outputItemId === itemId);
+          const ingredientTotal = craftRecipe
+            ? craftRecipe.ingredients.reduce((sum, ing) => sum + ing.count, 0)
+            : 4;
+          this.awardXp(getCraftXpReward(ingredientTotal));
+          gameState.recordStat('itemsCrafted', 1);
           this.syncBuildingQueuesToSave();
           const outName = ITEMS[itemId]?.name ?? itemId;
           if (!this.isNearCamera(bx, by, 80)) {
@@ -5825,7 +6748,7 @@ export class OverworldScene extends Phaser.Scene {
     gameState.addPlayTime(dt);
     const aggroMult = this.weather.weather === 'sandstorm' ? 0.8 : 1;
     const isViewBlocked =
-      this.hud.isBlockingInput() || this.fishingMinigame.isActive() || this.lockpickMinigame.isActive();
+      this.isUiBlockingGameplay() || this.fishingMinigame.isActive() || this.lockpickMinigame.isActive();
     const eliteDespawnDist = ISLAND_CELL_TILES * TILE_PX * 1.15;
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
@@ -6241,10 +7164,72 @@ export class OverworldScene extends Phaser.Scene {
     return this.activeHouseGroupId !== 0 && this.activeHouseGroupId === npcHouseGroup;
   }
 
+  private isSafeYieldPoint(wx: number, wy: number, npc: NpcEntity): boolean {
+    if (!this.isNpcWalkablePoint(wx, wy, npc)) return false;
+    return !this.houseDoors.some((d) => {
+      if (!d.active) return false;
+      const newDist = Math.hypot(wx - d.x, wy - d.y);
+      const curDist = Math.hypot(npc.x - d.x, npc.y - d.y);
+      return newDist < 24 && newDist < curDist;
+    });
+  }
+
+  private trySteerNpcAway(
+    npc: NpcEntity,
+    sepDx: number,
+    sepDy: number,
+    strollStep: number,
+    syncVisuals: (n: NpcEntity) => void,
+  ): boolean {
+    const mag = Math.hypot(sepDx, sepDy);
+    const ux = mag > 0.001 ? sepDx / mag : 1;
+    const uy = mag > 0.001 ? sepDy / mag : 0;
+    const baseAngle = Math.atan2(uy, ux);
+    const angleOffsets = [0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2];
+
+    for (const offset of angleOffsets) {
+      const ang = baseAngle + offset;
+      const dx = Math.cos(ang);
+      const dy = Math.sin(ang);
+      const nx = npc.x + dx * strollStep;
+      const ny = npc.y + dy * strollStep;
+      if (!this.isSafeYieldPoint(nx, ny, npc)) continue;
+
+      npc.facing = vectorToDirection(dx, dy, npc.facing);
+      this.playNpcAnim(npc, 'walk', npc.facing);
+      npc.x = nx;
+      npc.y = ny;
+      syncVisuals(npc);
+      return true;
+    }
+
+    return false;
+  }
+
   private updateNpcs(dt: number): void {
     const { nightFactor } = this.lighting.getAmbientColor();
     const isNight = nightFactor >= 0.45;
+    const dayNumber = this.lighting.dayNumber;
+    const period = getDayPeriod(nightFactor, this.lighting.timeOfDay);
+    const isRaining = this.weather.weather === 'rain';
     const step = (44 * dt) / 1000;
+    const strollStep = (22 * dt) / 1000;
+
+    if (dayNumber > this.lastNpcSyncDay) {
+      this.lastNpcSyncDay = dayNumber;
+      this.syncProceduralVillagers(true);
+    }
+
+    if (
+      dayNumber !== this.lastScheduledDay ||
+      period !== this.lastScheduledPeriod ||
+      isRaining !== this.lastScheduledRain
+    ) {
+      this.lastScheduledDay = dayNumber;
+      this.lastScheduledPeriod = period;
+      this.lastScheduledRain = isRaining;
+      this.updateProceduralNpcScheduleTargets(dayNumber, period, isRaining);
+    }
 
     const openNearbyDoors = (npc: NpcEntity) => {
       for (const d of this.houseDoors) {
@@ -6295,13 +7280,176 @@ export class OverworldScene extends Phaser.Scene {
       npc.promptBox.setPosition(npc.x, npc.y - 22);
     };
 
+    const spacePeers = this.getNpcSpacePeers();
+    const peerById = new Map(spacePeers.map((p) => [p.id, p]));
+    const syncPeerPos = (npc: NpcEntity) => {
+      const peer = peerById.get(npc.spec.id);
+      if (peer) {
+        peer.x = npc.x;
+        peer.y = npc.y;
+        peer.sleeping = npc.state === 'sleeping';
+      }
+    };
+
+    if (!dialogueBox.isActive() && !merchantShopModal.isActive()) {
+      this.activeConversationNpcId = null;
+    }
+
     for (const npc of this.npcs) {
+      if (
+        isNpcBusyInConversation(
+          npc.spec.id,
+          this.activeConversationNpcId,
+          dialogueBox.isActive(),
+          merchantShopModal.isActive(),
+        )
+      ) {
+        if (this.player) {
+          npc.facing = vectorToDirection(this.player.x - npc.x, this.player.y - npc.y, npc.facing);
+        }
+        this.playNpcAnim(npc, 'idle', npc.facing);
+        continue;
+      }
       if (
         npc.bedX === undefined ||
         npc.bedY === undefined ||
         npc.doorX === undefined ||
         npc.doorY === undefined
       ) {
+        if (npc.state === 'day_outside') {
+          const nearPlayer =
+            this.player && Math.hypot(this.player.x - npc.x, this.player.y - npc.y) <= 26;
+          if (dialogueBox.isActive() || merchantShopModal.isActive() || nearPlayer) {
+            if (nearPlayer && this.player) {
+              npc.facing = vectorToDirection(this.player.x - npc.x, this.player.y - npc.y, npc.facing);
+            }
+            this.playNpcAnim(npc, 'idle', npc.facing);
+            continue;
+          }
+
+          const sep = computeNpcSeparationVector(
+            { id: npc.spec.id, x: npc.x, y: npc.y },
+            spacePeers,
+          );
+          if (sep.crowded) {
+            const hasSpacedDest =
+              npc.scheduleTargetX !== undefined &&
+              npc.scheduleTargetY !== undefined &&
+              isSpotRespectingNpcSpace(
+                npc.scheduleTargetX,
+                npc.scheduleTargetY,
+                npc.spec.id,
+                spacePeers,
+              );
+            if (!hasSpacedDest) {
+              const targetGx =
+                npc.homeIslandGx ??
+                Phaser.Math.Clamp(
+                  Math.floor(npc.x / (ISLAND_CELL_TILES * TILE_PX)),
+                  0,
+                  WORLD_GRID_SIZE - 1,
+                );
+              const targetGy =
+                npc.homeIslandGy ??
+                Phaser.Math.Clamp(
+                  Math.floor(npc.y / (ISLAND_CELL_TILES * TILE_PX)),
+                  0,
+                  WORLD_GRID_SIZE - 1,
+                );
+              let offsetTx = 0;
+              let offsetTy = 0;
+              if (npc.profile) {
+                const sched = resolveNpcScheduleTarget(npc.profile, {
+                  dayNumber,
+                  period,
+                  isRaining,
+                  unlockedIslands: this.getUnlockedIslandCoords(),
+                });
+                offsetTx = sched.offsetTx;
+                offsetTy = sched.offsetTy;
+              }
+              const yieldSpot = this.findProceduralNpcLandSpot(
+                targetGx,
+                targetGy,
+                offsetTx,
+                offsetTy,
+                npc,
+              );
+              npc.scheduleTargetX = yieldSpot.x;
+              npc.scheduleTargetY = yieldSpot.y;
+              npc.path = [];
+              npc.pathIdx = 0;
+            }
+
+            if (this.trySteerNpcAway(npc, sep.dx, sep.dy, strollStep, syncNpcVisuals)) {
+              syncPeerPos(npc);
+              continue;
+            }
+          }
+
+          if (npc.scheduleTargetX === undefined || npc.scheduleTargetY === undefined) {
+            npc.scheduleTargetX = npc.homeX;
+            npc.scheduleTargetY = npc.homeY;
+          }
+
+          const hasPathStep = npc.path.length > 0 && npc.pathIdx < npc.path.length;
+          const targetPt = hasPathStep
+            ? npc.path[npc.pathIdx]
+            : { x: npc.scheduleTargetX, y: npc.scheduleTargetY };
+          const dx = targetPt.x - npc.x;
+          const dy = targetPt.y - npc.y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist > 2) {
+            const moveDist = Math.min(dist, strollStep);
+            const nx = npc.x + (dx / dist) * moveDist;
+            const ny = npc.y + (dy / dist) * moveDist;
+            if (this.isNpcWalkablePoint(nx, ny, npc)) {
+              npc.facing = vectorToDirection(dx, dy, npc.facing);
+              this.playNpcAnim(npc, 'walk', npc.facing);
+              npc.x = nx;
+              npc.y = ny;
+              syncNpcVisuals(npc);
+              syncPeerPos(npc);
+            } else {
+              this.playNpcAnim(npc, 'idle', npc.facing);
+              npc.path = [];
+              npc.pathIdx = 0;
+              npc.scheduleTargetX = npc.x;
+              npc.scheduleTargetY = npc.y;
+              npc.wanderTimerMs = Phaser.Math.Between(2600, 4600);
+            }
+          } else if (hasPathStep) {
+            npc.pathIdx++;
+          } else {
+            this.playNpcAnim(npc, 'idle', npc.facing);
+            npc.path = [];
+            npc.pathIdx = 0;
+            npc.wanderTimerMs = (npc.wanderTimerMs ?? 3000) - dt;
+            if (npc.wanderTimerMs <= 0) {
+              npc.wanderTimerMs = Phaser.Math.Between(3500, 6500);
+              if (npc.profile && npc.homeIslandGx !== undefined && npc.homeIslandGy !== undefined) {
+                const sched = resolveNpcScheduleTarget(npc.profile, {
+                  dayNumber,
+                  period,
+                  isRaining,
+                  unlockedIslands: this.getUnlockedIslandCoords(),
+                });
+                const jitterX = sched.wantsShelter ? 0 : Phaser.Math.Between(-1, 1);
+                const jitterY = sched.wantsShelter ? 0 : Phaser.Math.Between(-1, 1);
+                const nextSpot = this.findProceduralNpcLandSpot(
+                  npc.homeIslandGx,
+                  npc.homeIslandGy,
+                  sched.offsetTx + jitterX,
+                  sched.offsetTy + jitterY,
+                  npc,
+                );
+                npc.scheduleTargetX = nextSpot.x;
+                npc.scheduleTargetY = nextSpot.y;
+              }
+            }
+          }
+        }
         continue;
       }
 
@@ -6351,6 +7499,7 @@ export class OverworldScene extends Phaser.Scene {
         } else {
           syncNpcVisuals(npc);
         }
+        syncPeerPos(npc);
         continue;
       }
 
@@ -6364,6 +7513,7 @@ export class OverworldScene extends Phaser.Scene {
           npc.path = this.buildNpcPath(npc.x, npc.y, npc.homeX, npc.homeY);
           npc.pathIdx = 0;
           syncNpcVisuals(npc);
+          syncPeerPos(npc);
         } else {
           npc.zzzTimerMs -= dt;
           if (npc.zzzTimerMs <= 0) {
@@ -6409,15 +7559,73 @@ export class OverworldScene extends Phaser.Scene {
         } else {
           syncNpcVisuals(npc);
         }
+        syncPeerPos(npc);
       }
     }
+
+    this.gossipTimerMs -= dt;
+    if (this.gossipTimerMs <= 0) {
+      this.gossipTimerMs = 12000;
+      const pairs = findGossipPairs(
+        this.npcs.map((n) => ({
+          id: n.spec.id,
+          x: n.x,
+          y: n.y,
+          sleeping: n.state === 'sleeping',
+        })),
+        76,
+      );
+      if (pairs.length > 0 && !dialogueBox.isActive() && !merchantShopModal.isActive()) {
+        const byId = new Map(this.npcs.map((n) => [n.spec.id, n]));
+        let shown = 0;
+        for (const [idA, idB] of pairs) {
+          if (shown >= 2) break;
+          const a = byId.get(idA);
+          const b = byId.get(idB);
+          if (!a || !b) continue;
+          if (!this.isNearCamera(a.x, a.y, 120) && !this.isNearCamera(b.x, b.y, 120)) continue;
+          a.facing = vectorToDirection(b.x - a.x, b.y - a.y, a.facing);
+          b.facing = vectorToDirection(a.x - b.x, a.y - b.y, b.facing);
+          this.playNpcAnim(a, 'idle', a.facing);
+          this.playNpcAnim(b, 'idle', b.facing);
+          showWorldEmote(this, a.x, a.y - 22, 'portraits/Emote_talking', { durationMs: 1100, scale: 0.65 });
+          showWorldEmote(this, b.x, b.y - 22, 'portraits/Emote_talking', { durationMs: 1100, scale: 0.65 });
+          shown += 1;
+        }
+      }
+    }
+  }
+
+  private getMapNpcMarkers(): MapNpcMarker[] {
+    return this.npcs.map((npc) => {
+      const profile = npc.profile ?? this.npcProfiles.get(npc.spec.id);
+      const moodState = npcBrainRuntime.getNpc(npc.spec.id)?.getMoodState();
+      const hearts = moodState?.hearts ?? 2;
+      const q = gameState.getNextQuestForNpc(npc.spec.id, hearts);
+      const isActive = q ? gameState.isQuestActive(q.id) : false;
+      const hasQuestTurnIn = Boolean(q && isActive && gameState.isQuestReadyToTurnIn(q.id));
+      const hasQuestOffer = Boolean(q && !isActive);
+      return {
+        id: npc.spec.id,
+        name: npc.spec.name,
+        title: profile?.title ?? (npc.spec.questTitle || 'Townsfolk'),
+        category: profile?.category ?? 'anchor',
+        gx: Phaser.Math.Clamp(Math.floor(npc.x / (ISLAND_CELL_TILES * TILE_PX)), 0, WORLD_GRID_SIZE - 1),
+        gy: Phaser.Math.Clamp(Math.floor(npc.y / (ISLAND_CELL_TILES * TILE_PX)), 0, WORLD_GRID_SIZE - 1),
+        hearts,
+        moodLabel: moodState?.moodLabel ?? 'Neutral',
+        hasQuestOffer,
+        hasQuestTurnIn,
+      };
+    });
   }
 
   private getNpcPromptText(npcId: string, name: string, inRange: boolean, sleeping = false): string {
     if (sleeping) {
       return inRange ? `Zzz (${name})` : 'Zzz';
     }
-    const q = gameState.getNextQuestForNpc(npcId);
+    const hearts = npcBrainRuntime.getNpc(npcId)?.getMoodState().hearts;
+    const q = gameState.getNextQuestForNpc(npcId, hearts);
     if (!q) return inRange ? fmtKeyPrompt('E', name) : '';
     if (gameState.isQuestActive(q.id)) {
       if (gameState.isQuestReadyToTurnIn(q.id)) return inRange ? fmtKeyPrompt('E', `${name} (?)`) : '?';
@@ -6437,7 +7645,8 @@ export class OverworldScene extends Phaser.Scene {
         npc.prompt.setText(nextTxt);
         npc.redrawPrompt();
         if (visible && inRange && !wasInRange && npc.state !== 'sleeping') {
-          const q = gameState.getNextQuestForNpc(npc.spec.id);
+          const hearts = npcBrainRuntime.getNpc(npc.spec.id)?.getMoodState().hearts;
+          const q = gameState.getNextQuestForNpc(npc.spec.id, hearts);
           const emote = q ? 'portraits/Emote_question' : 'portraits/Emote_talking';
           showWorldEmote(this, npc.x, npc.y - 22, emote, { durationMs: 950, scale: 0.68 });
         }
@@ -6570,8 +7779,11 @@ export class OverworldScene extends Phaser.Scene {
       pointLights.push(tl);
     }
 
+    const clockDtMs = shouldPauseWorldClock(dialogueBox.isActive(), merchantShopModal.isActive())
+      ? 0
+      : dtMs;
     const dayWrapped = this.lighting.update(
-      dtMs,
+      clockDtMs,
       pointLights,
       spotLights,
       this.weather.getLightModifier(),
@@ -6736,7 +7948,7 @@ export class OverworldScene extends Phaser.Scene {
         }
       } else if (!hit) {
         const isViewBlocked =
-      this.hud.isBlockingInput() || this.fishingMinigame.isActive() || this.lockpickMinigame.isActive();
+      this.isUiBlockingGameplay() || this.fishingMinigame.isActive() || this.lockpickMinigame.isActive();
         if (!isViewBlocked && Math.hypot(this.player.x - p.sprite.x, this.player.y - p.sprite.y) <= 10) {
           const spd = Math.hypot(p.vx, p.vy) || 1;
           if (this.player.takeDamage(p.damage, p.vx / spd, p.vy / spd, this.isWalkable)) {

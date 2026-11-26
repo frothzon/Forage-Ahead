@@ -1,9 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { GameState, type InventoryFeedEvent } from '../src/core/GameState';
+import { ISLANDS } from '../src/data/islands';
 import { RECIPES } from '../src/data/recipes';
 import { MONSTERS } from '../src/data/monsters';
-import { SKILLS } from '../src/data/skills';
-import { lighthouseBonus, getLighthouseMultiplier, gearCoinCost, scaledIslandCost } from '../src/data/economy';
+import { QUESTS } from '../src/data/quests';
+import { SKILLS, getSkillsForClass } from '../src/data/skills';
+import {
+  COMBAT_XP_MULT,
+  NODE_XP_MULT,
+  getCraftXpReward,
+  getVoidSpireXpMultiplier,
+  getXpForLevel,
+  lighthouseBonus,
+  getLighthouseMultiplier,
+  gearCoinCost,
+  scaledIslandCost,
+} from '../src/data/economy';
 
 describe('GameState progression, crafting & Diablo inventory', () => {
   it('levels up and awards skill points cleanly', () => {
@@ -364,10 +376,10 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     expect(lighthouseBonus(60)).toBeCloseTo(1.1921, 3);
     expect(getLighthouseMultiplier(60, 10)).toBeCloseTo(12.921, 2);
 
-    expect(gearCoinCost(1)).toBe(30);
-    expect(gearCoinCost(60)).toBe(38250);
+    expect(gearCoinCost(1)).toBe(40);
+    expect(gearCoinCost(60)).toBe(52020);
     expect(scaledIslandCost(40, 0)).toBe(40);
-    expect(scaledIslandCost(40, 10)).toBe(210);
+    expect(scaledIslandCost(40, 10)).toBe(250);
 
     // Beacon skills require minLevel + spCost and scale Beacon multiplier
     const state = new GameState();
@@ -378,13 +390,13 @@ describe('GameState progression, crafting & Diablo inventory', () => {
 
     // Gear recipe coinCost deduction & refund
     const vest = RECIPES.find((r) => r.id === 'craft_armor_leather')!;
-    expect(vest.coinCost).toBe(30);
+    expect(vest.coinCost).toBe(45);
     state.inventory = { wood: 30, slime_gel: 20, berries: 20 };
     state.coins = 20;
     expect(state.canCraft(vest)).toBe(false);
     state.coins = 50;
     expect(state.consumeIngredients(vest)).toBe(true);
-    expect(state.coins).toBe(20);
+    expect(state.coins).toBe(5);
     state.refundIngredients(vest);
     expect(state.coins).toBe(50);
   });
@@ -423,5 +435,72 @@ describe('GameState progression, crafting & Diablo inventory', () => {
     state.debugUnlockAllSkills();
     expect(state.getCraftDurationMs(infernalRec)).toBe(Math.round((infernalRec.craftTimeMs ?? 3000) / 1.35));
     expect(state.getCraftDurationMs(voidRec)).toBe(Math.round((voidRec.craftTimeMs ?? 3000) / 1.35));
+  });
+
+  it('calibrates 10-20h XP curve, class skill SP budget, XP helpers, crafting stats, and 100% completion', () => {
+    // 1. Lv.1 -> Lv.60 cumulative XP totals 431,290 XP
+    let totalXp = 0;
+    for (let lv = 1; lv <= 59; lv++) {
+      totalXp += getXpForLevel(lv);
+    }
+    expect(totalXp).toBe(431290);
+    expect(getXpForLevel(0)).toBe(getXpForLevel(1));
+
+    const state = new GameState();
+    state.reset('Swashbuckler');
+    expect(state.getXpForNextLevel()).toBe(getXpForLevel(1));
+    state.level = 25;
+    expect(state.getXpForNextLevel()).toBe(getXpForLevel(25));
+
+    // 2. Class skills filter to 48 skills summing to 69 SP (matching Lv.60 SP)
+    const swashSkills = getSkillsForClass('Swashbuckler');
+    expect(swashSkills).toHaveLength(48);
+    const totalSpCost = swashSkills.reduce((sum, s) => sum + (s.spCost ?? 1), 0);
+    expect(totalSpCost).toBe(69);
+
+    // 3. XP multipliers and craft/spire helper bounds
+    expect(COMBAT_XP_MULT).toBe(1.2);
+    expect(NODE_XP_MULT).toBe(1.15);
+    expect(getVoidSpireXpMultiplier(0)).toBe(1);
+    expect(getVoidSpireXpMultiplier(-3)).toBe(1);
+    expect(getVoidSpireXpMultiplier(10)).toBeCloseTo(1.25, 6);
+    expect(getVoidSpireXpMultiplier(20)).toBeCloseTo(1.5, 6);
+    expect(getCraftXpReward(0)).toBe(12);
+    expect(getCraftXpReward(1)).toBe(12);
+    expect(getCraftXpReward(10)).toBe(18);
+    expect(getCraftXpReward(24)).toBe(28);
+    expect(getCraftXpReward(100)).toBe(28);
+
+    // 4. Hand-crafting non-structure items increments itemsCrafted, while building structures does not
+    state.reset('Swashbuckler');
+    state.addItem('wood', 50);
+    state.addItem('stone', 60);
+    state.addItem('coal', 20);
+    expect(state.craftRecipe('craft_hoe')).toBe(true);
+    expect(state.stats.itemsCrafted).toBe(1);
+    expect(state.craftRecipe('build_furnace')).toBe(true);
+    expect(state.stats.itemsCrafted).toBe(1);
+
+    // 5. Full campaign completion reaches exactly 100%
+    for (const isl of ISLANDS) {
+      state.ownedIslands.add(`${isl.gx},${isl.gy}`);
+    }
+    state.clearedDungeons.add('skull_crypt');
+    state.clearedDungeons.add('sunken_tomb');
+    state.clearedDungeons.add('frost_cavern');
+    state.clearedDungeons.add('infernal_sanctum');
+    state.finalBossDefeated = true;
+    for (const sk of swashSkills) {
+      state.unlockedSkills.add(sk.id);
+    }
+    for (const q of QUESTS) {
+      state.completedQuests.add(q.id);
+    }
+    for (const monsterId of Object.keys(MONSTERS)) {
+      state.recordMonsterKill(monsterId);
+    }
+    expect(ISLANDS.length).toBe(25);
+    expect(Object.keys(MONSTERS).length).toBe(55);
+    expect(state.getCompletionPercent()).toBe(100);
   });
 });

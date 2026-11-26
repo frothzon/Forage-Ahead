@@ -20,6 +20,8 @@ export interface OutdoorBuildingStamp {
   doorLy: number;
   bedLx: number;
   bedLy: number;
+  familyBedLx?: number;
+  familyBedLy?: number;
   placements: StampTilePlacement[];
 }
 
@@ -205,33 +207,124 @@ export function buildWfcOutdoorHouseStamp(theme: HouseThemeId): OutdoorBuildingS
     }
   }
 
-  let bedPl = placements.find((p) => p.type === 'furniture_bed');
-  if (!bedPl) {
-    const roomsOrdered = [
-      ...layout.rooms.filter((r) => r.role === 'bedroom'),
-      ...layout.rooms.filter((r) => r.role !== 'bedroom'),
-    ];
-    outer: for (const r of roomsOrdered) {
-      const ox = (r.gx - minGx) * ROOM_STEP_X;
-      const oy = (r.gy - minGy) * ROOM_STEP_Y;
-      for (let ly = oy + 1; ly < oy + ROOM_STEP_Y; ly++) {
-        for (let lx = ox + 1; lx < ox + ROOM_STEP_X; lx++) {
-          const k = `${lx},${ly}`;
-          if (
-            floorSet.has(k) &&
-            !wallSet.has(k) &&
-            !doorwayArchSet.has(k) &&
-            k !== `${doorLx},${doorLy}` &&
-            !occupied.has(k)
-          ) {
-            occupied.add(k);
-            bedPl = { lx, ly, type: 'furniture_bed' };
-            placements.push(bedPl);
-            break outer;
-          }
+  const isSolidPropOrWall = (t: StructureType): boolean =>
+    t === 'house_wall' ||
+    t === 'chest' ||
+    t === 'furniture_bed' ||
+    t === 'furniture_table' ||
+    t === 'furnace' ||
+    t === 'anvil' ||
+    t === 'alchemy_lab' ||
+    t === 'water_well';
+
+  const isInteractiveProp = (t: StructureType): boolean =>
+    t === 'chest' ||
+    t === 'furniture_bed' ||
+    t === 'furnace' ||
+    t === 'anvil' ||
+    t === 'alchemy_lab' ||
+    t === 'water_well';
+
+  const keepsAllPropsReachable = (candidateLx: number, candidateLy: number): boolean => {
+    const candKey = `${candidateLx},${candidateLy}`;
+    const solidSet = new Set<string>([candKey]);
+    for (const p of placements) {
+      if (isSolidPropOrWall(p.type)) solidSet.add(`${p.lx},${p.ly}`);
+    }
+    const walkable = new Set<string>([`${doorLx},${doorLy}`]);
+    for (const k of floorSet) {
+      if (wallSet.has(k) && isOutsideTile(...(k.split(',').map(Number) as [number, number]))) continue;
+      if (!solidSet.has(k)) walkable.add(k);
+    }
+    const startKey = `${doorLx},${doorLy}`;
+    const visited = new Set<string>([startKey]);
+    const queue = [startKey];
+    while (queue.length > 0) {
+      const cur = queue.pop()!;
+      const [cx, cy] = cur.split(',').map(Number);
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nk = `${cx + dx},${cy + dy}`;
+        if (walkable.has(nk) && !visited.has(nk)) {
+          visited.add(nk);
+          queue.push(nk);
         }
       }
     }
+    const propsToCheck: Array<{ lx: number; ly: number }> = [
+      ...placements.filter((p) => isInteractiveProp(p.type)),
+      { lx: candidateLx, ly: candidateLy },
+    ];
+    return propsToCheck.every((pr) =>
+      [
+        `${pr.lx + 1},${pr.ly}`,
+        `${pr.lx - 1},${pr.ly}`,
+        `${pr.lx},${pr.ly + 1}`,
+        `${pr.lx},${pr.ly - 1}`,
+      ].some((k) => visited.has(k)),
+    );
+  };
+
+  const roomsOrdered = [
+    ...bedroomRooms,
+    ...layout.rooms.filter((r) => !bedroomRoomIds.has(r.id)),
+  ];
+
+  const findAndPlaceBed = (excludeKey?: string): StampTilePlacement | undefined => {
+    for (const r of roomsOrdered) {
+      const ox = (r.gx - minGx) * ROOM_STEP_X;
+      const oy = (r.gy - minGy) * ROOM_STEP_Y;
+      const preferred: Array<[number, number]> = [
+        [ox + 1, oy + 1],
+        [ox + 1, oy + ROOM_STEP_Y - 1],
+        [ox + ROOM_STEP_X - 1, oy + ROOM_STEP_Y - 1],
+        [ox + ROOM_STEP_X - 2, oy + ROOM_STEP_Y - 1],
+        [ox + ROOM_STEP_X - 2, oy + 1],
+      ];
+      const candidates: Array<[number, number]> = [...preferred];
+      for (let ly = oy + 1; ly < oy + ROOM_STEP_Y; ly++) {
+        for (let lx = ox + 1; lx < ox + ROOM_STEP_X; lx++) {
+          if (!preferred.some(([px, py]) => px === lx && py === ly)) {
+            candidates.push([lx, ly]);
+          }
+        }
+      }
+      for (const [lx, ly] of candidates) {
+        const k = `${lx},${ly}`;
+        if (
+          k !== excludeKey &&
+          floorSet.has(k) &&
+          !wallSet.has(k) &&
+          !doorwayArchSet.has(k) &&
+          k !== `${doorLx},${doorLy}` &&
+          !occupied.has(k) &&
+          keepsAllPropsReachable(lx, ly)
+        ) {
+          occupied.add(k);
+          const pl: StampTilePlacement = { lx, ly, type: 'furniture_bed' };
+          placements.push(pl);
+          return pl;
+        }
+      }
+    }
+    return undefined;
+  };
+
+  let bedPl = placements.find((p) => p.type === 'furniture_bed');
+  if (!bedPl) {
+    bedPl = findAndPlaceBed();
+  }
+
+  const anchorBedKey = bedPl ? `${bedPl.lx},${bedPl.ly}` : undefined;
+  let familyBedPl = placements.find(
+    (p) => p.type === 'furniture_bed' && `${p.lx},${p.ly}` !== anchorBedKey,
+  );
+  if (!familyBedPl) {
+    familyBedPl = findAndPlaceBed(anchorBedKey);
   }
 
   return {
@@ -243,6 +336,7 @@ export function buildWfcOutdoorHouseStamp(theme: HouseThemeId): OutdoorBuildingS
     doorLy,
     bedLx: bedPl ? bedPl.lx : doorLx,
     bedLy: bedPl ? bedPl.ly : Math.max(1, doorLy - 2),
+    ...(familyBedPl ? { familyBedLx: familyBedPl.lx, familyBedLy: familyBedPl.ly } : {}),
     placements,
   };
 }

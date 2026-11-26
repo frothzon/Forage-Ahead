@@ -863,3 +863,10 @@ export const SKILLS: SkillDef[] = [
     description: 'Evolves into Gilded Tempest: 3 piercing darts (1.1s CD, 95% Attack), +14% Move Speed, -25% Dash CD, and chain-lightning swoop every 3rd Crit.',
   },
 ];
+
+/**
+ * Returns all universal and class-specific skills available to `heroClass`.
+ */
+export function getSkillsForClass(heroClass: HeroClassId): SkillDef[] {
+  return SKILLS.filter((s) => !s.heroClass || s.heroClass === heroClass);
+}

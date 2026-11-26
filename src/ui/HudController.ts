@@ -44,10 +44,15 @@ import {
   getIslandRecommendedLevel,
 } from '../data/islands';
 import { MONSTERS } from '../data/monsters';
-import { IMPLEMENTED_FEATURES, OUTSTANDING_ITEMS } from '../data/projectProgress';
+import {
+  getBestiaryMasteryTier,
+  getBestiaryMeta,
+  getBestiaryTotals,
+  type BestiaryMeta,
+} from '../data/bestiary';
 import { QUESTS, getQuestById } from '../data/quests';
 import { RECIPES, type CraftingStation, type RecipeDef } from '../data/recipes';
-import { PILLAR_META, SKILLS, type SkillPillar } from '../data/skills';
+import { PILLAR_META, SKILLS, getSkillsForClass, type SkillPillar } from '../data/skills';
 import { getFamiliarSpecForClass } from '../data/familiars';
 import { getReforgeCoinCost } from '../data/economy';
 
@@ -75,6 +80,31 @@ export function clampMobileBuildControlPos(
   };
 }
 
+/** Escapes dynamic text before embedding into HTML attributes or text nodes. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Renders a single downward-facing idle frame (Row 0, Col 0) from a bestiary spritesheet. */
+export function buildBestiarySpriteFrameHtml(meta: BestiaryMeta, boxSizePx: number): string {
+  const fw = Math.max(1, meta.spriteFrame?.frameWidth || 48);
+  const fh = Math.max(1, meta.spriteFrame?.frameHeight || 48);
+  const sheetW = Math.max(fw, meta.spriteFrame?.sheetWidth || fw);
+  const sheetH = Math.max(fh, meta.spriteFrame?.sheetHeight || fh);
+  const scale = Math.min(boxSizePx / fw, boxSizePx / fh);
+  const dispW = Math.max(1, Math.round(fw * scale));
+  const dispH = Math.max(1, Math.round(fh * scale));
+  const bgW = Math.max(dispW, Math.round((sheetW / fw) * dispW));
+  const bgH = Math.max(dispH, Math.round((sheetH / fh) * dispH));
+  const safeUrl = meta.spritePath.replace(/'/g, '%27').replace(/"/g, '%22');
+  return `<div class="bestiary-sprite-frame" role="img" aria-label="${escapeHtml(meta.name)}" style="width:${dispW}px; height:${dispH}px; background-image:url('${safeUrl}'); background-position:0px 0px; background-repeat:no-repeat; background-size:${bgW}px ${bgH}px; image-rendering:pixelated; flex-shrink:0; pointer-events:none;"></div>`;
+}
+
 /** Computes how many times `rec` can be crafted/placed given current inventory and coins. */
 export function getMaxCraftableCount(
   rec: RecipeDef,
@@ -93,7 +123,219 @@ export function getMaxCraftableCount(
   return Math.max(0, maxCount);
 }
 
-export type HudModal = 'none' | 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'progress' | 'settings';
+export type HudModal =
+  | 'none'
+  | 'inventory'
+  | 'craft'
+  | 'skills'
+  | 'quests'
+  | 'map'
+  | 'bestiary'
+  | 'progress'
+  | 'settings';
+
+export interface MapNpcMarker {
+  id: string;
+  name: string;
+  title: string;
+  category: 'anchor' | 'family' | 'vagabond' | 'merchant';
+  gx: number;
+  gy: number;
+  hearts: number;
+  moodLabel: string;
+  hasQuestOffer: boolean;
+  hasQuestTurnIn: boolean;
+}
+
+export type NpcKnownGiftsMap = Record<string, 'loved' | 'liked' | 'disliked'>;
+
+export interface HudControllerCallbacks {
+  onBuyIsland: (gx: number, gy: number) => void;
+  onSelectBuild: (recipeId: string) => void;
+  onUseHotbarItem: (itemId: string) => void;
+  onSave: () => void;
+  onExitToTitle?: () => void;
+  onTouchAction?: () => void;
+  onTouchActionHold?: (holding: boolean) => void;
+  onTouchInteract?: () => void;
+  onTouchDash?: () => void;
+  onTouchPlaceBuilding?: () => void;
+  onTouchConfirmBuilding?: () => void;
+  getStations?: (stationType: QueuedStationType) => StationQueueView[];
+  getNearbyStations?: () => Set<CraftingStation>;
+  onEnqueueCraft?: (stationId: string, recipeId: string) => boolean;
+  onCancelCraft?: (stationId: string, queueIdx: number) => boolean;
+  onStokeStation?: (stationId: string) => boolean;
+  getWorldDebugStats?: () => WorldDebugStats;
+  getMapNpcMarkers?: () => MapNpcMarker[];
+  onDebugAction?: (action: string, payload?: string) => void;
+}
+
+const ROSTER_MOOD_COLORS: Record<string, string> = {
+  Warm: '#2c7a47',
+  Friendly: '#3b8558',
+  Curious: '#2b618a',
+  Neutral: '#6d5a47',
+  Guarded: '#9a6324',
+  Tense: '#b54c1e',
+  Hostile: '#9e2a35',
+};
+
+const ROSTER_CATEGORY_ORDER: Record<MapNpcMarker['category'], number> = {
+  anchor: 0,
+  family: 1,
+  merchant: 2,
+  vagabond: 3,
+};
+
+const MAP_PIN_ORDER: Record<MapNpcMarker['category'], number> = {
+  anchor: 0,
+  merchant: 1,
+  vagabond: 2,
+  family: 3,
+};
+
+/** Groups live NPC map markers by `"gx,gy"` island coordinates. */
+export function groupNpcMarkersByIsland(
+  markers: readonly MapNpcMarker[],
+): Map<string, MapNpcMarker[]> {
+  const byIsland = new Map<string, MapNpcMarker[]>();
+  for (const m of markers) {
+    const key = `${m.gx},${m.gy}`;
+    let list = byIsland.get(key);
+    if (!list) {
+      list = [];
+      byIsland.set(key, list);
+    }
+    list.push(m);
+  }
+  return byIsland;
+}
+
+/** Filters and orders important NPC markers shown directly on a 5×5 island cell. */
+export function getMapNpcPinsForIsland(markers: readonly MapNpcMarker[]): MapNpcMarker[] {
+  return markers
+    .filter(
+      (m) =>
+        m.category === 'anchor' ||
+        m.category === 'merchant' ||
+        m.category === 'vagabond' ||
+        (m.category === 'family' && (m.hasQuestOffer || m.hasQuestTurnIn)),
+    )
+    .sort((a, b) => {
+      const catDiff = MAP_PIN_ORDER[a.category] - MAP_PIN_ORDER[b.category];
+      if (catDiff !== 0) return catDiff;
+      return a.name.localeCompare(b.name);
+    });
+}
+
+/** Builds crisp compact HTML pins for important NPCs present on an owned island cell. */
+export function buildMapIslandNpcPinsHtml(markers: readonly MapNpcMarker[]): string {
+  const visible = getMapNpcPinsForIsland(markers);
+  if (visible.length === 0) return '';
+
+  return `<div style="display:flex; flex-wrap:wrap; gap:2px; margin-top:2px; overflow:hidden;">${visible
+    .map((m) => {
+      const hasQuest = m.hasQuestOffer || m.hasQuestTurnIn;
+      const badge = m.hasQuestTurnIn
+        ? `<span style="background:#ffe066; color:#3b2316; font-weight:900; border-radius:3px; padding:0 3px; font-size:8px; line-height:1.15; flex-shrink:0;">?</span>`
+        : m.hasQuestOffer
+          ? `<span style="background:#ffe066; color:#3b2316; font-weight:900; border-radius:3px; padding:0 3px; font-size:8px; line-height:1.15; flex-shrink:0;">!</span>`
+          : '';
+
+      let icon = '🏠';
+      let pillStyle =
+        'background:rgba(24,15,9,0.72); border:1px solid rgba(255,230,168,0.48); color:#fff6e5;';
+      if (m.category === 'merchant') {
+        icon = '🛒';
+        pillStyle = 'background:rgba(255,214,90,0.24); border:1px solid #ffd95a; color:#ffe58f;';
+      } else if (m.category === 'vagabond') {
+        icon = '🧭';
+        pillStyle = hasQuest
+          ? 'background:rgba(45,212,191,0.32); border:1px solid #99f6e4; color:#ccfbf1; box-shadow:0 0 4px rgba(94,234,212,0.45);'
+          : 'background:rgba(45,212,191,0.18); border:1px solid #5eead4; color:#ccfbf1;';
+      } else if (m.category === 'family') {
+        icon = '👤';
+        pillStyle = 'background:rgba(255,236,179,0.22); border:1px solid #ffe066; color:#fff6e5;';
+      }
+
+      const titleAttr = escapeHtml(`${m.name} — ${m.title} (${m.hearts}/5 ♥, ${m.moodLabel})`);
+      return `<span data-map-npc="${escapeHtml(m.id)}" title="${titleAttr}" style="display:inline-flex; align-items:center; gap:2px; padding:1px 4px; border-radius:4px; font-size:8px; font-weight:700; max-width:100%; line-height:1.15; ${pillStyle}"><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${icon} ${escapeHtml(m.name)}</span>${badge}</span>`;
+    })
+    .join('')}</div>`;
+}
+
+/** Renders the Townsfolk & Friendships roster cards with hearts, mood pills, and discovered gift chips. */
+export function buildTownsfolkRosterHtml(
+  markers: readonly MapNpcMarker[],
+  getKnownGifts?: (npcId: string) => NpcKnownGiftsMap | undefined,
+): string {
+  if (markers.length === 0) {
+    return `<div class="hud-panel-inset" style="padding:7px 9px; font-size:10px; color:#d6b88c;">No townsfolk discovered yet.</div>`;
+  }
+
+  const sorted = [...markers].sort((a, b) => {
+    const catDiff = ROSTER_CATEGORY_ORDER[a.category] - ROSTER_CATEGORY_ORDER[b.category];
+    if (catDiff !== 0) return catDiff;
+    if (b.hearts !== a.hearts) return b.hearts - a.hearts;
+    return a.name.localeCompare(b.name);
+  });
+
+  return sorted
+    .map((m) => {
+      const hearts = Math.max(0, Math.min(5, Math.round(m.hearts)));
+      const heartsHtml = `<span style="color:#ff7b9c; letter-spacing:1px;">${'♥'.repeat(hearts)}</span><span style="color:#705844; letter-spacing:1px;">${'♡'.repeat(5 - hearts)}</span>`;
+      const islandName = getIslandAt(m.gx, m.gy)?.name ?? `(${m.gx + 1}, ${m.gy + 1})`;
+      const moodBg = ROSTER_MOOD_COLORS[m.moodLabel] ?? '#5a7a42';
+      const icon =
+        m.category === 'merchant'
+          ? '🛒'
+          : m.category === 'vagabond'
+            ? '🧭'
+            : m.category === 'family'
+              ? '👤'
+              : '🏠';
+      const questTag = m.hasQuestTurnIn
+        ? `<span style="background:#ffe066; color:#3b2316; font-weight:900; border-radius:3px; padding:0 4px; font-size:9px;">?</span>`
+        : m.hasQuestOffer
+          ? `<span style="background:#ffe066; color:#3b2316; font-weight:900; border-radius:3px; padding:0 4px; font-size:9px;">!</span>`
+          : '';
+
+      const knownGifts = getKnownGifts?.(m.id) ?? {};
+      const giftEntries = Object.entries(knownGifts);
+      const giftsHtml =
+        giftEntries.length > 0
+          ? `<div style="display:flex; flex-wrap:wrap; gap:3px; margin-top:4px;">${giftEntries
+              .map(([itemId, reaction]) => {
+                const itemName = ITEMS[itemId]?.name ?? itemId;
+                if (reaction === 'loved') {
+                  return `<span style="font-size:9px; padding:1px 5px; border-radius:4px; background:rgba(255,107,139,0.2); border:1px solid #ff7b9c; color:#ffc2d1;" title="Loved Gift">♥ ${escapeHtml(itemName)}</span>`;
+                }
+                if (reaction === 'liked') {
+                  return `<span style="font-size:9px; padding:1px 5px; border-radius:4px; background:rgba(142,245,167,0.16); border:1px solid #4ea86a; color:#b8f7c8;" title="Liked Gift">👍 ${escapeHtml(itemName)}</span>`;
+                }
+                return `<span style="font-size:9px; padding:1px 5px; border-radius:4px; background:rgba(255,107,107,0.15); border:1px solid #b84b56; color:#ffb3b8;" title="Disliked Gift">✕ ${escapeHtml(itemName)}</span>`;
+              })
+              .join('')}</div>`
+          : `<div style="font-size:9px; color:#b8a088; margin-top:3px;">Gifts: none discovered yet</div>`;
+
+      return `
+        <div class="hud-panel-inset" data-roster-npc="${escapeHtml(m.id)}" style="padding:6px 8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:4px; min-width:0;">
+              <strong style="font-size:11px; color:#fff6e5;">${icon} ${escapeHtml(m.name)}</strong>
+              ${questTag}
+              <span style="font-size:9px; padding:1px 5px; border-radius:6px; background:${moodBg}; color:#fff6e5; font-weight:700;">${escapeHtml(m.moodLabel)}</span>
+            </div>
+            <div style="font-size:10px; font-weight:700; white-space:nowrap;">${heartsHtml} <span style="color:#f2d9b1; font-size:9px;">(${hearts}/5)</span></div>
+          </div>
+          <div style="font-size:9px; color:#e6d5b8; margin-top:2px;">${escapeHtml(m.title)} • 📍 ${escapeHtml(islandName)}</div>
+          ${giftsHtml}
+        </div>
+      `;
+    })
+    .join('');
+}
 
 export interface WorldDebugStats {
   scene: string;
@@ -170,6 +412,9 @@ export class HudController {
   private selectedInspect: SelectedInspection = null;
   private moveSourceBagIdx: number | null = null;
   private dragPayload: DragPayload | null = null;
+  private bestiaryFilter: 'all' | 'monster' | 'boss' | 'elite' = 'all';
+  private bestiarySort: 'recent' | 'level' | 'kills' | 'name' = 'recent';
+  private selectedBestiaryId: string | null = null;
 
   private unsubChange?: () => void;
   private unsubVitals?: () => void;
@@ -208,47 +453,9 @@ export class HudController {
   private touchActionHint: string | null = null;
   private touchEnabled = isMobileTouchDevice();
 
-  private callbacks: {
-    onBuyIsland: (gx: number, gy: number) => void;
-    onSelectBuild: (recipeId: string) => void;
-    onUseHotbarItem: (itemId: string) => void;
-    onSave: () => void;
-    onExitToTitle?: () => void;
-    onTouchAction?: () => void;
-    onTouchActionHold?: (holding: boolean) => void;
-    onTouchInteract?: () => void;
-    onTouchDash?: () => void;
-    onTouchPlaceBuilding?: () => void;
-    onTouchConfirmBuilding?: () => void;
-    getStations?: (stationType: QueuedStationType) => StationQueueView[];
-    getNearbyStations?: () => Set<CraftingStation>;
-    onEnqueueCraft?: (stationId: string, recipeId: string) => boolean;
-    onCancelCraft?: (stationId: string, queueIdx: number) => boolean;
-    onStokeStation?: (stationId: string) => boolean;
-    getWorldDebugStats?: () => WorldDebugStats;
-    onDebugAction?: (action: string, payload?: string) => void;
-  };
+  private callbacks: HudControllerCallbacks;
 
-  constructor(callbacks: {
-    onBuyIsland: (gx: number, gy: number) => void;
-    onSelectBuild: (recipeId: string) => void;
-    onUseHotbarItem: (itemId: string) => void;
-    onSave: () => void;
-    onExitToTitle?: () => void;
-    onTouchAction?: () => void;
-    onTouchActionHold?: (holding: boolean) => void;
-    onTouchInteract?: () => void;
-    onTouchDash?: () => void;
-    onTouchPlaceBuilding?: () => void;
-    onTouchConfirmBuilding?: () => void;
-    getStations?: (stationType: QueuedStationType) => StationQueueView[];
-    getNearbyStations?: () => Set<CraftingStation>;
-    onEnqueueCraft?: (stationId: string, recipeId: string) => boolean;
-    onCancelCraft?: (stationId: string, queueIdx: number) => boolean;
-    onStokeStation?: (stationId: string) => boolean;
-    getWorldDebugStats?: () => WorldDebugStats;
-    onDebugAction?: (action: string, payload?: string) => void;
-  }) {
+  constructor(callbacks: HudControllerCallbacks) {
     this.callbacks = callbacks;
     const el = document.getElementById('hud-root');
     if (!el) throw new Error('#hud-root missing');
@@ -259,6 +466,8 @@ export class HudController {
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', this.handleResize);
       window.addEventListener('orientationchange', this.handleResize);
+      window.addEventListener('keydown', this.handleGlobalKeyDown);
+      window.addEventListener('forage:bestiary-discovery', this.handleBestiaryDiscovery);
     }
 
     this.unsubChange = gameState.onChange(() => this.render());
@@ -282,6 +491,33 @@ export class HudController {
 
   private handleResize = (): void => {
     this.applyResponsiveHudScale();
+  };
+
+  private handleGlobalKeyDown = (e: KeyboardEvent): void => {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.code !== 'KeyB' && !(!e.code && e.key.toLowerCase() === 'b')) return;
+    const target = e.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    if (transitionManager.isActive || dialogueBox.isActive() || revealSequence.isActive()) return;
+    if (this.capturingControllerAction) return;
+    if (!gameState.isMenuTabUnlocked('bestiary')) return;
+    e.preventDefault();
+    this.toggleModal('bestiary');
+  };
+
+  private handleBestiaryDiscovery = (ev: Event): void => {
+    const detail = (ev as CustomEvent<{ monsterId: string; name: string; isBoss: boolean; isElite: boolean }>).detail;
+    if (!detail?.name) return;
+    this.showToast(`Bestiary Updated: ${detail.name}`);
+    gameState.triggerAlert('bestiary', 'bestiary');
   };
 
   private applyResponsiveHudScale(): void {
@@ -492,6 +728,8 @@ export class HudController {
     if (typeof window !== 'undefined') {
       window.removeEventListener('resize', this.handleResize);
       window.removeEventListener('orientationchange', this.handleResize);
+      window.removeEventListener('keydown', this.handleGlobalKeyDown);
+      window.removeEventListener('forage:bestiary-discovery', this.handleBestiaryDiscovery);
     }
     if (this.toastTimer) {
       window.clearTimeout(this.toastTimer);
@@ -535,6 +773,10 @@ export class HudController {
         SFX.playUiClose();
         SFX.setMusicPaused(false);
       }
+    }
+    if (this.activeModal === 'bestiary') {
+      gameState.clearButtonAlerts('bestiary');
+      gameState.clearAlert('bestiary');
     }
     this.moveSourceBagIdx = null;
     if (this.activeModal === 'inventory' && !this.selectedInspect) {
@@ -1899,6 +2141,118 @@ export class HudController {
         .bag-grid { grid-template-columns: repeat(${BAG_COLS}, 42px); gap: 5px; padding: 8px 8px 12px 8px; overflow: hidden; }
         .inv-slot { width: 42px; height: 42px; }
       }
+      .bestiary-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        height: 100%;
+        min-height: 0;
+      }
+      .bestiary-summary-bar {
+        padding: 7px 11px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        flex-shrink: 0;
+        font-size: 11px;
+      }
+      .bestiary-controls-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+      .bestiary-btn-group {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .bestiary-layout {
+        display: grid;
+        grid-template-columns: minmax(255px, 315px) minmax(0, 1fr);
+        gap: 10px;
+        flex: 1;
+        min-height: 0;
+      }
+      .bestiary-list-pane {
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        min-height: 0;
+      }
+      .bestiary-entry-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        text-align: left;
+        cursor: url('/assets/sprout_ui/cursors/cursor_catpaw_pointing_2x.png') 8 4, pointer;
+        transition: filter 90ms ease, transform 70ms ease;
+      }
+      .bestiary-entry-row:hover {
+        filter: brightness(1.06);
+      }
+      .bestiary-entry-row.selected {
+        box-shadow: 0 0 0 2px #ffe066, 0 0 10px rgba(255, 224, 102, 0.48);
+      }
+      .bestiary-new-pill {
+        background: linear-gradient(180deg, #ffe066 0%, #f59f1f 100%);
+        color: #3b2316;
+        border: 1.5px solid #3b2316;
+        border-radius: 999px;
+        padding: 0 5px;
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: 0.4px;
+        line-height: 1.35;
+        text-shadow: none !important;
+        flex-shrink: 0;
+      }
+      .bestiary-detail-pane {
+        padding: 12px 14px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .bestiary-parchment-box {
+        background: rgba(92, 58, 36, 0.11);
+        border: 1.5px solid rgba(92, 58, 36, 0.34);
+        border-radius: 6px;
+        padding: 8px 10px;
+      }
+      .bestiary-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+        gap: 6px;
+      }
+      .bestiary-empty-page {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 24px;
+        gap: 10px;
+      }
+      @media (max-width: 820px), (max-height: 500px) {
+        .bestiary-layout {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: minmax(140px, 185px) minmax(0, 1fr);
+        }
+      }
     `;
     document.head.appendChild(style);
   }
@@ -2243,7 +2597,7 @@ export class HudController {
           const nav = el.dataset.nav;
           if (nav === 'menu') {
             gameState.clearButtonAlerts('menu');
-            const firstUnlocked = (['inventory', 'craft', 'skills', 'quests', 'map', 'progress'] as const).find(
+            const firstUnlocked = (['inventory', 'craft', 'skills', 'quests', 'map', 'bestiary', 'progress'] as const).find(
               (t) => gameState.isMenuTabUnlocked(t),
             );
             const targetTab = gameState.isMenuTabUnlocked(this.lastMenuTab)
@@ -2329,7 +2683,7 @@ export class HudController {
       } else if (nav === 'map') {
         el.textContent = `${fmtKeySuffix('Islands', 'M')} (${gameState.ownedIslands.size}/25)`;
       } else if (nav === 'progress') {
-        el.textContent = fmtKeySuffix(gameState.debugMode ? 'Progress & Debug' : 'Progress', 'P');
+        el.textContent = fmtKeySuffix('Progress', 'P');
       }
     });
     const menuBtn = this.chromeLayer.querySelector<HTMLElement>('#hud-menu-btn');
@@ -2338,7 +2692,7 @@ export class HudController {
         gameState.tutorialCompleted || gameState.debugMode || gameState.unlockedMenuTabs.size > 0;
       menuBtn.style.display = anyTabUnlocked ? '' : 'none';
     }
-    this.attachAlertBadge(menuBtn, gameState.hasAlertForButton('menu'));
+    this.attachAlertBadge(menuBtn, gameState.hasAlertForButton('menu') || gameState.hasAlertForButton('bestiary'));
     const minimapWrap = this.chromeLayer.querySelector<HTMLElement>('#hud-minimap-wrap');
     if (minimapWrap) {
       minimapWrap.style.display = gameState.isMenuTabUnlocked('map') ? '' : 'none';
@@ -2679,13 +3033,19 @@ export class HudController {
 
     const showKeys = !this.isTouchDevice();
     const activeCount = Object.keys(gameState.activeQuests).length;
+    const discoveredCount = gameState.getDiscoveredBestiaryIds().length;
+    const hasUnread = gameState.hasUnreadBestiaryEntries();
     const tabs: Array<{ id: HudModal; label: string }> = [
       { id: 'inventory' as const, label: `Character${showKeys ? ' [I]' : ''}` },
       { id: 'craft' as const, label: `Craft${showKeys ? ' [Tab]' : ''}` },
       { id: 'skills' as const, label: `Skills${showKeys ? ' [K]' : ''}${gameState.skillPoints > 0 ? ` (+${gameState.skillPoints})` : ''}` },
       { id: 'quests' as const, label: `Quests${showKeys ? ' [Q]' : ''}${activeCount > 0 ? ` (${activeCount})` : ''}` },
       { id: 'map' as const, label: `Map${showKeys ? ' [M]' : ''} (${gameState.ownedIslands.size}/25)` },
-      { id: 'progress' as const, label: `${gameState.debugMode ? 'Progress & Debug' : 'Progress'}${showKeys ? ' [P]' : ''}` },
+      {
+        id: 'bestiary' as const,
+        label: `Bestiary${showKeys ? ' [B]' : ''}${discoveredCount > 0 ? ` (${discoveredCount})` : ''}${hasUnread ? ' •' : ''}`,
+      },
+      { id: 'progress' as const, label: `Progress${showKeys ? ' [P]' : ''}` },
       { id: 'settings' as const, label: `Settings${showKeys ? ' [O]' : ''}` },
     ].filter((t) => gameState.isMenuTabUnlocked(t.id));
 
@@ -2695,6 +3055,7 @@ export class HudController {
     else if (this.activeModal === 'skills') bodyHtml = this.renderSkillsTab();
     else if (this.activeModal === 'quests') bodyHtml = this.renderQuestsTab();
     else if (this.activeModal === 'map') bodyHtml = this.renderMapTab();
+    else if (this.activeModal === 'bestiary') bodyHtml = this.renderBestiaryTab();
     else if (this.activeModal === 'progress') bodyHtml = this.renderProgressTab();
     else if (this.activeModal === 'settings') bodyHtml = renderSettingsPanelHtml(this.capturingControllerAction);
 
@@ -3358,6 +3719,9 @@ export class HudController {
     const curGx = Math.max(0, Math.min(WORLD_GRID_SIZE - 1, Math.floor(ptx / ISLAND_CELL_TILES)));
     const curGy = Math.max(0, Math.min(WORLD_GRID_SIZE - 1, Math.floor(pty / ISLAND_CELL_TILES)));
     const curSpec = getIslandAt(curGx, curGy);
+    const hasLiveNpcMarkers = typeof this.callbacks.getMapNpcMarkers === 'function';
+    const npcMarkers = this.callbacks.getMapNpcMarkers?.() ?? [];
+    const markersByIsland = groupNpcMarkersByIsland(npcMarkers);
 
     let gridHtml = `<div style="display:grid; grid-template-columns:repeat(${WORLD_GRID_SIZE}, 1fr); grid-template-rows:repeat(${WORLD_GRID_SIZE}, 1fr); gap:6px; height:100%; min-height:0;">`;
     for (let gy = 0; gy < WORLD_GRID_SIZE; gy++) {
@@ -3374,18 +3738,21 @@ export class HudController {
         const lvColor = recLv - gameState.getPowerLevel() >= 3 ? '#ff8a93' : '#d2e2f2';
         const clearedDung = spec.dungeonId && gameState.clearedDungeons.has(spec.dungeonId);
         const dungTag = spec.dungeonId ? (clearedDung ? ' • ✓ Dungeon' : ' • 💀 Dungeon') : '';
-        const npcTag = spec.npc ? ` • 🏠 ${spec.npc.name.split(' ').pop()}` : '';
+        const islandNpcMarkers = owned ? (markersByIsland.get(`${gx},${gy}`) ?? []) : [];
+        const npcPinsHtml = owned ? buildMapIslandNpcPinsHtml(islandNpcMarkers) : '';
+        const npcTag = spec.npc && (!owned || !hasLiveNpcMarkers) ? ` • 🏠 ${spec.npc.name.split(' ').pop()}` : '';
         const highlightStyle = isCurrentRegion
           ? 'box-shadow:0 0 0 2px #ffe066, 0 0 12px rgba(255,224,102,0.85); border:1.5px solid #ffe066; position:relative;'
           : '';
         gridHtml += `
-          <div class="hud-panel-inset" style="padding:5px 7px; background:${owned ? biomeColors[spec.biome] : 'rgba(30,20,14,0.85)'}; display:flex; flex-direction:column; justify-content:space-between; min-height:0; ${highlightStyle}" title="${storyLock ?? ''}">
-            <div>
+          <div class="hud-panel-inset" style="padding:5px 7px; background:${owned ? biomeColors[spec.biome] : 'rgba(30,20,14,0.85)'}; display:flex; flex-direction:column; justify-content:space-between; min-height:0; overflow:hidden; ${highlightStyle}" title="${storyLock ?? ''}">
+            <div style="min-height:0;">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
                 <span style="font-size:11px; font-weight:800; color:#fff6e5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${isCurrentRegion ? '📍 ' : ''}${spec.name}</span>
                 <span style="font-size:9px; color:${owned ? '#e6ffea' : lvColor}; font-weight:700;">Lv.${recLv}</span>
               </div>
               <div style="font-size:9px; color:#f2d9b1; text-transform:capitalize; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${spec.biome}${dungTag}${npcTag}</div>
+              ${npcPinsHtml}
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
               ${
@@ -3406,7 +3773,12 @@ export class HudController {
     gridHtml += `</div>`;
     return `
       <div style="display:grid; grid-template-columns:1fr 240px; gap:10px; height:100%; min-height:0;">
-        ${gridHtml}
+        <div style="display:flex; flex-direction:column; gap:6px; height:100%; min-height:0;">
+          <div class="hud-panel-inset" style="padding:4px 8px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; font-size:10px; color:#f2d9b1; flex-shrink:0;">
+            <span>🏠 Townsfolk &nbsp;•&nbsp; 🛒 Traveling Merchant &nbsp;•&nbsp; 🧭 Vagabond &nbsp;•&nbsp; <strong style="color:#ffe066;">!</strong>/<strong style="color:#ffe066;">?</strong> Quest</span>
+          </div>
+          <div style="flex:1; min-height:0;">${gridHtml}</div>
+        </div>
         <div class="hud-panel-inset" style="padding:10px; display:flex; flex-direction:column; gap:8px; font-size:11px;">
           <div style="font-size:13px; font-weight:800; color:#ffe596;">Archipelago Map</div>
           <div style="padding:5px 7px; background:rgba(255,224,102,0.14); border:1px solid #ffe066; border-radius:4px; font-size:10px; color:#fff6e5;">
@@ -3520,85 +3892,321 @@ export class HudController {
     `;
   }
 
+  private renderBestiarySpriteHtml(meta: BestiaryMeta, boxSizePx: number): string {
+    return buildBestiarySpriteFrameHtml(meta, boxSizePx);
+  }
+
+  private renderBestiaryTab(): string {
+    const totals = getBestiaryTotals();
+    const discoveredIds = gameState.getDiscoveredBestiaryIds();
+    type ResolvedBestiaryEntry = {
+      id: string;
+      meta: BestiaryMeta;
+      entry: NonNullable<ReturnType<typeof gameState.getBestiaryEntry>>;
+    };
+
+    const allDiscovered: ResolvedBestiaryEntry[] = [];
+    for (const id of discoveredIds) {
+      const meta = getBestiaryMeta(id);
+      const entry = gameState.getBestiaryEntry(id);
+      if (meta && entry) {
+        allDiscovered.push({ id, meta, entry });
+      }
+    }
+
+    const discoveredCount = allDiscovered.length;
+    const bossCount = allDiscovered.filter((it) => it.meta.category === 'boss').length;
+    const totalKills = allDiscovered.reduce((sum, it) => sum + it.entry.kills, 0);
+    const pct = totals.total > 0 ? Math.round((discoveredCount / totals.total) * 100) : 0;
+
+    const headerBarHtml = `
+      <div class="hud-panel-inset bestiary-summary-bar">
+        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:10px; color:#fff6e5;">
+          <span style="display:inline-flex; align-items:center; gap:5px; font-weight:800; color:#ffe596;">
+            <img src="assets/sprout_ui/icons/brown_outline_dark/skull.png" class="px-icon" style="width:15px; height:15px;" />
+            <span>Field Bestiary</span>
+          </span>
+          <span>Discovered: <strong style="color:#ffe066;">${discoveredCount} / ${totals.total}</strong></span>
+          <span>•</span>
+          <span>Bosses: <strong style="color:#ff9b85;">${bossCount} / ${totals.bosses}</strong></span>
+          <span>•</span>
+          <span>Total Kills: <strong style="color:#8ef5a7;">${formatCompactNumber(totalKills)}</strong></span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; font-size:10px; color:#f2d9b1;">
+          <span>Completion</span>
+          <div style="width:76px; height:7px; background:#1b1109; border:1px solid #5c3a24; border-radius:4px; overflow:hidden;">
+            <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, #ffe066, #6ce08a);"></div>
+          </div>
+          <strong style="color:#ffe066;">${pct}%</strong>
+        </div>
+      </div>
+    `;
+
+    if (discoveredIds.length === 0 || allDiscovered.length === 0) {
+      return `
+        <div class="bestiary-shell">
+          ${headerBarHtml}
+          <div class="hud-dock-light bestiary-empty-page">
+            <div class="sl-frame-wood" style="width:62px; height:62px; display:flex; align-items:center; justify-content:center; background:rgba(92,58,36,0.12);">
+              <img src="assets/sprout_ui/icons/brown_outline_dark/skull.png" class="px-icon" style="width:34px; height:34px; opacity:0.78;" />
+            </div>
+            <div class="sl-pixel-text" style="font-size:15px; font-weight:800; color:#3b2316;">Uncharted Field Ledger</div>
+            <div style="max-width:460px; font-size:12px; line-height:1.5; color:#5c3a24;">
+              Your Bestiary is blank. Venture across the islands and dungeons—every monster, elite, and boss you encounter will be sketched into these pages.
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    const filterOpts: Array<{ id: HudController['bestiaryFilter']; label: string }> = [
+      { id: 'all', label: 'All' },
+      { id: 'monster', label: 'Monsters' },
+      { id: 'boss', label: 'Bosses' },
+      { id: 'elite', label: 'Elites' },
+    ];
+    const sortOpts: Array<{ id: HudController['bestiarySort']; label: string }> = [
+      { id: 'recent', label: 'Recent' },
+      { id: 'level', label: 'Level' },
+      { id: 'kills', label: 'Most Killed' },
+      { id: 'name', label: 'A–Z' },
+    ];
+
+    const filtered = allDiscovered.filter((it) => {
+      if (this.bestiaryFilter === 'monster') return it.meta.category === 'monster';
+      if (this.bestiaryFilter === 'boss') return it.meta.category === 'boss';
+      if (this.bestiaryFilter === 'elite') return it.entry.eliteEncounters > 0;
+      return true;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (this.bestiarySort === 'recent') {
+        return (
+          b.entry.firstSeenAt - a.entry.firstSeenAt ||
+          a.meta.level - b.meta.level ||
+          a.meta.name.localeCompare(b.meta.name)
+        );
+      }
+      if (this.bestiarySort === 'level') {
+        return a.meta.level - b.meta.level || a.meta.name.localeCompare(b.meta.name);
+      }
+      if (this.bestiarySort === 'kills') {
+        return (
+          b.entry.kills - a.entry.kills ||
+          b.entry.encounters - a.entry.encounters ||
+          a.meta.name.localeCompare(b.meta.name)
+        );
+      }
+      return a.meta.name.localeCompare(b.meta.name);
+    });
+
+    let selected = sorted.find((it) => it.id === this.selectedBestiaryId) ?? null;
+    if (!selected && sorted.length > 0) {
+      selected = sorted[0];
+      this.selectedBestiaryId = selected.id;
+    }
+
+    const controlsHtml = `
+      <div class="bestiary-controls-row">
+        <div class="bestiary-btn-group">
+          <span style="font-size:10px; font-weight:800; color:#3b2316; margin-right:2px;">Filter:</span>
+          ${filterOpts
+            .map(
+              (f) =>
+                `<button class="hud-btn ${this.bestiaryFilter === f.id ? 'gold' : 'tan'}" data-bestiary-filter="${f.id}" style="padding:1px 8px; font-size:10px;">${f.label}</button>`,
+            )
+            .join('')}
+        </div>
+        <div class="bestiary-btn-group">
+          <span style="font-size:10px; font-weight:800; color:#3b2316; margin-right:2px;">Sort:</span>
+          ${sortOpts
+            .map(
+              (s) =>
+                `<button class="hud-btn ${this.bestiarySort === s.id ? 'gold' : ''}" data-bestiary-sort="${s.id}" style="padding:1px 8px; font-size:10px;">${s.label}</button>`,
+            )
+            .join('')}
+        </div>
+      </div>
+    `;
+
+    const listHtml = sorted.length
+      ? sorted
+          .map((it) => {
+            const isSelected = selected?.id === it.id;
+            const isBoss = it.meta.category === 'boss';
+            const hasElite = it.entry.eliteEncounters > 0;
+            return `
+              <div class="${isSelected ? 'hud-dock-light selected' : 'hud-panel-inset'} bestiary-entry-row" data-bestiary-id="${it.id}">
+                <div style="width:38px; height:38px; background:url('assets/sprout_ui/frames/backdrop_b3.png') no-repeat center / 100% 100%; image-rendering:pixelated; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                  ${this.renderBestiarySpriteHtml(it.meta, 32)}
+                </div>
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
+                    <span style="font-size:11px; font-weight:800; color:${isSelected ? '#3b2316' : '#fff6e5'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                      ${isBoss ? '👑 ' : ''}${it.meta.name}${hasElite ? ' <span style="color:#ffd242;" title="Elite variant encountered">★</span>' : ''}
+                    </span>
+                    ${it.entry.isNew ? `<span class="bestiary-new-pill">NEW</span>` : ''}
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-top:2px; font-size:10px; color:${isSelected ? '#5c3a24' : '#f2d9b1'};">
+                    <span>Lv.${it.meta.level}${isBoss ? ' • Boss' : ''}</span>
+                    <span style="white-space:nowrap;">👁 ${formatCompactNumber(it.entry.encounters)} &nbsp;⚔ ${formatCompactNumber(it.entry.kills)}</span>
+                  </div>
+                </div>
+              </div>
+            `;
+          })
+          .join('')
+      : `<div style="padding:18px 10px; text-align:center; font-size:11px; color:#f2d9b1;">No discovered creatures match this filter.</div>`;
+
+    let detailHtml = `
+      <div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:12px; color:#5c3a24; text-align:center;">
+        Select a discovered creature or switch filters to inspect its field entry.
+      </div>
+    `;
+
+    if (selected) {
+      const { meta, entry } = selected;
+      const isBoss = meta.category === 'boss';
+      const hasElite = entry.eliteEncounters > 0;
+      const mastery = getBestiaryMasteryTier(entry.kills);
+      const goldRange = meta.coins[0] === meta.coins[1] ? `${meta.coins[0]}g` : `${meta.coins[0]}–${meta.coins[1]}g`;
+      const defeatedAtLeastOnce = entry.kills >= 1;
+
+      const habitatsHtml = meta.habitats.length
+        ? meta.habitats
+            .map(
+              (h) =>
+                `<span style="background:rgba(92,58,36,0.14); border:1px solid rgba(92,58,36,0.32); border-radius:4px; padding:1px 6px; font-size:10px; font-weight:700; color:#3b2316;">${h}</span>`,
+            )
+            .join('')
+        : `<span style="font-size:10px; color:#7a5438;">Unknown</span>`;
+
+      const dropsSectionHtml = defeatedAtLeastOnce
+        ? `
+          <div class="bestiary-parchment-box">
+            <div style="font-size:11px; font-weight:800; color:#3b2316; margin-bottom:4px;">Field Notes</div>
+            <div style="font-size:11px; line-height:1.45; color:#5c3a24; font-style:italic;">“${meta.fieldNote}”</div>
+          </div>
+          <div class="bestiary-parchment-box">
+            <div style="font-size:11px; font-weight:800; color:#3b2316; margin-bottom:6px;">Loot Drops</div>
+            ${
+              meta.drops.length > 0
+                ? `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(185px, 1fr)); gap:6px;">
+                    ${meta.drops
+                      .map((drop) => {
+                        const itemDef = ITEMS[drop.itemId];
+                        const itemName = itemDef?.name ?? drop.itemId;
+                        const pctChance = Math.round(drop.chance * 100);
+                        return `
+                          <div style="display:flex; align-items:center; gap:7px; padding:5px 7px; background:rgba(255,246,229,0.55); border:1px solid rgba(92,58,36,0.3); border-radius:5px;">
+                            <div style="width:26px; height:26px; background:url('assets/sprout_ui/frames/backdrop_b3.png') no-repeat center / 100% 100%; image-rendering:pixelated; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                              ${itemDef?.iconKey ? `<img src="assets/${itemDef.iconKey}.png" class="px-icon" style="width:18px; height:18px;" />` : `<span style="font-size:10px; color:#5c3a24;">•</span>`}
+                            </div>
+                            <div style="flex:1; min-width:0;">
+                              <div style="font-size:11px; font-weight:800; color:#3b2316; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${itemName}</div>
+                              <div style="font-size:10px; color:#5c3a24;">×${drop.count} • <strong>${pctChance}%</strong></div>
+                            </div>
+                          </div>
+                        `;
+                      })
+                      .join('')}
+                  </div>`
+                : `<div style="font-size:11px; color:#5c3a24;">No item drops recorded.</div>`
+            }
+          </div>
+        `
+        : `
+          <div class="bestiary-parchment-box">
+            <div style="font-size:11px; font-weight:800; color:#3b2316; margin-bottom:4px;">Field Notes &amp; Loot Drops</div>
+            <div style="font-size:11px; color:#7a5438; margin-bottom:7px;">
+              Defeat this creature at least once to uncover its loot drops and field notes.
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(145px, 1fr)); gap:6px;">
+              ${(meta.drops.length > 0 ? meta.drops : [null])
+                .map(
+                  () => `
+                    <div style="display:flex; align-items:center; gap:7px; padding:5px 7px; background:rgba(59,35,22,0.12); border:1px dashed rgba(92,58,36,0.45); border-radius:5px;">
+                      <div style="width:24px; height:24px; background:rgba(59,35,22,0.18); border-radius:4px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:11px; color:#5c3a24;">?</div>
+                      <div>
+                        <div style="font-size:11px; font-weight:800; color:#5c3a24;">???</div>
+                        <div style="font-size:9px; color:#7a5438;">Unrecorded drop</div>
+                      </div>
+                    </div>
+                  `,
+                )
+                .join('')}
+            </div>
+          </div>
+        `;
+
+      detailHtml = `
+        <div style="display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div class="sl-frame-wood" style="width:72px; height:72px; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:rgba(255,246,229,0.5);">
+            ${this.renderBestiarySpriteHtml(meta, 54)}
+          </div>
+          <div style="flex:1; min-width:200px; display:flex; flex-direction:column; gap:5px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+              <div class="sl-pixel-text" style="font-size:16px; font-weight:900; color:#3b2316;">
+                ${isBoss ? '👑 ' : ''}${meta.name}${hasElite ? ' <span style="color:#b86b00;" title="Elite variant encountered">★</span>' : ''}
+              </div>
+              <span style="background:#24150c; color:${mastery.color}; border:1.5px solid ${mastery.color}; border-radius:999px; padding:1px 8px; font-size:10px; font-weight:800; text-shadow:none !important;">
+                ${mastery.label}
+              </span>
+            </div>
+            <div style="display:flex; align-items:center; flex-wrap:wrap; gap:5px; font-size:10px;">
+              <span style="background:#3b2316; color:#ffe066; border-radius:4px; padding:1px 6px; font-weight:800; text-shadow:none !important;">Lv.${meta.level}</span>
+              <span style="background:${isBoss ? '#9e2a35' : '#2c6e31'}; color:#fff6e5; border-radius:4px; padding:1px 6px; font-weight:800; text-shadow:none !important;">${isBoss ? 'Boss' : 'Monster'}</span>
+              <span style="background:rgba(92,58,36,0.16); color:#3b2316; border:1px solid rgba(92,58,36,0.35); border-radius:4px; padding:1px 6px; font-weight:700;">${meta.behaviorLabel}</span>
+            </div>
+            <div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin-top:1px;">
+              <span style="font-size:10px; font-weight:800; color:#5c3a24;">Habitats:</span>
+              ${habitatsHtml}
+            </div>
+          </div>
+        </div>
+
+        <div class="hud-panel-inset" style="padding:8px 10px;">
+          <div style="font-size:11px; font-weight:800; color:#ffe596; margin-bottom:5px;">Expedition Tracking</div>
+          <div class="bestiary-stats-grid" style="font-size:11px;">
+            <div style="display:flex; justify-content:space-between; gap:6px;"><span style="color:#f2d9b1;">Encounters</span><strong>${formatCompactNumber(entry.encounters)}</strong></div>
+            <div style="display:flex; justify-content:space-between; gap:6px;"><span style="color:#f2d9b1;">Kills</span><strong style="color:#8ef5a7;">${formatCompactNumber(entry.kills)}</strong></div>
+            ${hasElite ? `<div style="display:flex; justify-content:space-between; gap:6px;"><span style="color:#ffd242;">★ Elite Seen</span><strong style="color:#ffd242;">${formatCompactNumber(entry.eliteEncounters)}</strong></div>` : ''}
+            ${hasElite ? `<div style="display:flex; justify-content:space-between; gap:6px;"><span style="color:#ffd242;">★ Elite Kills</span><strong style="color:#ffd242;">${formatCompactNumber(entry.eliteKills)}</strong></div>` : ''}
+          </div>
+        </div>
+
+        <div class="bestiary-parchment-box">
+          <div style="font-size:11px; font-weight:800; color:#3b2316; margin-bottom:5px;">Combat Stats</div>
+          <div class="bestiary-stats-grid" style="font-size:11px; color:#3b2316;">
+            <div style="display:flex; justify-content:space-between; gap:6px;"><span style="color:#5c3a24;">HP</span><strong>${meta.maxHp}</strong></div>
+            <div style="display:flex; justify-content:space-between; gap:6px;"><span style="color:#5c3a24;">ATK</span><strong style="color:#9e2a35;">${meta.damage}</strong></div>
+            <div style="display:flex; justify-content:space-between; gap:6px;"><span style="color:#5c3a24;">Speed</span><strong>${meta.speed}</strong></div>
+            <div style="display:flex; justify-content:space-between; gap:6px;"><span style="color:#5c3a24;">XP</span><strong style="color:#2c6e31;">${meta.xp}</strong></div>
+            <div style="display:flex; justify-content:space-between; gap:6px;"><span style="color:#5c3a24;">Gold</span><strong style="color:#8f5616;">${goldRange}</strong></div>
+          </div>
+        </div>
+
+        ${dropsSectionHtml}
+      `;
+    }
+
+    return `
+      <div class="bestiary-shell">
+        ${headerBarHtml}
+        ${controlsHtml}
+        <div class="bestiary-layout">
+          <div class="hud-panel-inset sl-scroll bestiary-list-pane">${listHtml}</div>
+          <div class="hud-dock-light sl-scroll bestiary-detail-pane">${detailHtml}</div>
+        </div>
+      </div>
+    `;
+  }
+
   private renderProgressTab(): string {
-    const worldStats = this.callbacks.getWorldDebugStats?.();
-    const itemOptions = Object.values(ITEMS)
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((it) => `<option value="${it.id}">${it.name} (${it.category})</option>`)
-      .join('');
     const bagUsed = gameState.bagSlots.filter(Boolean).length;
     const relicsUnlocked = ['necro_rod', 'thunder_rod', 'ice_rod', 'fire_rod'].filter((id) =>
       gameState.isGearOwned(id),
     ).length;
-
-    const debugPanelHtml = gameState.debugMode
-      ? `
-        <div class="hud-panel-inset" style="padding:10px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <strong style="color:#ffbe6b; font-size:12px;">Debug Mode — Testing & Cheat Controls</strong>
-            <button class="hud-btn" data-dbg="toggle_mode" style="padding:2px 8px; font-size:10px;">Debug: ON (Turn Off)</button>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:6px;">
-            <div style="display:flex; gap:5px; flex-wrap:wrap;">
-              <button class="hud-btn primary" data-dbg="add_resources">+50 Mats & +500g</button>
-              <button class="hud-btn primary" data-dbg="add_consumables">+10 Food/Potions</button>
-              <button class="hud-btn gold" data-dbg="add_coins">+1,000 Coins</button>
-              <button class="hud-btn" data-dbg="full_heal">Full Heal</button>
-            </div>
-            <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center;">
-              <button class="hud-btn gold" data-dbg="add_level_1">+1 Lv</button>
-              <button class="hud-btn gold" data-dbg="add_level_5">+5 Lv</button>
-              <button class="hud-btn" data-dbg="unlock_all_skills">Unlock 20 Skills</button>
-              <button class="hud-btn" data-dbg="unlock_relics">Unlock Relics/Bow</button>
-              <button class="hud-btn" data-dbg="unlock_all_islands">Unlock 25 Islands</button>
-              <button class="hud-btn" data-dbg="clear_dungeons">Clear 4 Dungeons</button>
-            </div>
-            <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
-              <span style="font-size:10px; color:#f2d9b1;">Teleport:</span>
-              <button class="hud-btn" data-teleport="2,2" style="padding:2px 6px; font-size:10px;">Origin</button>
-              <button class="hud-btn" data-teleport="3,3" style="padding:2px 6px; font-size:10px;">Desert</button>
-              <button class="hud-btn" data-teleport="0,2" style="padding:2px 6px; font-size:10px;">Skull Crypt</button>
-              <button class="hud-btn" data-teleport="4,2" style="padding:2px 6px; font-size:10px;">Sunken Tomb</button>
-              <button class="hud-btn" data-teleport="2,0" style="padding:2px 6px; font-size:10px;">Frost</button>
-              <button class="hud-btn" data-teleport="4,0" style="padding:2px 6px; font-size:10px;">Infernal</button>
-            </div>
-            <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
-              <span style="font-size:10px; color:#f2d9b1;">Time:</span>
-              <button class="hud-btn" data-dbg-time="0.08" style="padding:2px 6px; font-size:10px;">Dawn</button>
-              <button class="hud-btn" data-dbg-time="0.35" style="padding:2px 6px; font-size:10px;">Noon</button>
-              <button class="hud-btn" data-dbg-time="0.68" style="padding:2px 6px; font-size:10px;">Dusk</button>
-              <button class="hud-btn" data-dbg-time="0.88" style="padding:2px 6px; font-size:10px;">Night</button>
-              <button class="hud-btn gold" data-dbg="next_day" style="padding:2px 6px; font-size:10px;">Next Day</button>
-            </div>
-            <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
-              <span style="font-size:10px; color:#f2d9b1;">Weather:</span>
-              <button class="hud-btn" data-dbg-weather="auto" style="padding:2px 6px; font-size:10px;">Auto</button>
-              <button class="hud-btn" data-dbg-weather="sunny" style="padding:2px 6px; font-size:10px;">Sunny</button>
-              <button class="hud-btn" data-dbg-weather="cloudy" style="padding:2px 6px; font-size:10px;">Cloudy</button>
-              <button class="hud-btn" data-dbg-weather="rain" style="padding:2px 6px; font-size:10px;">Rain</button>
-              <button class="hud-btn" data-dbg-weather="snow" style="padding:2px 6px; font-size:10px;">Snow</button>
-              <button class="hud-btn" data-dbg-weather="sandstorm" style="padding:2px 6px; font-size:10px;">Sand</button>
-            </div>
-            <div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center; padding-top:4px; border-top:1px solid rgba(255,255,255,0.12);">
-              <span style="font-size:10px; color:#f2d9b1;">Spawn:</span>
-              <select id="dbg-item-select" style="background:#1c120c; color:#f6eedc; border:1px solid #6b4e35; border-radius:4px; padding:2px 5px; font-size:10px; max-width:160px;">
-                ${itemOptions}
-              </select>
-              <input id="dbg-item-qty" type="number" value="5" min="1" max="999" style="width:46px; background:#1c120c; color:#f6eedc; border:1px solid #6b4e35; border-radius:4px; padding:2px 5px; font-size:10px;" />
-              <button class="hud-btn primary" data-dbg="spawn_item" style="padding:2px 7px; font-size:10px;">Grant</button>
-              <div style="flex:1;"></div>
-              <button class="hud-btn danger" data-dbg="reset_run" title="Resets current run to Level 1 New Adventure" style="padding:2px 7px; font-size:10px;">Reset Run</button>
-              <button class="hud-btn danger" data-dbg="erase_save" title="Deletes all localStorage/sessionStorage saves and restarts" style="padding:2px 7px; font-size:10px;">Erase Save</button>
-            </div>
-          </div>
-        </div>
-      `
-      : `
-        <div class="hud-panel-inset" style="padding:8px 10px; display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:11px; color:#f2d9b1;">Debug Mode is currently OFF.</span>
-          <button class="sl-icon-btn" data-dbg="toggle_mode" title="Enable Debug Mode" style="width:44px; height:28px; background-image:url('assets/sprout_ui/controls/toggle_brown_state_1.png');"></button>
-        </div>
-      `;
 
     const isGrandVictory =
       gameState.finalBossDefeated &&
@@ -3607,20 +4215,72 @@ export class HudController {
 
     const victoryBannerHtml = isGrandVictory
       ? `
-        <div class="hud-panel" style="padding:7px 12px; margin-bottom:8px; background:linear-gradient(90deg, #2b4a2f, #4c3b14); text-align:center; flex-shrink:0;">
+        <div class="hud-panel" style="padding:7px 12px; margin-bottom:4px; background:linear-gradient(90deg, #2b4a2f, #4c3b14); text-align:center; flex-shrink:0;">
           <strong style="color:#ffe596; font-size:13px;">GRAND VICTORY — ALL 25 ISLANDS, 4 DUNGEONS &amp; VOID SPIRE FINAL BOSS CONQUERED!</strong>
           <div style="font-size:10px; color:#e6ffea; margin-top:2px;">You have defeated the Ancient Black Dragon on Floor 20 of the Void Spire and mastered Forage Ahead!</div>
         </div>
       `
       : '';
 
+    const npcMarkers = this.callbacks.getMapNpcMarkers?.() ?? [];
+    const completionPct = gameState.getCompletionPercent();
+    const bestiaryTotals = getBestiaryTotals();
+    const discoveredBeasts = gameState.getDiscoveredBestiaryIds().length;
+    const playMins = Math.floor(gameState.stats.playTimeMs / 60000);
+    const playHours = Math.floor(playMins / 60);
+    const playTimeText = playHours > 0 ? `${playHours}h ${playMins % 60}m` : `${playMins}m`;
+
+    const classSkills = getSkillsForClass(gameState.heroClass);
+    const unlockedClassSkills = classSkills.filter((s) => gameState.unlockedSkills.has(s.id)).length;
+
+    const milestones: Array<{ label: string; cur: number; max: number; color: string }> = [
+      { label: 'Islands Claimed', cur: gameState.ownedIslands.size, max: ISLANDS.length, color: '#7ef29d' },
+      { label: 'Dungeons Cleared', cur: gameState.clearedDungeons.size, max: 4, color: '#9fc9ff' },
+      { label: 'Quests Completed', cur: gameState.completedQuests.size, max: QUESTS.length, color: '#ffe066' },
+      { label: 'Skills Unlocked', cur: unlockedClassSkills, max: classSkills.length, color: '#ffb36b' },
+      { label: 'Bestiary Entries', cur: discoveredBeasts, max: bestiaryTotals.total, color: '#d8a6ff' },
+    ];
+
+    const milestoneBarsHtml = milestones
+      .map((m) => {
+        const pct = m.max > 0 ? Math.min(100, Math.round((m.cur / m.max) * 100)) : 0;
+        return `
+          <div style="display:flex; flex-direction:column; gap:3px;">
+            <div style="display:flex; justify-content:space-between; font-size:10px;">
+              <span style="color:#f2d9b1;">${m.label}</span>
+              <strong style="color:${m.color};">${m.cur} / ${m.max} (${pct}%)</strong>
+            </div>
+            <div style="height:6px; background:rgba(0,0,0,0.45); border-radius:4px; overflow:hidden; border:1px solid rgba(255,255,255,0.12);">
+              <div style="width:${pct}%; height:100%; background:${m.color};"></div>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+
+    const lifetimeStats: Array<{ label: string; value: string }> = [
+      { label: 'Total Kills', value: formatCompactNumber(gameState.stats.totalKills) },
+      { label: 'Elites / Bosses', value: `${gameState.stats.elitesKilled} / ${gameState.stats.bossesKilled}` },
+      { label: 'Damage Dealt', value: formatCompactNumber(gameState.stats.damageDealt) },
+      { label: 'Resources Gathered', value: formatCompactNumber(gameState.stats.resourcesGathered) },
+      { label: 'Fish Caught', value: formatCompactNumber(gameState.stats.fishCaught) },
+      { label: 'Items Crafted', value: formatCompactNumber(gameState.stats.itemsCrafted) },
+      { label: 'Structures Built', value: formatCompactNumber(gameState.stats.structuresBuilt) },
+      { label: 'Play Time', value: playTimeText },
+    ];
+
     return `
       <div style="display:flex; flex-direction:column; height:100%; min-height:0; gap:8px;">
         ${victoryBannerHtml}
-        <!-- COMPACT LIVE TELEMETRY BAR -->
+        <!-- ADVENTURE PROGRESS SUMMARY -->
         <div class="hud-panel-inset" style="padding:8px 10px; flex-shrink:0;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px;">
-            <div style="font-size:12px; font-weight:700; color:#ffe596;">Command Center — Live Game State</div>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <div style="font-size:12px; font-weight:700; color:#ffe596;">Adventure Progress — ${completionPct}% Complete</div>
+              <div style="width:120px; height:8px; background:rgba(0,0,0,0.45); border-radius:5px; overflow:hidden; border:1px solid rgba(255,229,150,0.35);">
+                <div style="width:${Math.min(100, completionPct)}%; height:100%; background:linear-gradient(90deg, #7ef29d, #ffe066);"></div>
+              </div>
+            </div>
             <div style="display:flex; align-items:center; gap:8px; font-size:11px;">
               <span style="color:#f2d9b1;">Volume:</span>
               <input id="hud-vol-slider" class="sl-range" type="range" min="0" max="100" value="${Math.round(SFX.masterVolume * 100)}" style="width:92px;" />
@@ -3632,56 +4292,42 @@ export class HudController {
             <div><span style="color:#d6b88c;">Vitals:</span> <strong>${Math.ceil(gameState.hp)}/${gameState.getMaxHp()} HP • ${Math.ceil(gameState.energy)}/${gameState.getMaxEnergy()} EN</strong></div>
             <div><span style="color:#d6b88c;">Coins/SP:</span> <strong style="color:#ffd95a;">${gameState.coins}g • ${gameState.skillPoints} SP</strong></div>
             <div><span style="color:#d6b88c;">Bag/Relics:</span> <strong>${bagUsed}/${BAG_SIZE} • ${relicsUnlocked}/4</strong></div>
-            <div><span style="color:#d6b88c;">World:</span> <strong>${gameState.ownedIslands.size}/${ISLANDS.length} Isl • ${gameState.unlockedSkills.size}/${SKILLS.length} Sk</strong></div>
-            <div><span style="color:#d6b88c;">Void Spire:</span> <strong style="color:#e0b0ff;">Fl.${gameState.voidSpireHighestFloor}</strong> • ${gameState.clearedDungeons.size}/4 Dung</div>
-          </div>
-          <div style="margin-top:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.12); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:10px; color:#d6b88c;">
-            <span>Content: <strong>${Object.keys(ITEMS).length}</strong> Items • <strong>${RECIPES.length}</strong> Recipes • <strong>${Object.keys(MONSTERS).length}</strong> Monsters • <strong>${QUESTS.length}</strong> Quests</span>
-            <span>Save: <strong style="color:${worldStats?.hasSavedData ? '#8ef5a7' : '#f2d9b1'};">${worldStats?.hasSavedData ? 'Saved' : 'Clean'}</strong>${worldStats ? ` • Pos (${worldStats.playerTx},${worldStats.playerTy}) • Nodes ${worldStats.nodesCount} • Enemies ${worldStats.enemiesCount} • Bldgs ${worldStats.buildingsCount} (${worldStats.activeCraftJobs} jobs)` : ''}</span>
+            <div><span style="color:#d6b88c;">Void Spire:</span> <strong style="color:#e0b0ff;">Fl.${gameState.voidSpireHighestFloor}</strong></div>
+            <div><span style="color:#d6b88c;">Final Boss:</span> <strong style="color:${gameState.finalBossDefeated ? '#8ef5a7' : '#d6b88c'};">${gameState.finalBossDefeated ? 'Defeated' : 'Undefeated'}</strong></div>
           </div>
         </div>
 
-        <!-- 2-COLUMN SPLIT: DEBUG & ROADMAP | IMPLEMENTED SYSTEMS -->
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; flex:1; min-height:0;">
+        <!-- 2-COLUMN SPLIT: MILESTONES & EXPEDITION STATS | TOWNSFOLK & FRIENDSHIPS -->
+        <div style="display:grid; grid-template-columns:1fr 1.15fr; gap:10px; flex:1; min-height:0;">
           <div class="sl-scroll" style="display:flex; flex-direction:column; gap:8px; padding-right:4px;">
-            ${debugPanelHtml}
-            <div style="font-size:12px; font-weight:700; color:#ffe596;">Outstanding Roadmap (${OUTSTANDING_ITEMS.length})</div>
-            <div style="display:flex; flex-direction:column; gap:5px;">
-              ${
-                OUTSTANDING_ITEMS.length === 0
-                  ? `<div class="hud-panel-inset" style="padding:8px 10px; font-size:11px; color:#a3f7b5;">All planned roadmap items are complete and verified!</div>`
-                  : OUTSTANDING_ITEMS.map((item) => {
-                      const prioColor =
-                        item.priority === 'High' ? '#ff8a93' : item.priority === 'Medium' ? '#ffe066' : '#8cc8ff';
-                      return `
-                        <div class="hud-panel-inset" style="padding:7px 9px; display:flex; align-items:flex-start; gap:8px;">
-                          <span style="font-size:9px; font-weight:700; color:${prioColor}; border:1px solid ${prioColor}; padding:1px 5px; border-radius:4px; min-width:48px; text-align:center;">${item.priority}</span>
-                          <div>
-                            <div style="font-size:11px; font-weight:700;">${item.title}</div>
-                            <div style="font-size:10px; color:#e6d5b8;">${item.details}</div>
-                          </div>
-                        </div>
-                      `;
-                    }).join('')
-              }
+            <div class="hud-panel-inset" style="padding:9px 10px; display:flex; flex-direction:column; gap:7px;">
+              <div style="font-size:12px; font-weight:700; color:#ffe596;">World Milestones</div>
+              ${milestoneBarsHtml}
+            </div>
+            <div class="hud-panel-inset" style="padding:9px 10px;">
+              <div style="font-size:12px; font-weight:700; color:#8ef5a7; margin-bottom:6px;">Expedition Records</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                ${lifetimeStats
+                  .map(
+                    (st) => `
+                  <div style="background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.08); border-radius:5px; padding:5px 7px; display:flex; justify-content:space-between; align-items:center; font-size:10px;">
+                    <span style="color:#d6b88c;">${st.label}</span>
+                    <strong style="color:#fff4dc;">${st.value}</strong>
+                  </div>
+                `,
+                  )
+                  .join('')}
+              </div>
             </div>
           </div>
 
-          <div class="sl-scroll" style="padding-right:4px;">
-            <div style="font-size:12px; font-weight:700; color:#8ef5a7; margin-bottom:6px;">Implemented Features Breakdown (${IMPLEMENTED_FEATURES.length} Systems)</div>
-            <div class="grid-2" style="gap:6px;">
-              ${IMPLEMENTED_FEATURES.map(
-                (f) => `
-                <div class="hud-panel-inset" style="padding:7px 9px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:2px;">
-                    <span style="font-size:9px; color:#8ef5a7; text-transform:uppercase; font-weight:700;">${f.category}</span>
-                    <span style="font-size:8px; background:#235439; color:#a3f7b5; padding:1px 5px; border-radius:6px; font-weight:700;">${f.status}</span>
-                  </div>
-                  <div style="font-size:11px; font-weight:700; margin-bottom:2px;">${f.title}</div>
-                  <div style="font-size:10px; color:#e6d5b8;">${f.details}</div>
-                </div>
-              `,
-              ).join('')}
+          <div class="sl-scroll" style="display:flex; flex-direction:column; gap:6px; padding-right:4px;">
+            <div style="font-size:12px; font-weight:700; color:#ffe596;">Townsfolk &amp; Friendships (${npcMarkers.length})</div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+              ${buildTownsfolkRosterHtml(
+                npcMarkers,
+                (npcId) => gameState.getNpcKnownGifts?.(npcId),
+              )}
             </div>
           </div>
         </div>
@@ -3704,6 +4350,10 @@ export class HudController {
         if (tab !== 'none') this.lastMenuTab = tab;
         SFX.playUiClick();
         this.activeModal = tab;
+        if (tab === 'bestiary') {
+          gameState.clearButtonAlerts('bestiary');
+          gameState.clearAlert('bestiary');
+        }
         this.render();
       };
     });
@@ -4065,6 +4715,37 @@ export class HudController {
       };
     });
 
+    this.modalLayer.querySelectorAll<HTMLElement>('[data-bestiary-filter]').forEach((el) => {
+      el.onclick = () => {
+        const nextFilter = el.dataset.bestiaryFilter as HudController['bestiaryFilter'] | undefined;
+        if (!nextFilter) return;
+        SFX.playUiClick();
+        this.bestiaryFilter = nextFilter;
+        this.renderModal();
+      };
+    });
+
+    this.modalLayer.querySelectorAll<HTMLElement>('[data-bestiary-sort]').forEach((el) => {
+      el.onclick = () => {
+        const nextSort = el.dataset.bestiarySort as HudController['bestiarySort'] | undefined;
+        if (!nextSort) return;
+        SFX.playUiClick();
+        this.bestiarySort = nextSort;
+        this.renderModal();
+      };
+    });
+
+    this.modalLayer.querySelectorAll<HTMLElement>('[data-bestiary-id]').forEach((el) => {
+      el.onclick = () => {
+        const id = el.dataset.bestiaryId;
+        if (!id) return;
+        SFX.playUiClick();
+        this.selectedBestiaryId = id;
+        gameState.markBestiaryEntrySeen(id);
+        this.renderModal();
+      };
+    });
+
     // Craft / Skills / Map events
     this.modalLayer.querySelectorAll<HTMLElement>('[data-station]').forEach((el) => {
       el.onclick = () => {
@@ -4170,73 +4851,5 @@ export class HudController {
       };
     }
 
-    this.modalLayer.querySelectorAll<HTMLElement>('[data-teleport]').forEach((el) => {
-      el.onclick = () => {
-        this.callbacks.onDebugAction?.('teleport_island', el.dataset.teleport);
-      };
-    });
-
-    this.modalLayer.querySelectorAll<HTMLElement>('[data-dbg-time]').forEach((el) => {
-      el.onclick = () => {
-        this.callbacks.onDebugAction?.('set_time', el.dataset.dbgTime);
-      };
-    });
-
-    this.modalLayer.querySelectorAll<HTMLElement>('[data-dbg-weather]').forEach((el) => {
-      el.onclick = () => {
-        this.callbacks.onDebugAction?.('set_weather', el.dataset.dbgWeather);
-      };
-    });
-
-    this.modalLayer.querySelectorAll<HTMLElement>('[data-dbg]').forEach((el) => {
-      el.onclick = () => {
-        const act = el.dataset.dbg!;
-        if (act === 'toggle_mode') {
-          gameState.toggleDebugMode();
-        } else if (act === 'add_resources') {
-          gameState.debugAddResourcesPreset();
-          SFX.playCraft();
-          this.showToast('Debug: Added +50 Materials & +500g!');
-        } else if (act === 'add_consumables') {
-          gameState.debugAddConsumablesPreset();
-          SFX.playPickup();
-          this.showToast('Debug: Added +10 Consumables & Bombs!');
-        } else if (act === 'add_coins') {
-          gameState.coins += 1000;
-          gameState.emit();
-          SFX.playCoin();
-        } else if (act === 'full_heal') {
-          gameState.hp = gameState.getMaxHp();
-          gameState.energy = gameState.getMaxEnergy();
-          gameState.emit();
-          SFX.playPickup();
-        } else if (act === 'add_level_1') {
-          gameState.debugAddLevels(1);
-          SFX.playLevelUp();
-        } else if (act === 'add_level_5') {
-          gameState.debugAddLevels(5);
-          SFX.playLevelUp();
-        } else if (act === 'unlock_all_skills') {
-          gameState.debugUnlockAllSkills();
-          SFX.playLevelUp();
-          this.showToast('Debug: All 20 Skills Unlocked!');
-        } else if (act === 'unlock_relics') {
-          gameState.debugUnlockAllRelics();
-          SFX.playLevelUp();
-          this.showToast('Debug: All Relic Rods & Bow Unlocked!');
-        } else if (act === 'spawn_item') {
-          const sel = this.modalLayer.querySelector<HTMLSelectElement>('#dbg-item-select');
-          const qtyEl = this.modalLayer.querySelector<HTMLInputElement>('#dbg-item-qty');
-          const itemId = sel?.value;
-          const qty = Math.max(1, Math.min(999, Number(qtyEl?.value ?? 1)));
-          if (itemId) {
-            gameState.addItem(itemId, qty);
-            SFX.playPickup();
-          }
-        } else {
-          this.callbacks.onDebugAction?.(act);
-        }
-      };
-    });
   }
 }

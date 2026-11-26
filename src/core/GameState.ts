@@ -3,6 +3,7 @@ import {
   getDeathRevivalFee,
   getReforgeCoinCost,
   getStokeCost,
+  getXpForLevel,
   scaledIslandCost,
 } from '../data/economy';
 import {
@@ -17,7 +18,7 @@ import { ISLANDS, STORY_CHAPTERS, getBiomeChapter, type DungeonId } from '../dat
 import { MONSTERS } from '../data/monsters';
 import { QUESTS, getQuestById, getQuestsForNpc, type QuestDef, type QuestObjective } from '../data/quests';
 import { RECIPES, type RecipeDef, type StructureType } from '../data/recipes';
-import { SKILLS } from '../data/skills';
+import { SKILLS, getSkillsForClass } from '../data/skills';
 import {
   cloneSettings,
   sanitizeSettings,
@@ -29,13 +30,14 @@ import {
 
 export type HeroClassId = 'Beastmaster' | 'Gladiator' | 'Sorcerer' | 'Swashbuckler';
 export type EquipmentSlotKey = 'weapon' | 'tool' | 'armor' | 'trinket1' | 'trinket2' | 'trinket3';
-export type MenuTabId = 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'progress' | 'settings';
+export type MenuTabId = 'inventory' | 'craft' | 'skills' | 'quests' | 'map' | 'bestiary' | 'progress' | 'settings';
 export const ALL_MENU_TABS: MenuTabId[] = [
   'inventory',
   'craft',
   'skills',
   'quests',
   'map',
+  'bestiary',
   'progress',
   'settings',
 ];
@@ -166,11 +168,27 @@ export interface SaveData {
   marketLastDecayDay?: number;
   spawnPoint?: { x: number; y: number; label: string } | null;
   dungeonSeeds?: Record<string, number>;
+  worldSeed?: number;
+  npcBrains?: Record<string, unknown>;
+  npcGiftedDay?: Record<string, number>;
+  npcClaimedSecrets?: string[];
+  npcKnownGifts?: Record<string, Record<string, 'loved' | 'liked' | 'disliked'>>;
+  merchantStockBought?: { day: number; counts: Record<string, number> };
   lootedOverworldChests?: string[];
   solvedDungeonPuzzles?: string[];
   openedDungeonChests?: string[];
   settings?: GameSettingsData;
   stats?: PlayerStatsData;
+  bestiary?: Record<string, BestiaryEntryRecord>;
+}
+
+export interface BestiaryEntryRecord {
+  encounters: number;
+  kills: number;
+  eliteEncounters: number;
+  eliteKills: number;
+  firstSeenAt: number;
+  isNew?: boolean;
 }
 
 export interface PlayerStatsData {
@@ -251,6 +269,7 @@ export class GameState {
   public activeQuests: Record<string, Record<string, number>> = {};
   public trackedQuestId: string | null = null;
   public stats: PlayerStatsData = createDefaultPlayerStats();
+  public bestiary: Record<string, BestiaryEntryRecord> = {};
 
   public bagSlots: Array<BagSlot | null> = Array.from({ length: BAG_SIZE }, () => null);
   public gearInstances: Record<string, GearInstance> = {};
@@ -296,6 +315,12 @@ export class GameState {
   public spawnPoint: { x: number; y: number; label: string } | null = null;
   public pendingToast: string | null = null;
   public dungeonSeeds: Record<string, number> = {};
+  public worldSeed: number;
+  public npcBrains: Record<string, unknown> = {};
+  public npcGiftedDay: Record<string, number> = {};
+  public npcClaimedSecrets: string[] = [];
+  public npcKnownGifts: Record<string, Record<string, 'loved' | 'liked' | 'disliked'>> = {};
+  public merchantStockBought: { day: number; counts: Record<string, number> } = { day: 1, counts: {} };
   public lootedOverworldChests = new Set<string>();
   public solvedDungeonPuzzles = new Set<string>();
   public openedDungeonChests = new Set<string>();
@@ -307,6 +332,8 @@ export class GameState {
 
   constructor() {
     this.dungeonSeeds = this.createInitialDungeonSeeds();
+    this.worldSeed = this.generateRandomSeed();
+    this.merchantStockBought = { day: 1, counts: {} };
   }
 
   private generateRandomSeed(): number {
@@ -368,6 +395,74 @@ export class GameState {
 
   public markDungeonChestOpened(dungeonId: DungeonId, floor: number, roomId: number): void {
     this.addPersistedKey(this.openedDungeonChests, this.getDungeonRoomKey(dungeonId, floor, roomId));
+  }
+
+  public hasGiftedNpcToday(npcId: string, dayNumber: number): boolean {
+    return this.npcGiftedDay[npcId] === Math.floor(dayNumber);
+  }
+
+  public markNpcGiftedToday(npcId: string, dayNumber: number): void {
+    this.npcGiftedDay[npcId] = Math.floor(dayNumber);
+    this.emit();
+  }
+
+  public hasClaimedNpcSecret(npcId: string): boolean {
+    return this.npcClaimedSecrets.includes(npcId);
+  }
+
+  public claimNpcSecret(npcId: string): void {
+    if (this.npcClaimedSecrets.includes(npcId)) return;
+    this.npcClaimedSecrets.push(npcId);
+    this.emit();
+  }
+
+  public recordNpcKnownGift(
+    npcId: string,
+    itemId: string,
+    reaction: 'loved' | 'liked' | 'disliked',
+  ): void {
+    if (!npcId || !itemId) return;
+    if (!this.npcKnownGifts[npcId]) {
+      this.npcKnownGifts[npcId] = {};
+    }
+    if (this.npcKnownGifts[npcId][itemId] === reaction) return;
+    this.npcKnownGifts[npcId][itemId] = reaction;
+    this.emit();
+  }
+
+  public getNpcKnownGifts(npcId: string): Record<string, 'loved' | 'liked' | 'disliked'> {
+    const entry = this.npcKnownGifts[npcId];
+    return entry ? { ...entry } : {};
+  }
+
+  public getMerchantPurchasedCount(merchantId: string, itemId: string, dayNumber: number): number {
+    const day = Number.isFinite(dayNumber) ? Math.floor(dayNumber) : 1;
+    if (!this.merchantStockBought || this.merchantStockBought.day !== day) {
+      return 0;
+    }
+    const key = `${merchantId}:${itemId}`;
+    const count = this.merchantStockBought.counts[key];
+    return typeof count === 'number' && Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
+  }
+
+  public recordMerchantPurchase(merchantId: string, itemId: string, qty: number, dayNumber: number): void {
+    const day = Number.isFinite(dayNumber) ? Math.floor(dayNumber) : 1;
+    const amount = Number.isFinite(qty) ? Math.floor(qty) : 0;
+    if (!merchantId || !itemId || amount <= 0) return;
+    if (!this.merchantStockBought || this.merchantStockBought.day !== day) {
+      this.merchantStockBought = { day, counts: {} };
+    }
+    const key = `${merchantId}:${itemId}`;
+    this.merchantStockBought.counts[key] = (this.merchantStockBought.counts[key] ?? 0) + amount;
+    this.emit();
+  }
+
+  public getNpcBrainsSnapshot(): Record<string, unknown> {
+    return this.npcBrains && typeof this.npcBrains === 'object' ? { ...this.npcBrains } : {};
+  }
+
+  public setNpcBrainsSnapshot(snapshot: Record<string, unknown>): void {
+    this.npcBrains = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) ? snapshot : {};
   }
 
   public get coins(): number {
@@ -506,7 +601,14 @@ export class GameState {
     this.spawnPoint = null;
     this.pendingToast = null;
     this.stats = createDefaultPlayerStats();
+    this.bestiary = {};
     this.dungeonSeeds = this.createInitialDungeonSeeds();
+    this.worldSeed = this.generateRandomSeed();
+    this.npcBrains = {};
+    this.npcGiftedDay = {};
+    this.npcClaimedSecrets = [];
+    this.npcKnownGifts = {};
+    this.merchantStockBought = { day: 1, counts: {} };
     this.lootedOverworldChests.clear();
     this.solvedDungeonPuzzles.clear();
     this.openedDungeonChests.clear();
@@ -855,7 +957,7 @@ export class GameState {
   }
 
   public getXpForNextLevel(): number {
-    return Math.round(400 + this.level * 200 + this.level * this.level * 7);
+    return getXpForLevel(this.level);
   }
 
   public triggerAlert(alertKey: string, buttonId = 'menu'): void {
@@ -1156,6 +1258,9 @@ export class GameState {
     this.consumeIngredients(recipe);
     if (recipe.outputItemId) {
       this.addItem(recipe.outputItemId, recipe.outputCount ?? 1);
+    }
+    if (recipe.station !== 'build' && !recipe.structureType) {
+      this.recordStat('itemsCrafted', 1);
     }
     this.recordQuestProgress('craft', recipeId, 1);
     this.addXp(8);
@@ -1598,11 +1703,14 @@ export class GameState {
 
   // --- Quest System ---
 
-  public getNextQuestForNpc(npcId: string): QuestDef | undefined {
+  public getNextQuestForNpc(npcId: string, currentHearts = 0): QuestDef | undefined {
     const chain = getQuestsForNpc(npcId);
     for (const q of chain) {
       if (this.completedQuests.has(q.id)) continue;
       if (q.prereqQuestId && !this.completedQuests.has(q.prereqQuestId)) continue;
+      if (q.minHearts !== undefined && currentHearts < q.minHearts && !this.isQuestActive(q.id)) {
+        continue;
+      }
       return q;
     }
     return undefined;
@@ -1695,6 +1803,54 @@ export class GameState {
     return def;
   }
 
+  public recordMonsterEncounter(
+    monsterId: string,
+    opts?: { isBoss?: boolean; isElite?: boolean },
+  ): { isFirstDiscovery: boolean } {
+    void opts?.isBoss;
+    const existing = this.bestiary[monsterId];
+    if (!existing) {
+      this.bestiary[monsterId] = {
+        encounters: 1,
+        kills: 0,
+        eliteEncounters: opts?.isElite ? 1 : 0,
+        eliteKills: 0,
+        firstSeenAt: Date.now(),
+        isNew: true,
+      };
+      this.emit();
+      return { isFirstDiscovery: true };
+    }
+    existing.encounters += 1;
+    if (opts?.isElite) {
+      existing.eliteEncounters += 1;
+    }
+    this.emit();
+    return { isFirstDiscovery: false };
+  }
+
+  public markBestiaryEntrySeen(monsterId: string): void {
+    const entry = this.bestiary[monsterId];
+    if (!entry || !entry.isNew) return;
+    entry.isNew = false;
+    this.emit();
+  }
+
+  public getBestiaryEntry(monsterId: string): BestiaryEntryRecord | undefined {
+    return this.bestiary[monsterId];
+  }
+
+  public getDiscoveredBestiaryIds(): string[] {
+    return Object.keys(this.bestiary).filter((id) => {
+      const rec = this.bestiary[id];
+      return Boolean(rec && (rec.encounters > 0 || rec.kills > 0));
+    });
+  }
+
+  public hasUnreadBestiaryEntries(): boolean {
+    return Object.values(this.bestiary).some((rec) => Boolean(rec?.isNew));
+  }
+
   public recordMonsterKill(
     monsterId: string,
     opts?: { isBoss?: boolean; isElite?: boolean },
@@ -1703,6 +1859,29 @@ export class GameState {
     this.stats.killsByMonster[monsterId] = (this.stats.killsByMonster[monsterId] ?? 0) + 1;
     if (opts?.isBoss) this.stats.bossesKilled += 1;
     if (opts?.isElite) this.stats.elitesKilled += 1;
+
+    const existing = this.bestiary[monsterId];
+    if (!existing) {
+      this.bestiary[monsterId] = {
+        encounters: 1,
+        kills: 1,
+        eliteEncounters: opts?.isElite ? 1 : 0,
+        eliteKills: opts?.isElite ? 1 : 0,
+        firstSeenAt: Date.now(),
+        isNew: true,
+      };
+    } else {
+      existing.kills += 1;
+      if (opts?.isElite) {
+        existing.eliteKills += 1;
+        if (existing.eliteEncounters < existing.eliteKills) {
+          existing.eliteEncounters = existing.eliteKills;
+        }
+      }
+      if (existing.encounters < existing.kills) {
+        existing.encounters = existing.kills;
+      }
+    }
   }
 
   public recordDamageDealt(amount: number): void {
@@ -1730,10 +1909,19 @@ export class GameState {
     const islandRatio = ISLANDS.length > 0 ? Math.min(1, this.ownedIslands.size / ISLANDS.length) : 0;
     const dungeonRatio = Math.min(1, this.clearedDungeons.size / 4);
     const finalBossRatio = this.finalBossDefeated ? 1 : 0;
-    const skillRatio = SKILLS.length > 0 ? Math.min(1, this.unlockedSkills.size / SKILLS.length) : 0;
+    const classSkills = getSkillsForClass(this.heroClass);
+    const skillRatio =
+      classSkills.length > 0
+        ? Math.min(1, classSkills.filter((s) => this.unlockedSkills.has(s.id)).length / classSkills.length)
+        : 0;
     const questRatio = QUESTS.length > 0 ? Math.min(1, this.completedQuests.size / QUESTS.length) : 0;
     const monsterKeys = Object.keys(MONSTERS);
-    const discoveredMonsters = monsterKeys.filter((id) => (this.stats.killsByMonster[id] ?? 0) > 0).length;
+    const discoveredMonsters = monsterKeys.filter(
+      (id) =>
+        (this.bestiary[id]?.encounters ?? 0) > 0 ||
+        (this.bestiary[id]?.kills ?? 0) > 0 ||
+        (this.stats.killsByMonster[id] ?? 0) > 0,
+    ).length;
     const bestiaryRatio = monsterKeys.length > 0 ? Math.min(1, discoveredMonsters / monsterKeys.length) : 0;
 
     const pct =
@@ -1843,6 +2031,17 @@ export class GameState {
       marketLastDecayDay: this.marketLastDecayDay,
       spawnPoint: this.spawnPoint,
       dungeonSeeds: { ...this.dungeonSeeds },
+      worldSeed: this.worldSeed,
+      npcBrains: this.npcBrains,
+      npcGiftedDay: { ...this.npcGiftedDay },
+      npcClaimedSecrets: [...this.npcClaimedSecrets],
+      npcKnownGifts: Object.fromEntries(
+        Object.entries(this.npcKnownGifts).map(([npcId, gifts]) => [npcId, { ...gifts }]),
+      ),
+      merchantStockBought: {
+        day: this.merchantStockBought.day,
+        counts: { ...this.merchantStockBought.counts },
+      },
       lootedOverworldChests: Array.from(this.lootedOverworldChests),
       solvedDungeonPuzzles: Array.from(this.solvedDungeonPuzzles),
       openedDungeonChests: Array.from(this.openedDungeonChests),
@@ -1851,6 +2050,9 @@ export class GameState {
         ...this.stats,
         killsByMonster: { ...this.stats.killsByMonster },
       },
+      bestiary: Object.fromEntries(
+        Object.entries(this.bestiary).map(([id, rec]) => [id, { ...rec }]),
+      ),
     };
     const key = this.getSlotKey(slot);
     const serialized = JSON.stringify(data);
@@ -2075,6 +2277,59 @@ export class GameState {
             playTimeMs: typeof s.playTimeMs === 'number' && Number.isFinite(s.playTimeMs) ? s.playTimeMs : 0,
           }
         : defStats;
+      const fallbackSeenAt =
+        typeof data.savedAt === 'number' && Number.isFinite(data.savedAt) ? data.savedAt : Date.now();
+      const nextBestiary: Record<string, BestiaryEntryRecord> = {};
+      if (data.bestiary && typeof data.bestiary === 'object' && !Array.isArray(data.bestiary)) {
+        for (const [monsterId, raw] of Object.entries(data.bestiary)) {
+          if (!raw || typeof raw !== 'object') continue;
+          const r = raw as Partial<BestiaryEntryRecord>;
+          const kills =
+            typeof r.kills === 'number' && Number.isFinite(r.kills) && r.kills >= 0
+              ? Math.floor(r.kills)
+              : 0;
+          const encounters =
+            typeof r.encounters === 'number' && Number.isFinite(r.encounters) && r.encounters >= 0
+              ? Math.max(Math.floor(r.encounters), kills)
+              : kills;
+          const eliteKills =
+            typeof r.eliteKills === 'number' && Number.isFinite(r.eliteKills) && r.eliteKills >= 0
+              ? Math.floor(r.eliteKills)
+              : 0;
+          const eliteEncounters =
+            typeof r.eliteEncounters === 'number' &&
+            Number.isFinite(r.eliteEncounters) &&
+            r.eliteEncounters >= 0
+              ? Math.max(Math.floor(r.eliteEncounters), eliteKills)
+              : eliteKills;
+          if (encounters <= 0 && kills <= 0) continue;
+          nextBestiary[monsterId] = {
+            encounters,
+            kills,
+            eliteEncounters,
+            eliteKills,
+            firstSeenAt:
+              typeof r.firstSeenAt === 'number' && Number.isFinite(r.firstSeenAt)
+                ? r.firstSeenAt
+                : fallbackSeenAt,
+            isNew: Boolean(r.isNew),
+          };
+        }
+      }
+      for (const [monsterId, rawKills] of Object.entries(this.stats.killsByMonster)) {
+        const kills = typeof rawKills === 'number' && Number.isFinite(rawKills) ? Math.floor(rawKills) : 0;
+        if (kills > 0 && !nextBestiary[monsterId]) {
+          nextBestiary[monsterId] = {
+            encounters: kills,
+            kills,
+            eliteEncounters: 0,
+            eliteKills: 0,
+            firstSeenAt: fallbackSeenAt,
+            isNew: false,
+          };
+        }
+      }
+      this.bestiary = nextBestiary;
       this.playerPos = data.playerPos;
       this.stokeCount =
         typeof data.stokeCount === 'number' && data.stokeCount >= 0 ? Math.floor(data.stokeCount) : 0;
@@ -2111,6 +2366,74 @@ export class GameState {
         }
       }
       this.dungeonSeeds = nextSeeds;
+      this.worldSeed =
+        typeof data.worldSeed === 'number' && Number.isFinite(data.worldSeed) && (data.worldSeed >>> 0) > 0
+          ? (data.worldSeed >>> 0)
+          : this.generateRandomSeed();
+      this.npcBrains =
+        data.npcBrains && typeof data.npcBrains === 'object' && !Array.isArray(data.npcBrains)
+          ? (data.npcBrains as Record<string, unknown>)
+          : {};
+      const nextGiftedDay: Record<string, number> = {};
+      if (data.npcGiftedDay && typeof data.npcGiftedDay === 'object' && !Array.isArray(data.npcGiftedDay)) {
+        for (const [npcId, day] of Object.entries(data.npcGiftedDay)) {
+          if (typeof day === 'number' && Number.isFinite(day)) {
+            nextGiftedDay[npcId] = Math.floor(day);
+          }
+        }
+      }
+      this.npcGiftedDay = nextGiftedDay;
+      this.npcClaimedSecrets = Array.isArray(data.npcClaimedSecrets)
+        ? Array.from(new Set(data.npcClaimedSecrets.filter((id): id is string => typeof id === 'string')))
+        : [];
+      const nextKnownGifts: Record<string, Record<string, 'loved' | 'liked' | 'disliked'>> = {};
+      if (
+        data.npcKnownGifts &&
+        typeof data.npcKnownGifts === 'object' &&
+        !Array.isArray(data.npcKnownGifts)
+      ) {
+        for (const [npcId, rawMap] of Object.entries(data.npcKnownGifts)) {
+          if (!rawMap || typeof rawMap !== 'object' || Array.isArray(rawMap)) continue;
+          const sanitized: Record<string, 'loved' | 'liked' | 'disliked'> = {};
+          for (const [itemId, reaction] of Object.entries(rawMap as Record<string, unknown>)) {
+            if (reaction === 'loved' || reaction === 'liked' || reaction === 'disliked') {
+              sanitized[itemId] = reaction;
+            }
+          }
+          if (Object.keys(sanitized).length > 0) {
+            nextKnownGifts[npcId] = sanitized;
+          }
+        }
+      }
+      this.npcKnownGifts = nextKnownGifts;
+      const rawStockBought = data.merchantStockBought;
+      if (
+        rawStockBought &&
+        typeof rawStockBought === 'object' &&
+        !Array.isArray(rawStockBought) &&
+        typeof rawStockBought.day === 'number' &&
+        Number.isFinite(rawStockBought.day) &&
+        rawStockBought.day >= 1
+      ) {
+        const counts: Record<string, number> = {};
+        if (
+          rawStockBought.counts &&
+          typeof rawStockBought.counts === 'object' &&
+          !Array.isArray(rawStockBought.counts)
+        ) {
+          for (const [k, v] of Object.entries(rawStockBought.counts)) {
+            if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
+              counts[k] = Math.floor(v);
+            }
+          }
+        }
+        this.merchantStockBought = {
+          day: Math.floor(rawStockBought.day),
+          counts,
+        };
+      } else {
+        this.merchantStockBought = { day: 1, counts: {} };
+      }
       this.lootedOverworldChests = new Set(
         Array.isArray(data.lootedOverworldChests) ? data.lootedOverworldChests : [],
       );

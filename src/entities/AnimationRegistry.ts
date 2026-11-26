@@ -137,7 +137,17 @@ export function registerAllAnimations(scene: Phaser.Scene): void {
   }
 
   // 3. NPCs
-  for (const npc of ['Farmer', 'Blacksmith', 'Alchemist', 'Fisherman']) {
+  for (const npc of [
+    'Farmer',
+    'Blacksmith',
+    'Alchemist',
+    'Fisherman',
+    'Kid01',
+    'Kid02',
+    'Barmaid',
+    'Bartender',
+    'Merchant',
+  ]) {
     const idleKey = `npcs/Medieval Townsfolk pack (bonus)/${npc}_idle`;
     if (scene.textures.exists(idleKey)) {
       registerDirectionalAnim(scene, `npc_${npc}_idle`, idleKey, 4, 4, 5, -1);

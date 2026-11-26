@@ -16,6 +16,7 @@ import {
 import { getBombSpec, isBombItem, type BombSpec } from '../world/bombRules';
 import { DIR_EAST, DIR_NORTH, DIR_SOUTH, DIR_WEST } from '../world/WfcRoomGraph';
 import { ITEMS } from '../data/items';
+import { COMBAT_XP_MULT, getVoidSpireXpMultiplier } from '../data/economy';
 import { ELITE_SPAWN_CHANCE, computeEliteStats, rollEliteDrops } from '../data/eliteLoot';
 import { DUNGEON_THEME_VISUALS } from '../data/dungeonTilesets';
 import { tryActivateGadget } from '../entities/GadgetHelper';
@@ -1820,7 +1821,12 @@ export class DungeonScene extends Phaser.Scene {
         }
         spawnFloatingText(this, enemy.x, enemy.y - 22, 'ELITE SLAIN!', '#ffd166', '9px');
       }
-      const xpGain = eliteStats ? eliteStats.xp : enemy.def.xp;
+      const baseXp = eliteStats ? eliteStats.xp : enemy.def.xp;
+      const xpMult =
+        this.cfg.id === 'void_spire'
+          ? getVoidSpireXpMultiplier(this.voidFloor)
+          : COMBAT_XP_MULT;
+      const xpGain = Math.round(baseXp * xpMult);
       spawnFloatingText(this, this.player.x, this.player.y - 18, `+${xpGain} XP`, '#7ef5ff', '8px', 'xp');
       gameState.addXp(xpGain);
 

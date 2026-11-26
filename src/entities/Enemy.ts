@@ -58,6 +58,7 @@ export class Enemy extends Phaser.GameObjects.Container {
   private detourSign: 1 | -1 = 1;
   private detourTimerMs = 0;
   private stuckFearState: StuckFearState;
+  private encounterRecorded = false;
 
   constructor(
     scene: Phaser.Scene,
@@ -166,6 +167,32 @@ export class Enemy extends Phaser.GameObjects.Container {
     return this.stuckFearState.stuckTimerMs;
   }
 
+  public recordEncounterIfNeeded(): void {
+    if (this.encounterRecorded) return;
+    this.encounterRecorded = true;
+    const { isFirstDiscovery } = gameState.recordMonsterEncounter(this.def.id, {
+      isBoss: this.def.isBoss,
+      isElite: this.isElite,
+    });
+    if (
+      isFirstDiscovery &&
+      typeof window !== 'undefined' &&
+      typeof window.dispatchEvent === 'function' &&
+      typeof CustomEvent === 'function'
+    ) {
+      window.dispatchEvent(
+        new CustomEvent('forage:bestiary-discovery', {
+          detail: {
+            monsterId: this.def.id,
+            name: this.def.name,
+            isBoss: Boolean(this.def.isBoss),
+            isElite: this.isElite,
+          },
+        }),
+      );
+    }
+  }
+
   private syncLevelColor(): void {
     const diff = this.def.level - gameState.getPowerLevel();
     const col = diff >= 4 ? '#ff5e6c' : diff >= 2 ? '#ff9b5a' : diff <= -2 ? '#8ef5a7' : '#ffe066';
@@ -207,6 +234,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     isWalkable: (nx: number, ny: number) => boolean,
   ): boolean {
     if (this.isDead) return false;
+    this.recordEncounterIfNeeded();
     this.hp = Math.max(0, this.hp - amount);
     this.hitStunMs = 150;
     this.hpBarBorder.setVisible(true);
@@ -264,6 +292,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     applySafeKnockback(this, knockX, knockY, this.def.isBoss ? 3 : 9, isWalkable, 4);
 
     if (this.hp <= 0) {
+      this.recordEncounterIfNeeded();
       this.isDead = true;
       this.playMonAnim('die', true);
       this.scene.tweens.add({
@@ -344,11 +373,13 @@ export class Enemy extends Phaser.GameObjects.Container {
         const ny = dist > 0.01 ? dy / dist : 1;
         this.facing = vectorToDirection(nx, ny, this.facing);
         if (this.pendingAttackType === 'ranged') {
+          this.recordEncounterIfNeeded();
           this.attackCooldownMs = this.def.isBoss ? 1400 : 1800;
           this.playMonAnim('attack', true);
           const proj = this.def.projectileKey ?? 'monster_projectiles/EnergyBall';
           actions.onFireProjectile(this.x, this.y - 4, nx * 110, ny * 110, this.effectiveDamage, proj);
         } else if (this.pendingAttackType === 'melee' && dist <= this.def.attackRange + 8) {
+          this.recordEncounterIfNeeded();
           this.attackCooldownMs = 1100;
           this.playMonAnim('attack', true);
           actions.onMeleeHitPlayer(this.effectiveDamage, nx, ny);
@@ -382,6 +413,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     if (dist <= effectiveAggro) {
       if (!this.hasAggroEmoted) {
         this.hasAggroEmoted = true;
+        this.recordEncounterIfNeeded();
         showWorldEmote(this.scene, this.x, this.y - (this.def.isBoss ? 34 : 20), 'portraits/Emote_alert', {
           durationMs: 850,
           scale: 0.65,
@@ -409,6 +441,7 @@ export class Enemy extends Phaser.GameObjects.Container {
 
       // Boss Special Abilities (with 380ms ground danger telegraph: outer ring + expanding fill + 100ms white flash)
       if (this.def.isBoss && this.specialCooldownMs <= 0) {
+        this.recordEncounterIfNeeded();
         this.specialCooldownMs = 4600;
         this.playMonAnim('special', true);
         const radius = 26;
