@@ -874,16 +874,13 @@ export class HudController {
   }
 
   private pulseCoinCounters(kind: 'earn' | 'spend'): void {
-    const cls = kind === 'earn' ? 'hud-coin-earn' : 'hud-coin-spend';
     const hudPlate = this.chromeLayer?.querySelector<HTMLElement>('#hud-coins-val')?.parentElement ?? null;
-    const modalCoins = this.modalLayer?.querySelector<HTMLElement>('#hud-modal-coins') ?? null;
-    for (const el of [hudPlate, modalCoins]) {
-      if (!el) continue;
-      el.classList.remove('hud-coin-earn', 'hud-coin-spend');
-      void el.offsetWidth;
-      el.classList.add(cls);
-      window.setTimeout(() => el.classList.remove(cls), 420);
-    }
+    if (!hudPlate) return;
+    const cls = kind === 'earn' ? 'hud-coin-earn' : 'hud-coin-spend';
+    hudPlate.classList.remove('hud-coin-earn', 'hud-coin-spend');
+    void hudPlate.offsetWidth;
+    hudPlate.classList.add(cls);
+    window.setTimeout(() => hudPlate.classList.remove(cls), 420);
   }
 
   private spawnGoldDeltaPop(
@@ -1786,6 +1783,7 @@ export class HudController {
       }
       .ledger-tab-strip {
         display: flex;
+        flex: 1;
         flex-wrap: nowrap;
         align-items: flex-end;
         gap: 4px;
@@ -1884,25 +1882,6 @@ export class HudController {
       }
       .modal-close-btn:active:not(:disabled) {
         background-image: url('assets/sprout_ui/buttons/ic_btn_close_pressed.png');
-      }
-      .modal-status-bar {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-family: 'SproutLandsUI', 'SproutLandsDisplay', monospace;
-        font-size: 14px;
-        font-weight: 700;
-        line-height: 1.1;
-        color: #fff6e5;
-        text-shadow: -1px -1px 0 #1b1109, 1px -1px 0 #1b1109, -1px 1px 0 #1b1109, 1px 1px 0 #1b1109;
-        background: rgba(36, 20, 12, 0.72);
-        border: 1px solid #1b1109;
-        box-shadow: inset 0 1px 0 rgba(255, 240, 200, 0.22);
-        padding: 3px 8px;
-        border-radius: 4px;
-        white-space: nowrap;
-        -webkit-font-smoothing: none;
-        font-smooth: never;
       }
       .map-you-badge {
         display: inline-flex;
@@ -2134,7 +2113,6 @@ export class HudController {
         .ledger-window { width: 100%; height: 100%; max-height: 100%; }
         .ledger-tabs { padding: 4px 40px 0 6px; gap: 4px; flex-wrap: nowrap; }
         .ledger-tab-btn { padding: 2px 6px 4px 6px; font-size: 11px; }
-        .modal-status-bar { font-size: 14px; gap: 6px; padding: 2px 7px; }
         .ledger-tabs .hud-btn { padding: 2px 6px; font-size: 11px; white-space: nowrap; }
         .ledger-body { -webkit-overflow-scrolling: touch; padding: 8px 10px; }
         .diablo-layout { grid-template-columns: minmax(260px, 1fr) minmax(310px, 1.15fr) minmax(260px, 1fr); gap: 10px; }
@@ -3059,8 +3037,6 @@ export class HudController {
     else if (this.activeModal === 'progress') bodyHtml = this.renderProgressTab();
     else if (this.activeModal === 'settings') bodyHtml = renderSettingsPanelHtml(this.capturingControllerAction);
 
-    const maxHp = gameState.getMaxHp();
-    const maxEn = gameState.getMaxEnergy();
     this.modalLayer.innerHTML = `
       <div class="modal-backdrop hud-interactive" data-action="close-backdrop">
         <div class="hud-panel-wood ledger-window ${justOpened ? 'modal-enter' : ''}" onclick="event.stopPropagation()">
@@ -3075,13 +3051,6 @@ export class HudController {
                 .join('')}
             </div>
             <div style="display:flex; align-items:center; gap:6px; padding-bottom:4px; flex-shrink:0;">
-              <span class="modal-status-bar">
-                <span style="color:#ffe066;">LV.${gameState.level} ${gameState.heroClass.toUpperCase()}</span>
-                <span>♥ ${Math.ceil(gameState.hp)}/${maxHp}</span>
-                <span>⚡ ${Math.ceil(gameState.energy)}/${maxEn}</span>
-                <span id="hud-modal-coins" style="color:#ffd95a; display:inline-flex; align-items:center; gap:3px;"><img src="assets/sprout_ui/vitals/coin_sm_1.png" class="px-icon" style="width:12px; height:12px;" />${formatCompactNumber(gameState.coins)}g</span>
-                ${gameState.skillPoints > 0 ? `<span style="color:#8ef5a7;">+${gameState.skillPoints} SP</span>` : ''}
-              </span>
               <button class="hud-btn tan" data-modal-action="save" style="padding:1px 7px; font-size:11px;"><img src="assets/hud_icons/save.png" class="px-icon" style="width:12px; height:12px;" />Save</button>
               <button class="sl-icon-btn" data-modal-action="music" title="Toggle Music" style="width:26px; height:26px; background-image:url('assets/sprout_ui/buttons/${SFX.musicEnabled ? 'ic_btn_music_double_normal' : 'ic_btn_music_off_pressed'}.png');"></button>
               <button class="sl-icon-btn" data-modal-action="mute" title="Toggle SFX" style="width:26px; height:26px; background-image:url('assets/sprout_ui/buttons/${SFX.muted ? 'ic_btn_sfx_off_pressed' : 'ic_btn_sfx_on_normal'}.png');"></button>
